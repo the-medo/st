@@ -14,3 +14,6 @@ CREATE TABLE IF NOT EXISTS panel(id INTEGER PRIMARY KEY CHECK(id=1), view TEXT N
 INSERT OR IGNORE INTO panel(id,view) VALUES(1,'home');
 INSERT OR IGNORE INTO views VALUES('home','{"kind":"dashboard","widgets":["calendar","tasks","notes"]}'),('clock','{"kind":"scene"}');
 CREATE TABLE IF NOT EXISTS operations(job TEXT, op_key TEXT, result TEXT NOT NULL, PRIMARY KEY(job,op_key));
+
+CREATE TABLE IF NOT EXISTS apps(name TEXT PRIMARY KEY, html TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS voice_answers(id TEXT PRIMARY KEY, device TEXT NOT NULL, prompt TEXT NOT NULL, job TEXT NOT NULL REFERENCES jobs(id));

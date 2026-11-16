@@ -1,28 +1,36 @@
 #!/usr/bin/env python3
 """Register a public key for one dedicated STapp SSH bridge."""
+
 import argparse
 import base64
 import fcntl
 import os
 from pathlib import Path
 
-p=argparse.ArgumentParser(description=__doc__)
-p.add_argument("device",choices=["pc","room"])
-p.add_argument("public_key",type=Path)
-args=p.parse_args()
-parts=args.public_key.read_text().strip().split()
-if len(parts)<2 or parts[0]!="ssh-ed25519":p.error("Expected an Ed25519 public key")
-base64.b64decode(parts[1],validate=True)
-binary=Path.home()/".local/lib/stapp/stctl"
-if not binary.exists():p.error("Install the host first")
-line=f'restrict,command="{binary} --device {args.device} bridge" {parts[0]} {parts[1]} stapp-{args.device}'
-ssh=Path.home()/".ssh";ssh.mkdir(mode=0o700,exist_ok=True)
-path=ssh/"authorized_keys"
-with os.fdopen(os.open(path,os.O_RDWR|os.O_CREAT,0o600),"r+") as keys:
-    fcntl.flock(keys,fcntl.LOCK_EX)
-    content=keys.read()
-    if line in content.splitlines():print("Device already paired")
-    elif any(parts[1] in row.split() for row in content.splitlines()):p.error("Use a dedicated device key")
+p = argparse.ArgumentParser(description=__doc__)
+p.add_argument("device", choices=["pc", "room"])
+p.add_argument("public_key", type=Path)
+args = p.parse_args()
+parts = args.public_key.read_text().strip().split()
+if len(parts) < 2 or parts[0] != "ssh-ed25519":
+    p.error("Expected an Ed25519 public key")
+base64.b64decode(parts[1], validate=True)
+binary = Path.home() / ".local/lib/stapp/stctl"
+if not binary.exists():
+    p.error("Install the host first")
+line = f'restrict,command="{binary} --device {args.device} bridge" {parts[0]} {parts[1]} stapp-{args.device}'
+ssh = Path.home() / ".ssh"
+ssh.mkdir(mode=0o700, exist_ok=True)
+path = ssh / "authorized_keys"
+with os.fdopen(os.open(path, os.O_RDWR | os.O_CREAT, 0o600), "r+") as keys:
+    fcntl.flock(keys, fcntl.LOCK_EX)
+    content = keys.read()
+    if line in content.splitlines():
+        print("Device already paired")
+    elif any(parts[1] in row.split() for row in content.splitlines()):
+        p.error("Use a dedicated device key")
     else:
-        keys.write(("" if not content or content.endswith("\n") else "\n")+line+"\n")
-        print("Paired",args.device)
+        keys.write(
+            ("" if not content or content.endswith("\n") else "\n") + line + "\n"
+        )
+        print("Paired", args.device)
