@@ -1,0 +1,10 @@
+[workspace]
+resolver = "2"
+members = ["crates/st-core", "apps/stappd", "apps/stctl", "apps/st-voice"]
+[workspace.dependencies]
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+clap = { version = "4", features = ["derive","env"] }
+st-core = { path = "crates/st-core" }
+uuid = { version = "1", features = ["v4"] }
