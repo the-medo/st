@@ -30,6 +30,7 @@ impl Store {
     pub fn open(data: &Path, root: PathBuf) -> Result<Self> {
         let db = Connection::open(data.join("stapp.sqlite"))?;
         db.execute_batch(include_str!("../migrations/001.sql"))?;
+        db.execute_batch(include_str!("../migrations/002.sql"))?;
         db.execute(
             "INSERT OR IGNORE INTO projects VALUES('assistant',?,'local')",
             [data.join("assistant").to_string_lossy().as_ref()],
@@ -183,11 +184,28 @@ impl Store {
         tx.commit()?;
         Ok(json!({"id":id,"device":device}))
     }
+    pub fn set_theme(&mut self, theme: &str) -> Result<()> {
+        ensure!(
+            matches!(theme, "alpenglow" | "canopy" | "dune" | "bluehour"),
+            "Unknown theme"
+        );
+        let tx = self.db.transaction()?;
+        let changed = tx.execute(
+            "UPDATE panel_appearance SET theme=?1 WHERE panel_id=1 AND theme<>?1",
+            [theme],
+        )?;
+        if changed > 0 {
+            tx.execute("UPDATE panel SET revision=revision+1 WHERE id=1", [])?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     pub fn snapshot(&self) -> Result<Value> {
-        let (view, revision, spec): (String, i64, String) = self.db.query_row(
-            "SELECT view,revision,spec FROM panel JOIN views ON name=view WHERE id=1",
+        let (view, revision, spec, theme): (String, i64, String, String) = self.db.query_row(
+            "SELECT view,revision,spec,theme FROM panel JOIN views ON name=view JOIN panel_appearance ON panel_id=panel.id WHERE panel.id=1",
             [],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
         )?;
         let records = rows(
             &self.db,
@@ -201,7 +219,7 @@ impl Store {
         )?;
         let last:Option<String>=self.db.query_row("SELECT body FROM events JOIN jobs ON job=jobs.id WHERE device='room' ORDER BY seq DESC LIMIT 1",[],|r|r.get(0)).optional()?;
         Ok(
-            json!({"view":view,"revision":revision,"spec":serde_json::from_str::<Value>(&spec)?,"records":records,"room_reply":last,"views":rows(&self.db,"SELECT name FROM views ORDER BY name",[],|r|r.get::<_,String>(0).map(Value::String))?}),
+            json!({"view":view,"revision":revision,"theme":theme,"spec":serde_json::from_str::<Value>(&spec)?,"records":records,"room_reply":last,"views":rows(&self.db,"SELECT name FROM views ORDER BY name",[],|r|r.get::<_,String>(0).map(Value::String))?}),
         )
     }
     fn tool(&mut self, device: &str, v: &Value) -> Result<Value> {

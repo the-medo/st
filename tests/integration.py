@@ -88,6 +88,39 @@ class Daemon(unittest.TestCase):
         with urllib.request.urlopen(request, timeout=3) as response:
             return response.read(), response.headers
 
+    def test_shared_theme_survives_restart(self):
+        def select(value, token="test-panel"):
+            request = urllib.request.Request(
+                self.url + "/api/display",
+                data=json.dumps(value).encode(),
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer " + token,
+                },
+            )
+            with urllib.request.urlopen(request) as response:
+                return json.load(response)
+
+        original = json.loads(self.http("/api/display", "test-panel")[0])
+        self.assertEqual(original["theme"], "alpenglow")
+        themed = select({"theme": "dune"})
+        self.assertEqual(themed["view"], original["view"])
+        self.assertEqual(themed["revision"], original["revision"] + 1)
+        self.assertEqual(select({"theme": "dune"})["revision"], themed["revision"])
+        self.assertEqual(select({"name": "clock"})["theme"], "dune")
+        for body, token, expected in [
+            ({"theme": "bogus"}, "test-panel", 400),
+            ({"theme": "canopy"}, "wrong", 401),
+        ]:
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                select(body, token)
+            self.assertEqual(error.exception.code, expected)
+            error.exception.close()
+        self.stop()
+        self.start()
+        state = json.loads(self.http("/api/display", "test-panel")[0])
+        self.assertEqual((state["theme"], state["view"]), ("dune", "clock"))
+
     def test_device_delivery_and_resume(self):
         pc = self.ask("pc", "private")
         room = self.ask("room", "living room")

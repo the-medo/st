@@ -90,13 +90,20 @@ async fn view(
     Json(v): Json<Value>,
 ) -> Result<Json<Value>, HttpError> {
     auth(&a, &h)?;
-    Ok(Json(
-        a.store
-            .lock()
-            .unwrap()
+    let mut store = a.store.lock().unwrap();
+    if v.get("theme").is_some() {
+        if v.get("name").is_some() {
+            return Err(err("Choose a theme or a view per request"));
+        }
+        store
+            .set_theme(field(&v, "theme").map_err(err)?)
+            .map_err(err)?;
+    } else {
+        store
             .call("room", &json!({"op":"tools","name":"show_view","args":v}))
-            .map_err(err)?,
-    ))
+            .map_err(err)?;
+    }
+    Ok(Json(store.snapshot().map_err(err)?))
 }
 async fn updates(State(a): State<App>, h: HeaderMap) -> Result<impl IntoResponse, HttpError> {
     use axum::response::sse::{Event, KeepAlive, Sse};
