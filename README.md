@@ -306,6 +306,7 @@ Same-origin, read-only HTTP endpoints:
 
 | Endpoint | Result |
 | --- | --- |
+| `GET /api/faceplate` | Latest read-only STapp panel capture and timestamp, or null while awaiting the panel |
 | `GET /api/health` | Collector readiness and sample freshness |
 | `GET /api/snapshot` | Projects, worktrees, processes, containers, Codex, host |
 | `GET /api/zed` | Published checkout groups with revisions and Zed URLs, plus links for monitor-only directories |

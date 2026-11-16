@@ -59,6 +59,7 @@ const views = {
   storage: "Storage",
   zed: "Zed",
   dbs: "DBs",
+  faceplate: "Faceplate",
 };
 
 function projectColor(id) {
@@ -460,6 +461,34 @@ function renderCodex() {
   $("codex-section").innerHTML =
     `<div class="codex-grid">${metric("Threads updated · 24h", c.available ? c.recent_threads : "—", "", `${c.thread_count} stored threads`)}${metric("Codex worktrees", c.managed_worktrees, "", "Existing Git checkouts")}${metric("Codex memory", (c.memory_bytes / 1024 ** 2).toFixed(0), "MiB", `${percent(c.cpu_percent)} CPU · ${plural(c.processes.length, "process")}`)}</div><article class="panel info-panel"><p>${e(c.status)} · refreshed every minute. Thread recency indicates metadata updates, not active agents. Conversation text and token costs are not collected.</p></article><div class="section-heading"><h2>Codex processes</h2></div><div class="panel">${processTable(c.processes)}</div>`;
 }
+let faceplateLoading = false;
+async function refreshFaceplate() {
+  if (state.view !== "faceplate" || document.hidden || faceplateLoading) return;
+  faceplateLoading = true;
+  const image = $("faceplate-image");
+  const status = $("faceplate-status");
+  try {
+    const response = await fetch("/api/faceplate", { cache: "no-store" });
+    if (!response.ok) throw new Error();
+    const frame = await response.json();
+    image.hidden = !frame;
+    if (!frame) {
+      image.removeAttribute("src");
+      status.textContent = "Waiting for the first capture from SCR-SM1.";
+      return;
+    }
+    const captured = new Date(frame.timestamp * 1000);
+    const stale = Date.now() - captured.getTime() > 10000;
+    image.src = frame.image;
+    status.textContent = (stale ? "Last known frame · " : "Live · ") + captured.toLocaleString();
+  } catch {
+    status.textContent = "Display connection unavailable. Any visible frame is the last capture.";
+  } finally {
+    faceplateLoading = false;
+  }
+}
+setInterval(refreshFaceplate, 2000);
+
 function setView() {
   const requested = location.hash.substring(1);
   state.view = views[requested] ? requested : "overview";
@@ -477,11 +506,13 @@ function setView() {
   $("codex-section").hidden = state.view !== "codex";
   $("storage-section").hidden = state.view !== "storage";
   $("zed-section").hidden = state.view !== "zed";
+  $("faceplate-section").hidden = state.view !== "faceplate";
+  if (state.view === "faceplate") refreshFaceplate();
   $("dbs-section").hidden = state.view !== "dbs";
-  $("dashboard").hidden = !state.snapshot && !["zed", "dbs"].includes(state.view);
+  $("dashboard").hidden = !state.snapshot && !["zed", "dbs", "faceplate"].includes(state.view);
   $("loading").hidden = !$("dashboard").hidden;
   $("host-section").hidden = state.view !== "overview";
-  $("metrics").hidden = ["codex", "zed", "dbs"].includes(state.view);
+  $("metrics").hidden = ["codex", "zed", "dbs", "faceplate"].includes(state.view);
   if (state.view === "storage" && state.snapshot) loadStorage();
 }
 function historySources() {
