@@ -132,17 +132,6 @@ def dispatch(method, params, call_id):
             raise ValueError("Assistant disconnected")
     elif name == "list_projects":
         res = rpc({"op": "projects"})
-    elif name == "start_project_task":
-        project = args["project"]
-        if args.get("create"):
-            rpc({"op": "create_project", "name": project})
-        key = uuid.uuid5(
-            uuid.NAMESPACE_URL,
-            os.environ["STAPP_JOB"] + ":" + project + ":" + args["text"],
-        )
-        res = rpc(
-            {"op": "ask", "id": str(key), "project": project, "text": args["text"]}
-        )
     else:
         res = rpc(
             {

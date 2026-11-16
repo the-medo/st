@@ -4,7 +4,6 @@ import argparse
 import json
 import os
 import queue
-import shutil
 import subprocess
 import sys
 import threading
@@ -124,6 +123,7 @@ def run(job):
         script = str(Path(__file__).with_name("mcp.py").resolve())
         setting("mcp_servers.stapp.command", json.dumps(sys.executable))
         setting("mcp_servers.stapp.required", "true")
+        setting("mcp_servers.stapp.tool_timeout_sec", "3600")
         setting("mcp_servers.stapp.default_tools_approval_mode", json.dumps("approve"))
         setting("mcp_servers.stapp.args", json.dumps([script]))
         for key, value in {

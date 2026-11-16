@@ -225,6 +225,45 @@ impl Store {
                 return Ok(serde_json::from_str(&cached)?);
             }
         }
+        if name == "start_project_task" {
+            let project = field(args, "project")?;
+            safe_name(project)?;
+            let prompt = field(args, "text")?;
+            ensure!(prompt.len() <= 32000, "Request too long");
+            let parent = field(v, "job")?;
+            let key = field(v, "key")?;
+            let create = args["create"].as_bool().unwrap_or(false);
+            let path = self.root.join(project);
+            if create {
+                ensure!(project != "assistant", "Reserved project");
+                tx.execute(
+                    "INSERT INTO projects VALUES(?,?,'local')",
+                    params![project, path.to_string_lossy()],
+                )?;
+                std::fs::create_dir_all(&self.root)?;
+                std::fs::create_dir(&path).context("Create new project folder")?;
+            }
+            let enqueue = || -> Result<Value> {
+                let id = Uuid::new_v4().to_string();
+                tx.execute(
+                    "INSERT INTO jobs(id,device,prompt,project,status) VALUES(?,?,?,?,'queued')",
+                    params![id, device, prompt, project],
+                )?;
+                event(&tx, &id, "accepted", "Got it.")?;
+                let reply = json!({"id":id,"project":project,"device":device});
+                tx.execute(
+                    "INSERT INTO operations VALUES(?,?,?)",
+                    params![parent, key, reply.to_string()],
+                )?;
+                tx.commit()?;
+                Ok(reply)
+            };
+            let result = enqueue();
+            if create && result.is_err() {
+                let _ = std::fs::remove_dir(path);
+            }
+            return result;
+        }
         let result = match name {
             "save_record" => {
                 let kind = field(args, "kind")?;

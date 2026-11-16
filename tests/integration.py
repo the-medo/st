@@ -204,6 +204,22 @@ class Daemon(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.event(job, "completed", "late")
 
+    def test_project_tool_retry(self):
+        parent = self.ask("pc", "create project")
+        job = rpc({"op": "claim_job"}, "owner")
+        dispatch = {
+            "op": "tools",
+            "name": "start_project_task",
+            "job": parent["id"],
+            "claim": job["claim"],
+            "key": "once",
+            "args": {"project": "demo", "create": True, "text": "work"},
+        }
+        result = rpc(dispatch, "pc")
+        self.assertEqual(result, rpc(dispatch, "pc"))
+        self.assertEqual(rpc({"op": "claim_job"}, "owner")["id"], result["id"])
+        self.assertIsNone(rpc({"op": "claim_job"}, "owner"))
+
     def test_mcp_handshake(self):
         messages = [
             {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},

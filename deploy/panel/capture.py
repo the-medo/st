@@ -1,7 +1,6 @@
 """Publish PNG frames from the dedicated faceplate output; run in its Wayland session."""
 
 import argparse
-import os
 import subprocess
 import time
 import urllib.request

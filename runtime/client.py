@@ -1,11 +1,9 @@
 """Supervise the native listener, handle device-specific deliveries, and expose Windows tray controls."""
 
-import json
 import os
 import subprocess
 import sys
 import threading
-import time
 import tempfile
 from pathlib import Path
 from transport import rpc, DeviceInbox
