@@ -1979,3 +1979,6 @@ dialog::backdrop {
     transition: none !important;
   }
 }
+
+#faceplate-image { display: block; max-width: 100%; height: auto; }
+#faceplate-image[hidden] { display: none; }

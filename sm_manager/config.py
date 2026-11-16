@@ -22,6 +22,7 @@ def load_config(path=None):
         "docker_socket": "/var/run/docker.sock",
         "zed_catalog_path": "~/zed-projects/projects.json",
         "db_catalog_path": "~/db-projects/connections.json",
+        "faceplate_frame_path": "~/.local/share/stapp/frame.json",
         "container_overrides": {},
     }
     config.update(custom)

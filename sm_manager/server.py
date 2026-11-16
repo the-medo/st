@@ -1,3 +1,4 @@
+import base64
 import json
 import logging
 import mimetypes
@@ -12,6 +13,30 @@ from .history import RETENTION_HOURS
 from .zed import read_catalog
 
 STATIC = Path(__file__).parent / "static"
+
+
+def read_faceplate_frame(path):
+    """Read STapp's latest atomically published capture, bounded to its upload limit."""
+    try:
+        with Path(path).expanduser().open("rb") as handle:
+            data = handle.read(3 * 1024 * 1024 + 1)
+    except FileNotFoundError:
+        return None
+    if len(data) > 3 * 1024 * 1024:
+        raise ValueError("Frame exceeds limit")
+    frame = json.loads(data)
+    if not isinstance(frame, dict) or frame.get("display") != "SCR-SM1":
+        raise ValueError("Unexpected display")
+    image = frame.get("image")
+    prefix = "data:image/png;base64,"
+    if not isinstance(image, str) or not image.startswith(prefix):
+        raise ValueError("Expected PNG")
+    if not base64.b64decode(image[len(prefix):], validate=True).startswith(b"\x89PNG\r\n\x1a\n"):
+        raise ValueError("Invalid PNG")
+    timestamp = frame.get("timestamp")
+    if type(timestamp) is not int or timestamp <= 0:
+        raise ValueError("Invalid capture time")
+    return {"display": "SCR-SM1", "timestamp": timestamp, "image": image}
 
 
 def handler_for(collector, config):
@@ -50,6 +75,11 @@ def handler_for(collector, config):
                 return self.respond(403, {"error": "Origin not allowed"})
             url = urlsplit(self.path)
             if url.path.startswith("/api/"):
+                if url.path == "/api/faceplate":
+                    try:
+                        return self.respond(200, read_faceplate_frame(config["faceplate_frame_path"]))
+                    except (OSError, ValueError, RecursionError):
+                        return self.respond(503, {"error": "Faceplate capture unavailable"})
                 if url.path == "/api/dbs":
                     try:
                         catalog = read_db_catalog(config["db_catalog_path"])
