@@ -43,6 +43,7 @@ TOOLS = [
         ["kind", "title"],
         kind=property_("string", enum=["task", "event", "note"]),
         title=S,
+        body=S,
         id=I,
         starts=S,
         zone=S,

@@ -121,6 +121,93 @@ class Daemon(unittest.TestCase):
         state = json.loads(self.http("/api/display", "test-panel")[0])
         self.assertEqual((state["theme"], state["view"]), ("dune", "clock"))
 
+    def edit(self, record_id, patch, token="test-panel"):
+        req = urllib.request.Request(
+            f"{self.url}/api/records/{record_id}",
+            data=json.dumps(patch).encode(),
+            headers={
+                "Authorization": "Bearer " + token,
+                "Content-Type": "application/json",
+            },
+        )
+        with urllib.request.urlopen(req) as response:
+            return json.load(response)
+
+    def test_record_edits_are_durable_and_reject_stale_writers(self):
+        task = self.tool(
+            "save_record",
+            kind="task",
+            title="Milk",
+            starts="2026-11-17T12:00",
+            zone="Europe/Budapest",
+        )["id"]
+        note = self.tool("save_record", kind="note", title="Ideas")["id"]
+        event = self.tool(
+            "save_record",
+            kind="event",
+            title="Coffee",
+            starts="2026-11-16T10:30",
+            zone="Europe/Budapest",
+        )["id"]
+
+        def row(state, id):
+            return next(r for r in state["records"] if r["id"] == id)
+
+        state = self.edit(task, {"version": 0, "done": True})
+        renamed = row(self.edit(task, {"version": 1, "title": "Oat milk"}), task)
+        self.assertEqual(
+            (renamed["done"], renamed["starts"], renamed["zone"]),
+            (True, "2026-11-17T12:00", "Europe/Budapest"),
+        )
+        self.assertEqual(
+            row(self.edit(task, {"version": 2, "done": False}), task)["done"], False
+        )
+        body = "One idea.\nAnother line. 🌙"
+        updated = self.edit(note, {"version": 0, "title": "Moon", "body": body})
+        self.assertGreater(updated["revision"], state["revision"])
+        self.tool("save_record", kind="note", id=note, title="Moonlight")
+        for id, patch, token, status in [
+            (note, {"version": 1, "title": "stale", "body": "lost"}, "test-panel", 409),
+            (task, {"version": 3, "title": "unauthorized"}, "wrong-token", 401),
+            (note, {"version": 2, "title": " ", "body": "invalid"}, "test-panel", 400),
+            (event, {"version": 0, "title": "different"}, "test-panel", 400),
+            (task, {"version": 3, "title": "task", "body": "no"}, "test-panel", 400),
+            (9999, {"version": 0, "done": True}, "test-panel", 404),
+        ]:
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                self.edit(id, patch, token)
+            self.assertEqual(error.exception.code, status)
+            error.exception.close()
+        self.stop()
+        self.start()
+        saved = row(json.loads(self.http("/api/display", "test-panel")[0]), note)
+        self.assertEqual(
+            (saved["title"], saved["body"], saved["version"]), ("Moonlight", body, 2)
+        )
+
+    def test_migrate_title_only_note(self):
+        self.stop()
+        path = self.data / "stapp.sqlite"
+        for suffix in ["", "-wal", "-shm"]:
+            Path(str(path) + suffix).unlink(missing_ok=True)
+        with sqlite3.connect(path) as db:
+            db.executescript((root / "apps/stappd/migrations/001.sql").read_text())
+            db.executescript((root / "apps/stappd/migrations/002.sql").read_text())
+            id = db.execute(
+                "INSERT INTO records(kind,title) VALUES('note','Original')"
+            ).lastrowid
+        self.start()
+        note = json.loads(self.http("/api/display", "test-panel")[0])["records"][0]
+        self.assertEqual(
+            (note["title"], note["body"], note["version"]), ("Original", "", 0)
+        )
+        self.assertEqual(
+            self.edit(id, {"version": 0, "title": "Original", "body": "New details"})[
+                "records"
+            ][0]["body"],
+            "New details",
+        )
+
     def test_device_delivery_and_resume(self):
         pc = self.ask("pc", "private")
         room = self.ask("room", "living room")

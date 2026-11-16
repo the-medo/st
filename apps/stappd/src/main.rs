@@ -6,7 +6,7 @@ use axum::{
     http::{header, HeaderMap, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use base64::{engine::general_purpose::STANDARD, Engine};
@@ -20,7 +20,7 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-use store::Store;
+use store::{EditResult, Store};
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     net::{UnixListener, UnixStream},
@@ -104,6 +104,20 @@ async fn view(
             .map_err(err)?;
     }
     Ok(Json(store.snapshot().map_err(err)?))
+}
+async fn edit_record(
+    State(a): State<App>,
+    h: HeaderMap,
+    Param(id): Param<i64>,
+    Json(patch): Json<Value>,
+) -> Result<Json<Value>, HttpError> {
+    auth(&a, &h)?;
+    let mut store = a.store.lock().unwrap();
+    match store.edit_record(id, &patch).map_err(err)? {
+        EditResult::Saved => Ok(Json(store.snapshot().map_err(err)?)),
+        EditResult::Missing => Err((StatusCode::NOT_FOUND, "Record no longer exists".into())),
+        EditResult::Conflict => Err((StatusCode::CONFLICT, "Record has changed".into())),
+    }
 }
 async fn updates(State(a): State<App>, h: HeaderMap) -> Result<impl IntoResponse, HttpError> {
     use axum::response::sse::{Event, KeepAlive, Sse};
@@ -301,6 +315,7 @@ async fn main() -> Result<()> {
             get(|| async { Json(json!({"status":"ok"})) }),
         )
         .route("/api/display", get(snapshot).post(view))
+        .route("/api/records/{id}", post(edit_record))
         .route("/api/events", get(updates))
         .route("/api/frame", get(frame).post(upload_frame))
         .route("/api/asset/{kind}/{name}", get(asset))

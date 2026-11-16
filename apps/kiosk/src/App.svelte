@@ -2,17 +2,12 @@
   import { onMount } from 'svelte';
   import Icon from './Icon.svelte';
   import Scene from './Scene.svelte';
+  import RecordWidgets from './RecordWidgets.svelte';
+  import type { Panel } from './calendar';
   import { themes, findTheme, type Theme } from './themes';
   import './faceplate.css';
 
-  type Entry = { id: number; kind: string; title: string; starts?: string; zone?: string; done: boolean };
-  type Panel = { view: string; revision: number; theme?: string; spec: { kind: string; widgets?: string[]; asset?: string }; records: Entry[]; room_reply?: string; views: string[] };
   type Menu = 'themes' | 'views' | 'reply';
-  const widgets = {
-    calendar: { label: 'Calendar', kind: 'event', empty: 'Nothing scheduled' },
-    tasks: { label: 'Tasks', kind: 'task', empty: 'No open tasks' },
-    notes: { label: 'Notes', kind: 'note', empty: 'No saved notes' },
-  } as const;
   const hm = new Intl.DateTimeFormat(undefined, {hour: '2-digit', minute: '2-digit', hourCycle: 'h23'});
   const date = new Intl.DateTimeFormat(undefined, {weekday: 'long', month: 'long', day: 'numeric'});
   const zone = new Intl.DateTimeFormat(undefined, {timeZoneName:'short'});
@@ -26,7 +21,6 @@
   let lastRevision = -1;
   let timezone = $derived(zone.formatToParts(now).find(part => part.type === 'timeZoneName')?.value || '');
   const viewLabel = (view: string) => view === 'home' ? 'Home' : view === 'clock' ? '3D clock' : view.replaceAll(/[-_]/g, ' ');
-  const isWidget = (id: string): id is keyof typeof widgets => Object.hasOwn(widgets, id);
 
   function cache(value: Panel) {
     try { localStorage.setItem(storageKey, JSON.stringify(value)); } catch {}
@@ -80,39 +74,28 @@
 
 <svelte:head><title>S.T. · Faceplate</title></svelte:head>
 <main class="shell" data-theme={theme.id}>
-  <div class="console">
-    <header class="masthead">
-      <div class="identity"><span class="logomark" aria-hidden="true"><i></i><i></i><i></i></span><span class="wordmark">S.T.</span><span class="divider"></span><span>Faceplate</span></div>
+  <div class="console" class:dash-layout={panel.spec.kind === 'dashboard'}>
+    {#snippet connection()}
       <span class="connection" class:online><i></i>{online ? 'Connected' : connected ? 'Reconnecting' : 'Offline'}</span>
-    </header>
-
+    {/snippet}
+    {#if panel.spec.kind !== 'dashboard'}
+      <header class="masthead">
+        <div class="identity"><span class="wordmark">S.T.</span><span class="divider"></span><span>Faceplate</span></div>
+        {@render connection()}
+      </header>
+    {/if}
     {#if panel.spec.kind === 'dashboard'}
       <section class="dashboard" aria-label={viewLabel(panel.view)}>
-        <div class="landscape" style:background-image={'url(' + theme.image + ')'}>
+        <header class="landscape" style:background-image={'url(' + theme.image + ')'}>
           <div class="clock-face">
-            <div class="time-label">Local time <span></span> <b>{timezone}</b></div>
             <time class="digits" datetime={now.toISOString()} aria-label={hm.format(now)}>
               {#each timeParts as part}<span class:separator={part.type === 'literal'}>{part.value}</span>{/each}
             </time>
-            <div class="date-line">{date.format(now)}</div>
+            <div class="date-block"><div class="date-line">{date.format(now)}</div><span class="time-label">{timezone}</span></div>
           </div>
-        </div>
-        <section class="widgets" aria-label="Dashboard widgets">
-          {#each panel.spec.widgets || [] as id}
-            {#if isWidget(id)}
-              {@const widget = widgets[id]}
-              {@const entries = panel.records.filter(entry => entry.kind === widget.kind && !entry.done)}
-              <article class="widget">
-                <div class="widget-title"><span class="widget-icon"><Icon name={id} size={20}/></span><h2>{widget.label}</h2></div>
-                {#if entries.length}
-                  <ul>{#each entries as entry (entry.id)}<li>{#if entry.starts}<small>{entry.starts} {entry.zone || ''}</small>{/if}{entry.title}</li>{/each}</ul>
-                {:else}<p>{widget.empty}</p>{/if}
-              </article>
-            {:else if id === 'clock'}
-              <article class="widget"><div class="widget-title"><span class="widget-icon"><Icon name="clock"/></span><h2>Clock</h2></div><p>{hm.format(now)}</p></article>
-            {/if}
-          {/each}
-        </section>
+          {@render connection()}
+        </header>
+        <RecordWidgets ids={panel.spec.widgets || []} records={panel.records} clock={hm.format(now)} {online} onSaved={apply}/>
       </section>
     {:else if panel.spec.kind === 'scene'}
       <section class="stage" aria-label="3D clock"><Scene {theme}/></section>

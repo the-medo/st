@@ -8,6 +8,8 @@ Say “Hey S.T., add oatmeal to Rohlík” at the Windows desk or in the living 
 
 Open the private faceplate URL printed by the installer. Choose **Views → 3D clock** to rotate the clock, then **Home** to restore the dashboard. Tap the landscape swatch in the lower right to choose Alpenglow, Canopy, Dune, or Blue Hour. STapp remembers the theme and updates connected faceplates, including the 3D dial. While offline, the panel can preview any installed theme and returns to the shared selection when it reconnects. The browser controls the actual selected view. SM Manager’s **Faceplate** tab is a read-only view of frames sent by the physical panel host. It shows a waiting message until that host publishes its first frame.
 
+On Home, the calendar groups events by date and shows times in the event’s saved time zone. Tap a task’s checkbox to complete or reopen it, or tap its title to rename it. Tap a note to read it, then choose **Edit note** to change its title or text. Saved changes appear on other connected faceplates. You can read cached notes offline and save edits when connected.
+
 ```sh
 ~/.local/bin/stctl projects
 ~/.local/bin/stctl ask --project stapp "Summarize this repository in one sentence."

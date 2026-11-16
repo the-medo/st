@@ -1,6 +1,7 @@
 """Serve the installed shell locally and authenticate requests to a single private STapp."""
 
 import json
+import re
 import shutil
 import urllib.error
 import urllib.request
@@ -39,22 +40,33 @@ class Panel(SimpleHTTPRequestHandler):
         else:
             super().do_GET()
 
+    def record_path(self):
+        return re.fullmatch(r"/api/records/[1-9][0-9]*", self.path) is not None
+
     def do_POST(self):
-        if not self.allowed() or self.path != "/api/display":
+        if not self.allowed() or not (
+            self.path == "/api/display" or self.record_path()
+        ):
             self.send_error(403)
             return
         self.proxy()
 
     def proxy(self):
-        if self.path not in (
-            "/api/display",
-            "/api/events",
-        ) and not self.path.startswith("/api/asset/"):
+        if (
+            self.path
+            not in (
+                "/api/display",
+                "/api/events",
+            )
+            and not self.path.startswith("/api/asset/")
+            and not (self.command == "POST" and self.record_path())
+        ):
             self.send_error(404)
             return
         try:
             size = int(self.headers.get("Content-Length", "0"))
-            if not 0 <= size <= 2048:
+            limit = 256 * 1024 if self.record_path() else 2048
+            if not 0 <= size <= limit:
                 self.send_error(413)
                 return
             body = self.rfile.read(size) if self.command == "POST" else None

@@ -5,6 +5,12 @@ use st_core::{field, safe_name};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
+pub enum EditResult {
+    Saved,
+    Missing,
+    Conflict,
+}
+
 pub struct Store {
     pub db: Connection,
     pub root: PathBuf,
@@ -28,9 +34,14 @@ where
 }
 impl Store {
     pub fn open(data: &Path, root: PathBuf) -> Result<Self> {
-        let db = Connection::open(data.join("stapp.sqlite"))?;
+        let mut db = Connection::open(data.join("stapp.sqlite"))?;
         db.execute_batch(include_str!("../migrations/001.sql"))?;
         db.execute_batch(include_str!("../migrations/002.sql"))?;
+        let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        if tx.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))? < 3 {
+            tx.execute_batch(include_str!("../migrations/003.sql"))?;
+        }
+        tx.commit()?;
         db.execute(
             "INSERT OR IGNORE INTO projects VALUES('assistant',?,'local')",
             [data.join("assistant").to_string_lossy().as_ref()],
@@ -201,6 +212,58 @@ impl Store {
         Ok(())
     }
 
+    pub fn edit_record(&mut self, id: i64, patch: &Value) -> Result<EditResult> {
+        let version = patch["version"]
+            .as_i64()
+            .context("Missing record version")?;
+        let tx = self.db.transaction()?;
+        let record = tx
+            .query_row("SELECT kind, version FROM records WHERE id=?", [id], |r| {
+                Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?))
+            })
+            .optional()?;
+        let Some((kind, current)) = record else {
+            return Ok(EditResult::Missing);
+        };
+        ensure!(
+            matches!(kind.as_str(), "task" | "note"),
+            "Only tasks and notes can be edited here"
+        );
+        if version != current {
+            return Ok(EditResult::Conflict);
+        }
+        let fields = patch.as_object().context("Expected an edit")?;
+        if let Some(done) = patch.get("done") {
+            ensure!(
+                kind == "task" && fields.len() == 2,
+                "Expected task completion only"
+            );
+            tx.execute(
+                "UPDATE records SET done=? WHERE id=?",
+                params![done.as_bool().context("Expected a checkbox value")?, id],
+            )?;
+        } else {
+            let title = field(patch, "title")?.trim();
+            ensure!(title.len() <= 4000, "Title is too long");
+            if let Some(body) = patch.get("body") {
+                let body = body.as_str().context("Expected note text")?;
+                ensure!(
+                    kind == "note" && fields.len() == 3 && body.len() <= 32_000,
+                    "Invalid note body"
+                );
+                tx.execute(
+                    "UPDATE records SET title=?, body=? WHERE id=?",
+                    params![title, body, id],
+                )?;
+            } else {
+                ensure!(fields.len() == 2, "Unexpected edit fields");
+                tx.execute("UPDATE records SET title=? WHERE id=?", params![title, id])?;
+            }
+        }
+        tx.commit()?;
+        Ok(EditResult::Saved)
+    }
+
     pub fn snapshot(&self) -> Result<Value> {
         let (view, revision, spec, theme): (String, i64, String, String) = self.db.query_row(
             "SELECT view,revision,spec,theme FROM panel JOIN views ON name=view JOIN panel_appearance ON panel_id=panel.id WHERE panel.id=1",
@@ -209,11 +272,11 @@ impl Store {
         )?;
         let records = rows(
             &self.db,
-            "SELECT id,kind,title,starts,zone,done FROM records ORDER BY id DESC LIMIT 200",
+            "SELECT id,kind,title,starts,zone,done,body,version FROM records ORDER BY id DESC LIMIT 200",
             [],
             |r| {
                 Ok(
-                    json!({"id":r.get::<_,i64>(0)?,"kind":r.get::<_,String>(1)?,"title":r.get::<_,String>(2)?,"starts":r.get::<_,Option<String>>(3)?,"zone":r.get::<_,Option<String>>(4)?,"done":r.get::<_,bool>(5)?}),
+                    json!({"id":r.get::<_,i64>(0)?,"kind":r.get::<_,String>(1)?,"title":r.get::<_,String>(2)?,"starts":r.get::<_,Option<String>>(3)?,"zone":r.get::<_,Option<String>>(4)?,"done":r.get::<_,bool>(5)?,"body":r.get::<_,String>(6)?,"version":r.get::<_,i64>(7)?}),
                 )
             },
         )?;
@@ -290,6 +353,14 @@ impl Store {
                     ["task", "event", "note"].contains(&kind) && title.len() <= 4000,
                     "Invalid record"
                 );
+                let body = args
+                    .get("body")
+                    .map(|v| v.as_str().context("Expected note text"))
+                    .transpose()?;
+                ensure!(
+                    body.is_none_or(|body| kind == "note" && body.len() <= 32_000),
+                    "Invalid note body"
+                );
                 let starts = args["starts"].as_str();
                 let zone = args["zone"].as_str();
                 if kind == "event" {
@@ -297,17 +368,18 @@ impl Store {
                     field(args, "zone")?;
                 }
                 let id = if let Some(id) = args["id"].as_i64() {
-                    ensure!(tx.execute("UPDATE records SET title=?,starts=?,zone=?,done=? WHERE id=? AND kind=?",params![title,starts,zone,args["done"].as_bool().unwrap_or(false),id,kind])?==1,"Unknown record");
+                    ensure!(tx.execute("UPDATE records SET title=?,starts=?,zone=?,done=coalesce(?,done),body=coalesce(?,body) WHERE id=? AND kind=?",params![title,starts,zone,args["done"].as_bool(),body,id,kind])?==1,"Unknown record");
                     id
                 } else {
                     tx.execute(
-                        "INSERT INTO records(kind,title,starts,zone,done) VALUES(?,?,?,?,?)",
+                        "INSERT INTO records(kind,title,starts,zone,done,body) VALUES(?,?,?,?,?,?)",
                         params![
                             kind,
                             title,
                             starts,
                             zone,
-                            args["done"].as_bool().unwrap_or(false)
+                            args["done"].as_bool().unwrap_or(false),
+                            body.unwrap_or("")
                         ],
                     )?;
                     tx.last_insert_rowid()
