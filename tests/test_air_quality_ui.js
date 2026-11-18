@@ -105,6 +105,28 @@ test('humidity uses percentage points and unbounded measurements stay neutral', 
     assert.equal(context.airPointStatus(key, null).label, 'Unavailable');
   }
 });
+test('inspection percentages show the ratio to the reference, not the percentage excess', () => {
+  const { context, $ } = setup();
+  const d = data();
+  d.points[0].pm25 = 60;
+  seed(context, d);
+  context.renderAirQuality();
+  context.inspectAirPoint('air', 0);
+  assert.match($('air-reading-air').innerHTML, /air-reading-percentage" data-tone="high"[^>]*><strong>400%<\/strong> of reference/);
+  const percentage = (key, mean, peak) => context.airReadingPercentage(context.airPointStatus(key, mean, peak));
+  assert.match(percentage('pm25', 15), /data-tone="good"[^>]*><strong>100%/);
+  assert.match(percentage('pm25', 7.5), /data-tone="good"[^>]*><strong>50%/);
+  assert.match(percentage('pm25', 0), /<strong>0%/);
+  assert.match(percentage('pm25', 10, 60), /<strong>400%<\/strong> of reference \(peak\)/);
+  assert.match(percentage('co2', 1800), /Mean ÷ 1,500 ppm ventilation ref × 100.*<strong>120%/);
+  assert.match(percentage('voc', 300), /<strong>200%/);
+  assert.match(percentage('humidity', 25), /data-tone="watch".*30% ideal minimum.*<strong>83.3%/);
+  assert.match(percentage('humidity', 45), /60% ceiling.*<strong>75%/);
+  assert.match(percentage('pm25', 15.001), /data-tone="high"[^>]*><strong>>100%/);
+  for (const [key, mean] of [['pm1', 5], ['temperature', 28], ['pm25', null], ['voc', 0]]) {
+    assert.equal(percentage(key, mean), '');
+  }
+});
 test('inspection renders statuses for each series and keeps historical comparisons during stale periods', () => {
   const { context, $ } = setup();
   const d = data();

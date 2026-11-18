@@ -82,7 +82,9 @@ are available in the collapsed chart guide. Charts show
 bucket means and peaks across 1h–30d; hover/touch or arrow keys inspect all
 series in a section. Clicking a card focuses its section’s chart.
 Inspection shows compact green OK or orange Warning labels, the applicable
-reference, and any excess in the measurement's units. Higher peaks take priority
+reference, and any excess in the measurement's units below each measurement.
+A third row shows the reading as a percentage of that same reference (60 against
+15 is 400%); percentages above 100% are bold red. Higher peaks take priority
 and are explicitly labeled. Particle comparisons name the WHO 24-hour reference;
 they do not assess daily exposure from a bucket. Humidity uses EPA's below-60%
 ceiling and 30% ideal minimum, with differences in percentage points. Temperature

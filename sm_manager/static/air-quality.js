@@ -76,7 +76,8 @@ function airPointStatus(key, mean, peak) {
     const detail = warning
       ? `${prefix}${value > limit ? `+${difference(value - limit)} ${unit} above` : "At"} ${reference}`
       : `${inclusive ? "<" : "≤"}${reference}`;
-    return { tone: warning ? "watch" : "good", label: warning ? "Warning" : "OK", detail };
+    return { tone: warning ? "watch" : "good", label: warning ? "Warning" : "OK", detail,
+      comparison: { value, limit, reference, peak: hasPeak } };
   }
   if (key === "co2") {
     return value > metric.refs[1] ? upper(metric.refs[1], "1,500 ppm ventilation ref")
@@ -90,10 +91,23 @@ function airPointStatus(key, mean, peak) {
   if (key === "voc" || key === "nox") return upper(metric.refs[0], `${metric.refs[0]} index band`, true);
   if (key === "humidity") {
     if (value >= 60) return upper(60, "60% ceiling", true, "pp");
-    if (mean < 30) return { tone: "watch", label: "Warning", detail: `${difference(30 - mean)} pp below 30% ideal minimum` };
-    return { tone: "good", label: "OK", detail: "<60% ceiling" };
+    if (mean < 30) return { tone: "watch", label: "Warning", detail: `${difference(30 - mean)} pp below 30% ideal minimum`,
+      comparison: { value: mean, limit: 30, reference: "30% ideal minimum", peak: false } };
+    return upper(60, "60% ceiling", true, "pp");
   }
   return { tone: "neutral", label: key === "temperature" ? "Context only" : "No guideline", detail: "" };
+}
+function airReadingPercentage(status) {
+  if (!status.comparison) return "";
+  const { value, limit, reference, peak } = status.comparison;
+  const percentage = value / limit * 100;
+  const rounded = Math.round(percentage * 10) / 10;
+  // Do not round an exceedance down to an apparently exact 100%.
+  const label = rounded === 100 && percentage !== 100 ? `${percentage > 100 ? ">" : "<"}100`
+    : percentage > 0 && rounded === 0 ? "<0.1"
+    : percentage.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  const tone = percentage > 100 ? "high" : status.tone;
+  return `<span class="air-reading-percentage" data-tone="${tone}" title="${e(`${peak ? "Peak" : "Mean"} ÷ ${reference} × 100`)}"><strong>${e(label)}%</strong> of reference${peak ? " (peak)" : ""}</span>`;
 }
 function airLevel(key, value, data) {
   if (!Number.isFinite(value)) return ["neutral", "Unavailable"];
@@ -259,7 +273,7 @@ function inspectAirPoint(group, index) {
   $("air-reading-" + group).innerHTML = `<div class="air-reading-time">${e(new Date(point.timestamp * 1000).toLocaleString())} · ${Math.round(bucket / 60)} min bucket</div>` + airGroups[group].metrics.map(key => {
     const metric = airMetrics[key];
     const status = airPointStatus(key, point[key], point[`${key}_peak`]);
-    return `<span class="air-series-reading" data-air-reading="${key}" style="--series-color:${metric.color}"><span class="air-reading-value"><i class="air-swatch" aria-hidden="true"></i>${metric.label} <strong>${airNumber(point[key], key)} ${e(metric.unit)}</strong><small>peak ${airNumber(point[`${key}_peak`], key)}</small></span><span class="air-reading-status" data-tone="${status.tone}" title="${e(metric.note)}"><b>${e(status.label)}</b>${status.detail ? `<span>${e(status.detail)}</span>` : ""}</span></span>`;
+    return `<span class="air-series-reading" data-air-reading="${key}" style="--series-color:${metric.color}"><span class="air-reading-value"><i class="air-swatch" aria-hidden="true"></i>${metric.label} <strong>${airNumber(point[key], key)} ${e(metric.unit)}</strong><small>peak ${airNumber(point[`${key}_peak`], key)}</small></span><span class="air-reading-status" data-tone="${status.tone}" title="${e(metric.note)}"><b>${e(status.label)}</b>${status.detail ? `<span>${e(status.detail)}</span>` : ""}</span>${airReadingPercentage(status)}</span>`;
   }).join("");
   const cursor = $("air-cursor-" + group);
   cursor.setAttribute("x1", chart.x(point.timestamp));
