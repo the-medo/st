@@ -60,6 +60,7 @@ const views = {
   zed: "Zed",
   dbs: "DBs",
   faceplate: "Faceplate",
+  "air-quality": "Air quality",
 };
 
 function projectColor(id) {
@@ -508,11 +509,13 @@ function setView() {
   $("zed-section").hidden = state.view !== "zed";
   $("faceplate-section").hidden = state.view !== "faceplate";
   if (state.view === "faceplate") refreshFaceplate();
+  $("air-quality-section").hidden = state.view !== "air-quality";
+  if (state.view === "air-quality") refreshAirQuality();
   $("dbs-section").hidden = state.view !== "dbs";
-  $("dashboard").hidden = !state.snapshot && !["zed", "dbs", "faceplate"].includes(state.view);
+  $("dashboard").hidden = !state.snapshot && !["zed", "dbs", "faceplate", "air-quality"].includes(state.view);
   $("loading").hidden = !$("dashboard").hidden;
   $("host-section").hidden = state.view !== "overview";
-  $("metrics").hidden = ["codex", "zed", "dbs", "faceplate"].includes(state.view);
+  $("metrics").hidden = ["codex", "zed", "dbs", "faceplate", "air-quality"].includes(state.view);
   if (state.view === "storage" && state.snapshot) loadStorage();
 }
 function historySources() {
@@ -1157,6 +1160,7 @@ new ResizeObserver(() => {
   if (!$("overview-content").hidden) renderChart();
 }).observe($("chart"));
 setInterval(updateConnection, 5000);
+initAirQuality();
 setView();
 pollCatalog(refreshZed);
 pollCatalog(refreshDbs);

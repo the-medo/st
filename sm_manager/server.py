@@ -8,6 +8,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from .collector import Collector, cleanup_plan
+from .air_quality import AirQuality
 from .dbs import read_db_catalog
 from .history import RETENTION_HOURS
 from .zed import read_catalog
@@ -39,7 +40,7 @@ def read_faceplate_frame(path):
     return {"display": "SCR-SM1", "timestamp": timestamp, "image": image}
 
 
-def handler_for(collector, config):
+def handler_for(collector, config, air_quality=None):
     class Handler(BaseHTTPRequestHandler):
         server_version = "SMManager"
 
@@ -75,6 +76,14 @@ def handler_for(collector, config):
                 return self.respond(403, {"error": "Origin not allowed"})
             url = urlsplit(self.path)
             if url.path.startswith("/api/"):
+                if url.path == "/api/air-quality":
+                    if air_quality is None:
+                        return self.respond(503, {"error": "Air quality collector unavailable"})
+                    try:
+                        hours = float(parse_qs(url.query).get("hours", ["24"])[0])
+                        return self.respond(200, air_quality.query(hours))
+                    except ValueError:
+                        return self.respond(400, {"error": f"Use hours=0.25..{RETENTION_HOURS}"})
                 if url.path == "/api/faceplate":
                     try:
                         return self.respond(200, read_faceplate_frame(config["faceplate_frame_path"]))
@@ -145,7 +154,7 @@ def handler_for(collector, config):
             name = {"/": "index.html", "/app.js": "app.js", "/style.css": "style.css",
                     "/favicon.svg": "favicon.svg", "/zed.svg": "zed.svg", "/db.svg": "db.svg",
                     "/prusa-connect.svg": "prusa-connect.svg",
-                    "/dbs.js": "dbs.js"}.get(url.path)
+                    "/dbs.js": "dbs.js", "/air-quality.js": "air-quality.js"}.get(url.path)
             if not name:
                 return self.respond(404, {"error": "Not found"})
             mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
@@ -156,7 +165,10 @@ def handler_for(collector, config):
 
 def serve(config):
     collector = Collector(config)
-    server = ThreadingHTTPServer(("127.0.0.1", config["port"]), handler_for(collector, config))
+    air_quality = AirQuality(config)
+    server = ThreadingHTTPServer(("127.0.0.1", config["port"]), handler_for(collector, config, air_quality))
+    air_thread = threading.Thread(target=air_quality.run, name="air-quality", daemon=True)
+    air_thread.start()
     thread = threading.Thread(target=collector.run, name="collector", daemon=True)
     thread.start()
     logging.info("SM Manager listening at http://127.0.0.1:%s", config["port"])
@@ -166,6 +178,10 @@ def serve(config):
         pass
     finally:
         server.server_close()
+        air_quality.stop_event.set()
+        air_thread.join(timeout=15)
+        if not air_thread.is_alive():
+            air_quality.close()
         collector.stop_event.set()
         thread.join(timeout=30)
         if not thread.is_alive():

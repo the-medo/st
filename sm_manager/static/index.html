@@ -9,6 +9,7 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/style.css" />
     <script src="/dbs.js" defer></script>
+    <script src="/air-quality.js" defer></script>
     <script src="/app.js" defer></script>
   </head>
   <body>
@@ -53,6 +54,10 @@
             ><img class="nav-icon" src="/prusa-connect.svg" alt="" width="17" height="17" /> Prusa Connect
             <span class="nav-external" aria-hidden="true">↗</span></a
           >
+          <div class="device-nav-row">
+            <a href="#air-quality" data-view="air-quality" class="nav-link" title="Air quality"><span class="nav-icon" aria-hidden="true">≋</span> Air quality</a>
+            <a id="air-nav-source" class="device-source" target="_blank" rel="noopener noreferrer" aria-label="Open M5Stack AirQ page (new tab)" title="M5Stack AirQ (opens in a new tab)" hidden>↗</a>
+          </div>
         </nav>
         <div class="machine">
           <span class="status-dot"></span>
@@ -226,6 +231,54 @@
           <h2>Faceplate</h2>
           <p id="faceplate-status" class="section-note" role="status">Waiting for SCR-SM1.</p>
           <img id="faceplate-image" alt="Most recent frame from the front touchscreen" hidden>
+        </section>
+        <section id="air-quality-section" aria-label="Air quality dashboard" hidden>
+          <div class="air-heading">
+            <div><h2>Air quality</h2><p>M5Stack Air Quality Kit · SEN55 + SCD40</p></div>
+            <div class="air-links">
+              <a id="air-source" class="button" target="_blank" rel="noopener noreferrer" hidden>M5Stack ↗</a>
+              <a id="air-raw" class="button" target="_blank" rel="noopener noreferrer" hidden>Raw data ↗</a>
+              <a class="button" href="https://rpishop.cz/628854/m5stack-sada-mereni-kvality-vzduchu-m5stamps3a/" target="_blank" rel="noopener noreferrer">RPiShop ↗</a>
+            </div>
+          </div>
+          <div id="air-status" class="air-status" role="status">Loading sensor readings…</div>
+          <div id="air-cards" class="air-cards"></div>
+          <article class="panel air-history">
+            <div class="panel-heading">
+              <h2>Sensor history</h2>
+              <div id="air-range" class="segmented" aria-label="Air quality history range">
+                <button data-air-hours="1" aria-pressed="false">1h</button>
+                <button data-air-hours="6" aria-pressed="false">6h</button>
+                <button data-air-hours="24" class="selected" aria-pressed="true">24h</button>
+                <button data-air-hours="168" aria-pressed="false">7d</button>
+                <button data-air-hours="720" aria-pressed="false">30d</button>
+              </div>
+            </div>
+            <div class="chart-toolbar">
+              <label for="air-metric">Measurement</label>
+              <select id="air-metric">
+                <option value="co2">CO₂ · ppm</option><option value="pm25">PM2.5 · µg/m³</option>
+                <option value="pm10">PM10 · µg/m³</option><option value="voc">VOC index</option>
+                <option value="nox">NOₓ index</option><option value="temperature">Temperature · °C</option>
+                <option value="humidity">Humidity · %</option><option value="pm1">PM1 · µg/m³</option>
+                <option value="pm4">PM4 · µg/m³</option>
+              </select>
+              <span id="air-chart-summary" class="chart-unit"></span>
+            </div>
+            <p id="air-reference" class="section-note"></p>
+            <div id="air-chart" class="chart air-chart" tabindex="0" role="img" aria-label="Air quality history loading"></div>
+            <p id="air-chart-reading" class="section-note">Hover, tap, or use the arrow keys to inspect readings.</p>
+            <p id="air-history-note" class="section-note"></p>
+          </article>
+          <details class="panel air-guide" open>
+            <summary>What do the levels mean?</summary>
+            <div class="air-guide-grid">
+              <p><strong>CO₂ · ventilation</strong>Above 1,000 ppm is our early reminder; above 1,500 ppm, improve ventilation if readings persist. The red band starts at 2,000 ppm as a stronger reminder. These are ventilation indicators, not toxicity limits. <a href="https://www.hse.gov.uk/ventilation/using-co2-monitors.htm" target="_blank" rel="noopener noreferrer">HSE guidance ↗</a></p>
+              <p><strong>Particles · daily exposure</strong>WHO’s 24-hour references are 15 µg/m³ for PM2.5 and 45 µg/m³ for PM10. Card indicators use a time-weighted daily average once at least 90% of the day is covered. Chart lines are daily references, not instant danger thresholds. <a href="https://www.who.int/teams/environment-climate-change-and-health/air-quality-and-health/health-impacts/types-of-pollutants" target="_blank" rel="noopener noreferrer">WHO guidelines ↗</a></p>
+              <p><strong>VOC / NOₓ · relative changes</strong>VOC’s learned baseline is 100; NOₓ’s is 1. Colors follow Sensirion’s air-purifier response bands. These indexes do not measure a gas concentration or establish toxic exposure. Zero or missing readings mean unavailable. <a href="https://sensirion.com/media/documents/ACD82D45/6294DFC0/Info_Note_Integration_VOC_NOx_Sensor.pdf" target="_blank" rel="noopener noreferrer">Sensirion index guide ↗</a></p>
+            </div>
+            <p class="section-note">This monitor cannot establish that printer emissions are safe: it does not identify individual vapors or measure all ultrafine particles. Temperature and humidity are context, without health ratings.</p>
+          </details>
         </section>
         <section id="dbs-section" aria-label="Database catalog" hidden>
           <p id="dbs-status" class="section-note" role="status">Loading DB catalog…</p>

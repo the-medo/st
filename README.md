@@ -17,6 +17,8 @@ agent to inspect the host every time.
 - Discovers Codex worktrees and shows local thread recency and runtime overhead.
 - Links to apps that already have a private Tailscale Serve route.
 - Opens the exact remote checkout in your local Zed client from the dashboard.
+- Charts an optional M5Stack AirQ device with 30-day history and source-linked
+  ventilation, particle-exposure, and relative gas-index indicators.
 - Copies a cleanup brief with exact resource identities for an agent to review.
 - Checks Docker, private Tailscale access, sleep protection, free disk space,
   memory pressure, and observed operating-system version changes.
@@ -51,6 +53,30 @@ closed.
 
 Optional installation as a command: `pip install .`, then `sm-manager serve`.
 Running directly from the checkout needs no package installation.
+
+### Air quality
+
+Set `air_quality_device` to the device's 12-character MAC address in the local
+configuration (`~/.config/sm-manager/config.json`) and restart. Keep the device
+identifier and collected readings out of Git. **Devices → Air quality** opens
+the dashboard; the separate arrow opens M5Stack's original page. The dashboard
+also links to the raw feed and the RPiShop product.
+
+An independent worker makes a bounded HTTPS GET to M5Stack once a minute, even
+when the page is closed. It stores unique publication timestamps in
+`<data_dir>/air-quality.sqlite` for 30 days. The feed only supplies its latest
+reading, so earlier history cannot be backfilled. Repeated timestamps are not
+new samples, outages remain gaps, and readings older than five minutes are
+marked stale. Unknown or invalid values, including zero gas indexes, are shown
+as unavailable. Charts show bucket means and peaks across 1h–30d; use the
+measurement selector, cards, hover/touch, or arrow keys to inspect them.
+
+CO₂ bands indicate ventilation reminders, not toxic exposure. PM2.5 and PM10
+indicators compare time-weighted 24-hour averages with WHO daily references
+only after 90% coverage (our display completeness rule). Each reading covers at
+most two minutes, so missing time never counts as clean air. VOC/NOₓ use
+Sensirion's relative purifier response bands, not concentration or toxicity
+limits. Sources and sensor limitations are explained on the page.
 
 ## Keep it running
 
