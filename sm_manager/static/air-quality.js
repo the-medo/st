@@ -40,7 +40,7 @@ const airMetrics = {
   voc: { label: "VOC", unit: "index", digits: 0, color: "#d2a8ff", refs: [150, 250, 400], note: "Relative VOC index; learned baseline 100. Bands at 150 / 250 / 400 follow Sensirion’s purifier response guidance, not toxicity limits." },
   nox: { label: "NOₓ", unit: "index", digits: 0, color: "#f778ba", refs: [20, 150, 300], note: "Relative NOₓ index; baseline 1. Bands at 20 / 150 / 300 follow Sensirion’s purifier response guidance, not gas concentration limits." },
   temperature: { label: "Temperature", unit: "°C", digits: 1, color: "#f0b65f", refs: [], note: "Temperature from the SEN55 sensor. The enclosure and sensor electronics can affect this reading." },
-  humidity: { label: "Humidity", unit: "%", digits: 1, color: "#a5d6ff", refs: [], note: "Relative humidity from the SEN55 sensor." },
+  humidity: { label: "Humidity", unit: "%", digits: 1, color: "#a5d6ff", refs: [], note: "EPA recommends indoor humidity below 60%, ideally 30–50%. Differences are percentage points (pp)." },
   pm1: { label: "PM1", unit: "µg/m³", digits: 1, color: "#b6dc7b", refs: [], note: "PM1 particle mass concentration. No WHO daily guideline is applied to this size fraction." },
   pm4: { label: "PM4", unit: "µg/m³", digits: 1, color: "#9cd5cb", refs: [], note: "PM4 particle mass concentration. No WHO daily guideline is applied to this size fraction." },
 };
@@ -57,6 +57,43 @@ const airGroups = {
 };
 function airNumber(value, metric = "co2") {
   return Number.isFinite(value) ? value.toLocaleString(undefined, { maximumFractionDigits: airMetrics[metric].digits }) : "—";
+}
+function airPointStatus(key, mean, peak) {
+  const metric = airMetrics[key];
+  if (!Number.isFinite(mean) || (["voc", "nox"].includes(key) && mean <= 0)) {
+    return { tone: "neutral", label: "Unavailable", detail: "" };
+  }
+  // A low bucket mean must not hide a peak above the reference. Always name
+  // the peak when it is the value being compared; these are historical points.
+  const hasPeak = Number.isFinite(peak) && peak > mean;
+  const value = hasPeak ? peak : mean, prefix = hasPeak ? "Peak · " : "";
+  const difference = amount => {
+    const precision = 10 ** -metric.digits;
+    return amount < precision ? `<${airNumber(precision, key)}` : airNumber(amount, key);
+  };
+  function upper(limit, reference, inclusive = false, unit = metric.unit) {
+    const warning = inclusive ? value >= limit : value > limit;
+    const detail = warning
+      ? `${prefix}${value > limit ? `+${difference(value - limit)} ${unit} above` : "At"} ${reference}`
+      : `${inclusive ? "<" : "≤"}${reference}`;
+    return { tone: warning ? "watch" : "good", label: warning ? "Warning" : "OK", detail };
+  }
+  if (key === "co2") {
+    return value > metric.refs[1] ? upper(metric.refs[1], "1,500 ppm ventilation ref")
+      : upper(metric.refs[0], "1,000 ppm reminder");
+  }
+  if (key === "pm25" || key === "pm10") {
+    // WHO's daily reference is only a comparison here, never an assessment of
+    // daily exposure from a short bucket or peak. Cards retain coverage checks.
+    return upper(metric.refs[0], `${metric.refs[0]} µg/m³ · 24h ref`);
+  }
+  if (key === "voc" || key === "nox") return upper(metric.refs[0], `${metric.refs[0]} index band`, true);
+  if (key === "humidity") {
+    if (value >= 60) return upper(60, "60% ceiling", true, "pp");
+    if (mean < 30) return { tone: "watch", label: "Warning", detail: `${difference(30 - mean)} pp below 30% ideal minimum` };
+    return { tone: "good", label: "OK", detail: "<60% ceiling" };
+  }
+  return { tone: "neutral", label: key === "temperature" ? "Context only" : "No guideline", detail: "" };
 }
 function airLevel(key, value, data) {
   if (!Number.isFinite(value)) return ["neutral", "Unavailable"];
@@ -221,7 +258,8 @@ function inspectAirPoint(group, index) {
   const bucket = airState.history[group].data.bucket_seconds;
   $("air-reading-" + group).innerHTML = `<div class="air-reading-time">${e(new Date(point.timestamp * 1000).toLocaleString())} · ${Math.round(bucket / 60)} min bucket</div>` + airGroups[group].metrics.map(key => {
     const metric = airMetrics[key];
-    return `<span class="air-series-reading" style="--series-color:${metric.color}"><i class="air-swatch" aria-hidden="true"></i>${metric.label} <strong>${airNumber(point[key], key)} ${e(metric.unit)}</strong><small>peak ${airNumber(point[`${key}_peak`], key)}</small></span>`;
+    const status = airPointStatus(key, point[key], point[`${key}_peak`]);
+    return `<span class="air-series-reading" data-air-reading="${key}" style="--series-color:${metric.color}"><i class="air-swatch" aria-hidden="true"></i>${metric.label} <strong>${airNumber(point[key], key)} ${e(metric.unit)}</strong><small>peak ${airNumber(point[`${key}_peak`], key)}</small><span class="air-reading-status" data-tone="${status.tone}" title="${e(metric.note)}"><b>${e(status.label)}</b>${status.detail ? `<span>${e(status.detail)}</span>` : ""}</span></span>`;
   }).join("");
   const cursor = $("air-cursor-" + group);
   cursor.setAttribute("x1", chart.x(point.timestamp));

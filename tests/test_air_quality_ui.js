@@ -52,6 +52,76 @@ test('level indicators respect missing values, staleness and daily coverage', ()
   d.stale = true;
   assert.deepEqual(level('co2', 900), ['neutral', 'Last known reading']);
 });
+test('inspection labels use ventilation references and report the actual excess', () => {
+  const { context } = setup();
+  const status = (mean, peak) => context.airPointStatus('co2', mean, peak);
+  assert.equal(status(1000).label, 'OK');
+  assert.equal(status(1001).tone, 'watch');
+  assert.equal(status(1001).detail, '+1 ppm above 1,000 ppm reminder');
+  assert.equal(status(1800).detail, '+300 ppm above 1,500 ppm ventilation ref');
+  assert.equal(status(900, 1800).detail, 'Peak · +300 ppm above 1,500 ppm ventilation ref');
+  assert.equal(status(900, 1800).label, 'Warning');
+  assert.equal(status(900, 850).label, 'OK');
+  assert.match(status(1000.01).detail, /\+<1 ppm/); // Never round a positive excess to zero.
+});
+test('particle inspection compares the selected point to a named daily reference', () => {
+  const { context } = setup();
+  const d = data();
+  d.daily.pm25 = { complete: true, value: 10, coverage: 1 };
+  seed(context, d);
+  assert.equal(context.airPointStatus('pm25', 15).label, 'OK');
+  assert.equal(context.airPointStatus('pm25', 17.5).detail, '+2.5 µg/m³ above 15 µg/m³ · 24h ref');
+  assert.equal(context.airPointStatus('pm10', 50).detail, '+5 µg/m³ above 45 µg/m³ · 24h ref');
+  assert.equal(context.airPointStatus('pm25', 10, 35).detail, 'Peak · +20 µg/m³ above 15 µg/m³ · 24h ref');
+  assert.equal(context.airLevel('pm25', 35, d)[0], 'good'); // Daily card remains independent.
+  d.daily.pm25.complete = false;
+  assert.equal(context.airLevel('pm25', 10, d)[0], 'neutral');
+});
+test('gas inspection uses response bands and never treats missing or zero indexes as OK', () => {
+  const { context } = setup();
+  for (const [key, threshold] of [['voc', 150], ['nox', 20]]) {
+    assert.equal(context.airPointStatus(key, threshold - 1).label, 'OK');
+    assert.equal(context.airPointStatus(key, threshold).tone, 'watch');
+    assert.equal(context.airPointStatus(key, threshold).detail, `At ${threshold} index band`);
+    assert.equal(context.airPointStatus(key, threshold + 50).detail, `+50 index above ${threshold} index band`);
+    for (const value of [null, undefined, NaN, Infinity, 0, -1]) {
+      assert.equal(context.airPointStatus(key, value, 250).label, 'Unavailable');
+    }
+  }
+});
+test('humidity uses percentage points and unbounded measurements stay neutral', () => {
+  const { context } = setup();
+  assert.equal(context.airPointStatus('humidity', 30).label, 'OK');
+  assert.equal(context.airPointStatus('humidity', 59.9).label, 'OK');
+  assert.equal(context.airPointStatus('humidity', 60).detail, 'At 60% ceiling');
+  assert.equal(context.airPointStatus('humidity', 65).detail, '+5 pp above 60% ceiling');
+  assert.equal(context.airPointStatus('humidity', 45, 70).detail, 'Peak · +10 pp above 60% ceiling');
+  assert.equal(context.airPointStatus('humidity', 25).detail, '5 pp below 30% ideal minimum');
+  assert.equal(context.airPointStatus('humidity', 25).tone, 'watch');
+  assert.equal(context.airPointStatus('temperature', 28).label, 'Context only');
+  assert.equal(context.airPointStatus('pm1', 50).label, 'No guideline');
+  for (const key of ['co2', 'pm1', 'pm25', 'pm10', 'temperature', 'humidity']) {
+    assert.equal(context.airPointStatus(key, null).tone, 'neutral');
+    assert.equal(context.airPointStatus(key, null).label, 'Unavailable');
+  }
+});
+test('inspection renders statuses for each series and keeps historical comparisons during stale periods', () => {
+  const { context, $ } = setup();
+  const d = data();
+  d.stale = true;
+  d.points[0] = { ...d.points[0], co2: 1800, co2_peak: 1800, pm1: 5, pm25: 10, pm25_peak: 35, pm10: 30, voc: 100 };
+  seed(context, d);
+  context.renderAirQuality();
+  context.inspectAirPoint('air', 0);
+  const html = $('air-reading-air').innerHTML;
+  assert.equal((html.match(/class="air-reading-status"/g) || []).length, 6);
+  assert.match(html, /data-tone="watch"[^>]*><b>Warning<\/b><span>\+300 ppm above/);
+  assert.match(html, /Peak · \+20 µg\/m³ above 15 µg\/m³ · 24h ref/);
+  assert.match(html, /data-tone="good"[^>]*><b>OK<\/b>/);
+  assert.match(html, /<b>No guideline<\/b>/);
+  assert.match(html, /<b>Unavailable<\/b>/);
+  assert.doesNotMatch($('air-cards').innerHTML, /data-tone="good"/);
+});
 test('air chart shows all available series while retaining gaps and peaks', () => {
   const { context, $ } = setup();
   const d = data();

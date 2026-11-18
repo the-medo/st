@@ -81,9 +81,15 @@ a compact toolbar, using inline dropdowns in narrow panels. Reference details
 are available in the collapsed chart guide. Charts show
 bucket means and peaks across 1h–30d; hover/touch or arrow keys inspect all
 series in a section. Clicking a card focuses its section’s chart.
+Inspection shows compact green OK or orange Warning labels, the applicable
+reference, and any excess in the measurement's units. Higher peaks take priority
+and are explicitly labeled. Particle comparisons name the WHO 24-hour reference;
+they do not assess daily exposure from a bucket. Humidity uses EPA's below-60%
+ceiling and 30% ideal minimum, with differences in percentage points. Temperature
+and PM1 stay neutral; unavailable measurements never receive an OK label.
 
 CO₂ bands indicate ventilation reminders, not toxic exposure. PM2.5 and PM10
-indicators compare time-weighted 24-hour averages with WHO daily references
+card indicators compare time-weighted 24-hour averages with WHO daily references
 only after 90% coverage (our display completeness rule). Each reading covers at
 most two minutes, so missing time never counts as clean air. VOC/NOₓ use
 Sensirion's relative purifier response bands, not concentration or toxicity

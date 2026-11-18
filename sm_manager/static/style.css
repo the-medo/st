@@ -2077,6 +2077,10 @@ dialog::backdrop {
 .air-series-reading { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .air-series-reading strong { color: var(--ink); font-weight: 500; }
 .air-series-reading small { font-size: 9px; }
+.air-reading-status { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 4px; }
+.air-reading-status b { font-size: 9px; font-weight: 600; }
+.air-reading-status[data-tone="good"] { color: var(--green); }
+.air-reading-status[data-tone="watch"] { color: #f0b65f; }
 #air-history-note { padding: 10px 0 0; }
 #air-quality-section:has([data-air-group="air"]:is(:hover, :focus-within)) .air-card[data-air-group="air"],
 #air-quality-section:has([data-air-group="climate"]:is(:hover, :focus-within)) .air-card[data-air-group="climate"] { border-color: var(--group-color); box-shadow: inset 0 0 0 1px var(--group-color); }
