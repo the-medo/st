@@ -242,38 +242,42 @@
             </div>
           </div>
           <div id="air-status" class="air-status" role="status">Loading sensor readings…</div>
-          <div id="air-cards" class="air-cards"></div>
-          <article class="panel air-history">
-            <div class="panel-heading">
-              <h2>Sensor history</h2>
-              <div id="air-range" class="segmented" aria-label="Air quality history range">
-                <button data-air-hours="1" aria-pressed="false">1h</button>
-                <button data-air-hours="6" aria-pressed="false">6h</button>
-                <button data-air-hours="24" class="selected" aria-pressed="true">24h</button>
-                <button data-air-hours="168" aria-pressed="false">7d</button>
-                <button data-air-hours="720" aria-pressed="false">30d</button>
-              </div>
+          <div class="air-cards-scroll" tabindex="0" role="region" aria-label="All eight measurements; scroll horizontally on smaller screens">
+            <div id="air-cards" class="air-cards"></div>
+          </div>
+          <div class="air-history-controls">
+            <h2>Sensor history</h2>
+            <div id="air-range" class="segmented" aria-label="Air quality history range">
+              <button data-air-hours="1" aria-pressed="false">1h</button>
+              <button data-air-hours="6" aria-pressed="false">6h</button>
+              <button data-air-hours="24" class="selected" aria-pressed="true">24h</button>
+              <button data-air-hours="168" aria-pressed="false">7d</button>
+              <button data-air-hours="720" aria-pressed="false">30d</button>
             </div>
-            <div class="chart-toolbar">
-              <label for="air-metric">Measurement</label>
-              <select id="air-metric">
-                <option value="co2">CO₂ · ppm</option><option value="pm25">PM2.5 · µg/m³</option>
-                <option value="pm10">PM10 · µg/m³</option><option value="voc">VOC index</option>
-                <option value="nox">NOₓ index</option><option value="temperature">Temperature · °C</option>
-                <option value="humidity">Humidity · %</option><option value="pm1">PM1 · µg/m³</option>
-                <option value="pm4">PM4 · µg/m³</option>
-              </select>
-              <span id="air-chart-summary" class="chart-unit"></span>
-            </div>
-            <p id="air-reference" class="section-note"></p>
-            <div id="air-chart" class="chart air-chart" tabindex="0" role="img" aria-label="Air quality history loading"></div>
-            <p id="air-chart-reading" class="section-note">Hover, tap, or use the arrow keys to inspect readings.</p>
-            <p id="air-history-note" class="section-note"></p>
-          </article>
+          </div>
+          <div class="air-charts">
+            <article class="panel air-history" data-air-group="air" aria-labelledby="air-group-title">
+              <div class="panel-heading"><h2 id="air-group-title">Air measurements</h2><span class="air-group-count">6 measurements</span></div>
+              <div id="air-legend-air" class="air-series-legends" aria-label="Air measurement series"></div>
+              <p class="air-axis-note">Separate scales for CO₂, particles, and gas indexes. Solid lines show means; dashed lines show peaks.</p>
+              <div id="air-chart-air" class="chart air-chart" tabindex="0" role="img" aria-label="Air measurement history loading"></div>
+              <div id="air-reading-air" class="air-readings">Hover, tap, or use the arrow keys to inspect all readings.</div>
+              <p class="section-note air-reference">CO₂ line: 1,500 ppm ventilation reminder. PM2.5 / PM10 lines: WHO 24-hour references, not instant danger thresholds. VOC and NOₓ are relative indexes.</p>
+            </article>
+            <article class="panel air-history" data-air-group="climate" aria-labelledby="air-climate-title">
+              <div class="panel-heading"><h2 id="air-climate-title">Temperature &amp; humidity</h2><span class="air-group-count">2 measurements</span></div>
+              <div id="air-legend-climate" class="air-series-legends" aria-label="Temperature and humidity series"></div>
+              <p class="air-axis-note">Temperature uses the left axis (°C); humidity uses the right (%). Solid lines show means; dashed lines show peaks.</p>
+              <div id="air-chart-climate" class="chart air-chart" tabindex="0" role="img" aria-label="Temperature and humidity history loading"></div>
+              <div id="air-reading-climate" class="air-readings">Hover, tap, or use the arrow keys to inspect all readings.</div>
+              <p class="section-note air-reference">Both readings come from the SEN55 sensor. The enclosure and sensor electronics can affect temperature. These values provide context, without health ratings.</p>
+            </article>
+          </div>
+          <p id="air-history-note" class="section-note"></p>
           <details class="panel air-guide" open>
             <summary>What do the levels mean?</summary>
             <div class="air-guide-grid">
-              <p><strong>CO₂ · ventilation</strong>Above 1,000 ppm is our early reminder; above 1,500 ppm, improve ventilation if readings persist. The red band starts at 2,000 ppm as a stronger reminder. These are ventilation indicators, not toxicity limits. <a href="https://www.hse.gov.uk/ventilation/using-co2-monitors.htm" target="_blank" rel="noopener noreferrer">HSE guidance ↗</a></p>
+              <p><strong>CO₂ · ventilation</strong>Above 1,000 ppm is our early reminder; above 1,500 ppm, improve ventilation if readings persist. Red indicators start at 2,000 ppm as a stronger reminder. These are ventilation indicators, not toxicity limits. <a href="https://www.hse.gov.uk/ventilation/using-co2-monitors.htm" target="_blank" rel="noopener noreferrer">HSE guidance ↗</a></p>
               <p><strong>Particles · daily exposure</strong>WHO’s 24-hour references are 15 µg/m³ for PM2.5 and 45 µg/m³ for PM10. Card indicators use a time-weighted daily average once at least 90% of the day is covered. Chart lines are daily references, not instant danger thresholds. <a href="https://www.who.int/teams/environment-climate-change-and-health/air-quality-and-health/health-impacts/types-of-pollutants" target="_blank" rel="noopener noreferrer">WHO guidelines ↗</a></p>
               <p><strong>VOC / NOₓ · relative changes</strong>VOC’s learned baseline is 100; NOₓ’s is 1. Colors follow Sensirion’s air-purifier response bands. These indexes do not measure a gas concentration or establish toxic exposure. Zero or missing readings mean unavailable. <a href="https://sensirion.com/media/documents/ACD82D45/6294DFC0/Info_Note_Integration_VOC_NOx_Sensor.pdf" target="_blank" rel="noopener noreferrer">Sensirion index guide ↗</a></p>
             </div>

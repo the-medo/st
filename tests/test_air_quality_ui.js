@@ -21,7 +21,7 @@ function setup() {
 }
 function data() {
   return { enabled: true, stale: false, now: 1800000000, hours: 24, bucket_seconds: 240,
-    latest: { timestamp: 1799999940, co2: 900, pm25: 30, voc: null, nox: null },
+    latest: { timestamp: 1799999940, co2: 900, pm1: 10, pm25: 30, pm10: 40, voc: null, nox: null, temperature: 24, humidity: 45 },
     daily: { pm25: { value: 30, coverage: .1, complete: false } },
     points: [
       { timestamp: 1799999000, co2: 800, co2_peak: 1200 },
@@ -48,24 +48,65 @@ test('level indicators respect missing values, staleness and daily coverage', ()
   d.stale = true;
   assert.deepEqual(level('co2', 900), ['neutral', 'Last known reading']);
 });
-test('charts keep gaps, show isolated readings and preserve peaks', () => {
+test('air chart shows all available series while retaining gaps and peaks', () => {
   const { context, $ } = setup();
-  context.airState.data = data();
+  const d = data();
+  d.points[0].pm25 = 20;
+  d.points[0].pm25_peak = 35;
+  d.points[2].pm25 = 30;
+  context.airState.data = d;
   context.renderAirQuality();
-  const paths = [...$('air-chart').innerHTML.matchAll(/<path d="([^"]+)"/g)].map(m => m[1]);
-  assert.equal(paths.length, 2);
+  assert.equal(($('air-cards').innerHTML.match(/class="air-card"/g) || []).length, 8);
+  assert.equal(($('air-cards').innerHTML.match(/data-air-group="air"/g) || []).length, 6);
+  assert.equal(($('air-cards').innerHTML.match(/data-air-group="climate"/g) || []).length, 2);
+  const paths = [...$('air-chart-air').innerHTML.matchAll(/<path d="([^"]+)"/g)].map(m => m[1]);
+  assert.equal(paths.length, 4);
   for (const path of paths) {
     assert.equal((path.match(/M/g) || []).length, 2);
     assert.ok(!path.includes('L'));
   }
-  assert.match($('air-chart').innerHTML, /<circle /);
-  assert.match($('air-chart-summary').textContent, /1,200/);
-  context.inspectAirPoint(99);
-  assert.match($('air-chart-reading').textContent, /CO₂ 900/);
-  assert.equal($('air-cursor').attributes.visibility, 'visible');
-  context.airState.metric = 'voc';
-  context.renderAirChart();
-  assert.match($('air-chart').innerHTML, /No valid readings/);
+  assert.match($('air-chart-air').innerHTML, /data-series="co2"/);
+  assert.match($('air-chart-air').innerHTML, /data-series="pm25"/);
+  assert.doesNotMatch($('air-chart-air').innerHTML, /data-series="voc"/);
+  assert.match($('air-chart-air').innerHTML, /<circle /);
+  assert.match($('air-legend-air').innerHTML, /1,200/);
+  assert.match($('air-legend-air').innerHTML, /VOC.*No readings/);
+  context.inspectAirPoint('air', 99);
+  assert.match($('air-reading-air').innerHTML, /CO₂ <strong>900/);
+  assert.match($('air-reading-air').innerHTML, /PM2.5 <strong>30/);
+  assert.match($('air-reading-air').innerHTML, /VOC <strong>—/);
+  assert.equal($('air-cursor-air').attributes.visibility, 'visible');
+  assert.match($('air-chart-climate').innerHTML, /No readings for this section/);
+});
+test('climate renders both series and uses a separate scale for each unit', () => {
+  const { context, $ } = setup();
+  const d = data();
+  d.points.forEach(point => Object.assign(point, { temperature: -2, temperature_peak: 2, humidity: 80, humidity_peak: 90 }));
+  context.airState.data = d;
+  context.renderAirQuality();
+  assert.match($('air-chart-climate').innerHTML, /data-series="temperature"/);
+  assert.match($('air-chart-climate').innerHTML, /data-series="humidity"/);
+  assert.doesNotMatch($('air-chart-climate').innerHTML, /data-series="co2"/);
+  const axes = context.airChartScales('climate', d.points);
+  assert.equal(axes.length, 2);
+  assert.ok(axes[0].minimum <= -2);
+  assert.ok(axes[1].maximum >= 100);
+  context.inspectAirPoint('climate', 0);
+  assert.match($('air-reading-climate').innerHTML, /Temperature <strong>-2 °C/);
+  assert.match($('air-reading-climate').innerHTML, /Humidity <strong>80 %/);
+  assert.equal(context.airState.cursors.climate, 0);
+  assert.equal(context.airState.cursors.air, undefined);
+});
+test('gas indexes gain their own axis when present and never share the particle scale', () => {
+  const { context } = setup();
+  const d = data();
+  assert.equal(context.airChartScales('air', d.points).length, 2);
+  d.points[0].voc = 400;
+  const axes = context.airChartScales('air', d.points);
+  assert.equal(axes.length, 3);
+  assert.deepEqual([...axes[1].metrics], ['pm1', 'pm25', 'pm10']);
+  assert.deepEqual([...axes[2].metrics], ['voc', 'nox']);
+  assert.equal(axes[2].maximum, 500);
 });
 test('failed refresh retains data but suppresses fresh level indicators', async () => {
   const { context, $ } = setup();

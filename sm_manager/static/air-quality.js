@@ -1,5 +1,5 @@
 /* Sensor data is fetched by the server; the browser only uses our private API. */
-const airState = { data: null, hours: 24, metric: "co2", request: 0, loading: false, error: false, cursor: null, chart: null };
+const airState = { data: null, hours: 24, request: 0, loading: false, error: false, charts: {}, cursors: {} };
 const airMetrics = {
   co2: { label: "CO₂", unit: "ppm", digits: 0, color: "#58a6ff", refs: [1000, 1500, 2000], note: "Ventilation reminders at 1,000 / 1,500 / 2,000 ppm. Persistent readings above 1,500 ppm indicate poor ventilation." },
   pm25: { label: "PM2.5", unit: "µg/m³", digits: 1, color: "#63cf8c", refs: [15], note: "15 µg/m³ is the WHO 24-hour average reference. An individual point above this line is not a daily exposure assessment." },
@@ -11,7 +11,18 @@ const airMetrics = {
   pm1: { label: "PM1", unit: "µg/m³", digits: 1, color: "#b6dc7b", refs: [], note: "PM1 particle mass concentration. No WHO daily guideline is applied to this size fraction." },
   pm4: { label: "PM4", unit: "µg/m³", digits: 1, color: "#9cd5cb", refs: [], note: "PM4 particle mass concentration. No WHO daily guideline is applied to this size fraction." },
 };
-function airNumber(value, metric = airState.metric) {
+const airGroups = {
+  air: { label: "Air measurements", metrics: ["co2", "pm1", "pm25", "pm10", "voc", "nox"], axes: [
+    { id: "co2", label: "CO₂ · ppm", metrics: ["co2"], minimum: 0, baseline: 2000, color: "#58a6ff" },
+    { id: "particles", label: "PM · µg/m³", metrics: ["pm1", "pm25", "pm10"], minimum: 0, baseline: 50, color: "#63cf8c" },
+    { id: "gas", label: "Gas index", metrics: ["voc", "nox"], minimum: 0, baseline: 500, color: "#d2a8ff", optional: true },
+  ] },
+  climate: { label: "Temperature & humidity", metrics: ["temperature", "humidity"], axes: [
+    { id: "temperature", label: "Temperature · °C", metrics: ["temperature"], minimum: 0, baseline: 40, color: "#f0b65f" },
+    { id: "humidity", label: "Humidity · %", metrics: ["humidity"], minimum: 0, baseline: 100, color: "#a5d6ff" },
+  ] },
+};
+function airNumber(value, metric = "co2") {
   return Number.isFinite(value) ? value.toLocaleString(undefined, { maximumFractionDigits: airMetrics[metric].digits }) : "—";
 }
 function airLevel(key, value, data) {
@@ -60,77 +71,113 @@ function renderAirQuality() {
     $("air-raw").href = data.raw_url;
     $("air-raw").hidden = false;
   }
-  $("air-cards").innerHTML = ["co2", "pm25", "pm10", "voc", "nox", "temperature", "humidity", "pm1"].map((key) => {
+  $("air-cards").innerHTML = Object.entries(airGroups).flatMap(([group, definition]) => definition.metrics.map((key) => {
     const metric = airMetrics[key], value = latest?.[key];
     const [tone, label] = airLevel(key, value, data);
     const daily = data.daily[key];
     const note = daily ? `${daily.complete ? "24h mean" : "Partial mean"}: ${airNumber(daily.value, key)} ${metric.unit} · ${Math.round(daily.coverage * 100)}% of day covered` : key === "voc" || key === "nox" ? "Relative index · not a concentration" : "Latest published measurement";
-    return `<button class="air-card" data-air-metric="${key}" aria-pressed="${airState.metric === key}"><span class="air-card-label">${metric.label}</span><span class="air-card-value">${airNumber(value, key)} <small>${metric.unit}</small></span><span class="air-level" data-tone="${tone}">${e(label)}</span><span class="air-card-note">${e(note)}</span></button>`;
-  }).join("");
+    return `<button class="air-card" data-air-metric="${key}" data-air-group="${group}" aria-controls="air-chart-${group}" title="${e(label + ". " + note)}" style="--series-color:${metric.color}"><span class="air-card-label"><i class="air-swatch" aria-hidden="true"></i>${metric.label}</span><span class="air-card-value">${airNumber(value, key)} <small>${metric.unit}</small></span><span class="air-level" data-tone="${tone}">${e(label)}</span><span class="air-card-note">${e(note)}</span></button>`;
+  })).join("");
   $("air-history-note").textContent = `${data.started_at ? `History since ${new Date(data.started_at * 1000).toLocaleString()}.` : "History starts with the first successful reading."} Stored for 30 days, including while this page is closed. Repeated readings are counted once; gaps are left empty. Times use your browser’s timezone.`;
-  renderAirChart();
+  renderAirCharts();
 }
-function renderAirChart() {
-  const data = airState.data, element = $("air-chart"), metric = airMetrics[airState.metric];
+function airChartScales(group, points) {
+  return airGroups[group].axes.filter(axis => !axis.optional || points.some(point => axis.metrics.some(key => Number.isFinite(point[key])))).map(axis => {
+    const values = points.flatMap(point => axis.metrics.flatMap(key => [point[key], point[`${key}_peak`]])).filter(Number.isFinite);
+    const minimum = Math.min(axis.minimum, ...values);
+    const maximum = Math.max(axis.baseline, ...values);
+    // Round up to readable ticks; each unit has its own clearly labeled axis.
+    const step = 10 ** Math.floor(Math.log10(Math.max(1, maximum - minimum) / 4));
+    return { ...axis, minimum: Math.floor(minimum / step) * step,
+      maximum: Math.ceil(maximum / step) * step };
+  });
+}
+function renderAirCharts() {
+  for (const group of Object.keys(airGroups)) renderAirChart(group);
+}
+function renderAirChart(group) {
+  const data = airState.data, definition = airGroups[group], element = $("air-chart-" + group);
   if (!data || element.closest("[hidden]")) return;
-  $("air-reference").textContent = metric.note;
-  const points = data.points.filter((point) => Number.isFinite(point[airState.metric]));
-  airState.chart = null;
-  $("air-chart-reading").textContent = "Hover, tap, or use the arrow keys to inspect readings.";
-  $("air-chart-summary").textContent = `${metric.label} · ${metric.unit}`;
+  const points = data.points.filter(point => definition.metrics.some(key => Number.isFinite(point[key])));
+  airState.charts[group] = null;
+  $("air-reading-" + group).textContent = "Hover, tap, or use the arrow keys to inspect all readings.";
+  $("air-legend-" + group).innerHTML = definition.metrics.map(key => {
+    const metric = airMetrics[key], available = points.some(point => Number.isFinite(point[key]));
+    const values = points.map(point => point[`${key}_peak`] ?? point[key]).filter(Number.isFinite);
+    const detail = available ? `Peak ${airNumber(Math.max(...values), key)} ${metric.unit}` : "No readings";
+    return `<span class="air-series-legend" data-air-series="${key}" style="--series-color:${metric.color}"><i class="air-swatch" aria-hidden="true"></i><strong>${metric.label}</strong><span>${e(detail)}</span></span>`;
+  }).join("");
   if (!points.length) {
-    element.innerHTML = `<div class="chart-placeholder">${data.points.length ? "No valid readings for this measurement in this range." : "No readings in this range yet."}</div>`;
-    element.setAttribute("aria-label", `${metric.label}: no readings in the selected range`);
+    element.innerHTML = `<div class="chart-placeholder">No readings for this section in this range yet.</div>`;
+    element.setAttribute("aria-label", `${definition.label}: no readings in the selected range`);
     return;
   }
   const width = Math.max(280, element.clientWidth), height = element.clientHeight || 340;
-  const left = 48, right = width - 18, top = 22, bottom = height - 32;
+  const axes = airChartScales(group, data.points);
+  const left = 48, right = width - (axes.length > 2 ? 105 : 46), top = 32, bottom = height - 32;
   const start = data.now - data.hours * 3600, end = data.now;
-  const values = points.flatMap((p) => [p[airState.metric], p[`${airState.metric}_peak`]]).filter(Number.isFinite);
-  const minimum = Math.min(0, ...values), maximum = Math.max(1, ...values, ...metric.refs) * 1.14;
-  const x = (time) => left + (time - start) / (end - start) * (right - left);
-  const y = (value) => bottom - (value - minimum) / (maximum - minimum) * (bottom - top);
+  const x = time => left + (time - start) / (end - start) * (right - left);
+  const y = (value, axis) => bottom - (value - axis.minimum) / (axis.maximum - axis.minimum) * (bottom - top);
   let svg = "";
-  const bands = ["#f0b65f", "#f0985f", "#ff7b72"];
-  metric.refs.forEach((reference, i) => {
-    const upper = metric.refs[i + 1] || maximum;
-    svg += `<rect x="${left}" y="${y(upper)}" width="${right - left}" height="${y(reference) - y(upper)}" fill="${bands[i]}" opacity=".055"/><line x1="${left}" x2="${right}" y1="${y(reference)}" y2="${y(reference)}" stroke="${bands[i]}" stroke-dasharray="5 5" opacity=".65"/><text x="${right - 4}" y="${y(reference) - 5}" text-anchor="end">${reference} ${e(metric.unit)}</text>`;
-  });
   for (let i = 0; i <= 4; i++) {
-    const value = minimum + (maximum - minimum) * i / 4;
-    svg += `<line class="chart-grid" x1="${left}" x2="${right}" y1="${y(value)}" y2="${y(value)}"/><text x="${left - 8}" y="${y(value) + 3}" text-anchor="end">${airNumber(value)}</text>`;
+    const line = bottom - (bottom - top) * i / 4;
+    svg += `<line class="chart-grid" x1="${left}" x2="${right}" y1="${line}" y2="${line}"/>`;
+    axes.forEach((axis, index) => {
+      const value = axis.minimum + (axis.maximum - axis.minimum) * i / 4;
+      const position = index === 0 ? left - 8 : right + 8 + (index - 1) * 58;
+      svg += `<text x="${position}" y="${line + 3}" text-anchor="${index === 0 ? "end" : "start"}" style="fill:${axis.color}">${airNumber(value, axis.metrics[0])}</text>`;
+    });
   }
+  axes.forEach((axis, index) => {
+    const position = index === 0 ? left : index === 1 ? right : width - 8;
+    svg += `<text x="${position}" y="15" text-anchor="${index === 0 ? "start" : "end"}" style="fill:${axis.color}">${e(axis.label)}</text>`;
+  });
   for (let i = 0; i <= 3; i++) {
     const time = start + (end - start) * i / 3;
     const label = new Date(time * 1000).toLocaleString(undefined, data.hours > 24 ? { month: "short", day: "numeric" } : { hour: "2-digit", minute: "2-digit" });
     svg += `<text x="${x(time)}" y="${height - 8}" text-anchor="${i === 0 ? "start" : i === 3 ? "end" : "middle"}">${e(label)}</text>`;
   }
-  let previous = null, path = "", peakPath = "";
-  for (const point of data.points) {
-    const value = point[airState.metric];
-    if (!Number.isFinite(value)) { previous = null; continue; }
-    const command = previous && point.timestamp - previous.timestamp <= Math.max(180, data.bucket_seconds * 1.5) ? "L" : "M";
-    path += `${command}${x(point.timestamp).toFixed(1)},${y(value).toFixed(1)} `;
-    peakPath += `${command}${x(point.timestamp).toFixed(1)},${y(point[`${airState.metric}_peak`] ?? value).toFixed(1)} `;
-    previous = point;
+  // References belong to a particular metric and use that metric's axis.
+  const references = group === "air" ? [["co2", 1500, "CO₂ 1,500"], ["pm25", 15, "PM2.5 15 · 24h"], ["pm10", 45, "PM10 45 · 24h"]] : [];
+  for (const [key, value, label] of references) {
+    const axis = axes.find(axis => axis.metrics.includes(key));
+    const line = y(value, axis), color = airMetrics[key].color;
+    svg += `<line x1="${left}" x2="${right}" y1="${line}" y2="${line}" stroke="${color}" stroke-dasharray="5 5" opacity=".28"/><text x="${left + 5}" y="${line - 4}" style="fill:${color};opacity:.7">${e(label)}</text>`;
   }
-  svg += `<path d="${peakPath}" fill="none" stroke="${metric.color}" stroke-width="1" stroke-dasharray="3 3" opacity=".5"/><path d="${path}" fill="none" stroke="${metric.color}" stroke-width="2"/>`;
-  svg += points.map((point) => `<circle cx="${x(point.timestamp)}" cy="${y(point[airState.metric])}" r="${points.length < 5 ? 3 : 1.5}" fill="${metric.color}"/>`).join("");
-  svg += `<line id="air-cursor" x1="0" x2="0" y1="${top}" y2="${bottom}" stroke="${metric.color}" stroke-dasharray="3 3" visibility="hidden"/>`;
+  for (const key of definition.metrics) {
+    const metric = airMetrics[key], axis = axes.find(axis => axis.metrics.includes(key));
+    if (!axis) continue;
+    let previous = null, path = "", peakPath = "";
+    const valid = [];
+    for (const point of data.points) {
+      const value = point[key];
+      if (!Number.isFinite(value)) { previous = null; continue; }
+      const command = previous && point.timestamp - previous.timestamp <= Math.max(180, data.bucket_seconds * 1.5) ? "L" : "M";
+      path += `${command}${x(point.timestamp).toFixed(1)},${y(value, axis).toFixed(1)} `;
+      peakPath += `${command}${x(point.timestamp).toFixed(1)},${y(point[`${key}_peak`] ?? value, axis).toFixed(1)} `;
+      previous = point;
+      valid.push(point);
+    }
+    if (!valid.length) continue;
+    svg += `<g data-series="${key}"><path d="${peakPath}" fill="none" stroke="${metric.color}" stroke-width="1" stroke-dasharray="3 3" opacity=".45"/><path d="${path}" fill="none" stroke="${metric.color}" stroke-width="2"/>`;
+    svg += valid.map(point => `<circle cx="${x(point.timestamp)}" cy="${y(point[key], axis)}" r="${valid.length < 5 ? 3 : 1.5}" fill="${metric.color}"/>`).join("") + "</g>";
+  }
+  svg += `<line id="air-cursor-${group}" x1="0" x2="0" y1="${top}" y2="${bottom}" stroke="var(--ink)" stroke-dasharray="3 3" visibility="hidden"/>`;
   element.innerHTML = `<svg viewBox="0 0 ${width} ${height}" aria-hidden="true">${svg}</svg>`;
-  element.setAttribute("aria-label", `${metric.label} history over ${data.hours} hours in ${metric.unit}. Arrow keys inspect readings. Solid line: bucket average; dashed: peak. Gaps indicate missing data.`);
-  // Range extrema and peaks retain spikes that averaging alone would hide.
-  $("air-chart-summary").textContent = `Min ${airNumber(Math.min(...points.map(p => p[airState.metric])))} · peak ${airNumber(Math.max(...values))} ${metric.unit} · solid mean / dashed peak`;
-  airState.chart = { points, start, end, left, right, x };
+  element.setAttribute("aria-label", `${definition.label} history over ${data.hours} hours. ${definition.metrics.map(key => airMetrics[key].label).join(", ")}. Separate scales: ${axes.map(axis => axis.label).join(", ")}. Arrow keys inspect all readings. Solid lines: bucket means; dashed: peaks. Gaps indicate missing data.`);
+  airState.charts[group] = { points, start, end, left, right, x };
 }
-function inspectAirPoint(index) {
-  const chart = airState.chart;
+function inspectAirPoint(group, index) {
+  const chart = airState.charts[group];
   if (!chart) return;
-  airState.cursor = Math.max(0, Math.min(chart.points.length - 1, index));
-  const point = chart.points[airState.cursor], metric = airMetrics[airState.metric];
+  airState.cursors[group] = Math.max(0, Math.min(chart.points.length - 1, index));
+  const point = chart.points[airState.cursors[group]];
   const bucket = airState.data.bucket_seconds;
-  $("air-chart-reading").textContent = `${new Date(point.timestamp * 1000).toLocaleString()} · ${metric.label} ${airNumber(point[airState.metric])} ${metric.unit} · peak ${airNumber(point[`${airState.metric}_peak`])} · ${Math.round(bucket / 60)} min bucket`;
-  const cursor = $("air-cursor");
+  $("air-reading-" + group).innerHTML = `<div class="air-reading-time">${e(new Date(point.timestamp * 1000).toLocaleString())} · ${Math.round(bucket / 60)} min bucket</div>` + airGroups[group].metrics.map(key => {
+    const metric = airMetrics[key];
+    return `<span class="air-series-reading" style="--series-color:${metric.color}"><i class="air-swatch" aria-hidden="true"></i>${metric.label} <strong>${airNumber(point[key], key)} ${e(metric.unit)}</strong><small>peak ${airNumber(point[`${key}_peak`], key)}</small></span>`;
+  }).join("");
+  const cursor = $("air-cursor-" + group);
   cursor.setAttribute("x1", chart.x(point.timestamp));
   cursor.setAttribute("x2", chart.x(point.timestamp));
   cursor.setAttribute("visibility", "visible");
@@ -158,16 +205,9 @@ async function refreshAirQuality(force = false) {
   }
 }
 function initAirQuality() {
-  function selectMetric(metric) {
-    airState.metric = metric;
-    airState.cursor = null;
-    $("air-metric").value = metric;
-    renderAirQuality();
-  }
-  $("air-metric").addEventListener("change", event => selectMetric(event.target.value));
   $("air-cards").addEventListener("click", event => {
-    const card = event.target.closest("[data-air-metric]");
-    if (card) selectMetric(card.dataset.airMetric);
+    const card = event.target.closest("[data-air-group]");
+    if (card) $("air-chart-" + card.dataset.airGroup).focus({ preventScroll: true });
   });
   $("air-range").addEventListener("click", event => {
     const button = event.target.closest("[data-air-hours]");
@@ -179,22 +219,27 @@ function initAirQuality() {
     });
     refreshAirQuality(true);
   });
-  $("air-chart").addEventListener("pointermove", event => {
-    const chart = airState.chart;
-    if (!chart) return;
-    const position = event.clientX - $("air-chart").getBoundingClientRect().left;
-    const time = chart.start + (position - chart.left) / (chart.right - chart.left) * (chart.end - chart.start);
-    let nearest = 0;
-    chart.points.forEach((point, i) => { if (Math.abs(point.timestamp - time) < Math.abs(chart.points[nearest].timestamp - time)) nearest = i; });
-    inspectAirPoint(nearest);
-  });
-  $("air-chart").addEventListener("keydown", event => {
-    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key) || !airState.chart) return;
-    event.preventDefault();
-    const last = airState.chart.points.length - 1;
-    inspectAirPoint(event.key === "Home" ? 0 : event.key === "End" ? last : (airState.cursor ?? last) + (event.key === "ArrowLeft" ? -1 : 1));
-  });
-  new ResizeObserver(renderAirChart).observe($("air-chart"));
+  for (const group of Object.keys(airGroups)) {
+    const element = $("air-chart-" + group);
+    function inspectPointer(event) {
+      const chart = airState.charts[group];
+      if (!chart) return;
+      const position = event.clientX - element.getBoundingClientRect().left;
+      const time = chart.start + (position - chart.left) / (chart.right - chart.left) * (chart.end - chart.start);
+      let nearest = 0;
+      chart.points.forEach((point, i) => { if (Math.abs(point.timestamp - time) < Math.abs(chart.points[nearest].timestamp - time)) nearest = i; });
+      inspectAirPoint(group, nearest);
+    }
+    element.addEventListener("pointermove", inspectPointer);
+    element.addEventListener("pointerdown", inspectPointer);
+    element.addEventListener("keydown", event => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key) || !airState.charts[group]) return;
+      event.preventDefault();
+      const last = airState.charts[group].points.length - 1;
+      inspectAirPoint(group, event.key === "Home" ? 0 : event.key === "End" ? last : (airState.cursors[group] ?? last) + (event.key === "ArrowLeft" ? -1 : 1));
+    });
+    new ResizeObserver(() => renderAirChart(group)).observe(element);
+  }
   setInterval(() => { if (state.view === "air-quality") refreshAirQuality(); }, 30000);
   document.addEventListener("visibilitychange", () => { if (state.view === "air-quality") refreshAirQuality(); });
   refreshAirQuality();

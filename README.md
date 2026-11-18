@@ -68,8 +68,11 @@ when the page is closed. It stores unique publication timestamps in
 reading, so earlier history cannot be backfilled. Repeated timestamps are not
 new samples, outages remain gaps, and readings older than five minutes are
 marked stale. Unknown or invalid values, including zero gas indexes, are shown
-as unavailable. Charts show bucket means and peaks across 1h–30d; use the
-measurement selector, cards, hover/touch, or arrow keys to inspect them.
+as unavailable. Eight measurement cards stay in a single row, grouped by color.
+Two charts show the six air measurements and temperature/humidity together,
+side by side on wide screens, with separate labeled scales for each unit. Charts
+show bucket means and peaks across 1h–30d; hover/touch or arrow keys inspect all
+series in a section. Clicking a card focuses its section’s chart.
 
 CO₂ bands indicate ventilation reminders, not toxic exposure. PM2.5 and PM10
 indicators compare time-weighted 24-hour averages with WHO daily references
