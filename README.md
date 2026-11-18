@@ -68,9 +68,10 @@ when the page is closed. It stores unique publication timestamps in
 reading, so earlier history cannot be backfilled. Repeated timestamps are not
 new samples, outages remain gaps, and readings older than five minutes are
 marked stale. Unknown or invalid values, including zero gas indexes, are shown
-as unavailable. Eight measurement cards stay in a single row, grouped by color.
-Two charts show the six air measurements and temperature/humidity together,
-side by side at a 6:2 width ratio on wide screens, with separate labeled scales
+as unavailable. Nine compact measurement cards stay in a single row, grouped by
+color. Two charts show the seven air measurements (including PM4.0) and
+temperature/humidity together,
+side by side at a 7:2 width ratio on wide screens, with separate labeled scales
 for each unit. Both charts start at six hours and have independent 1h / 6h / 12h /
 24h / week / month controls and a fullscreen view (Escape exits). Each chart also
 has an independent bucket selector: Auto / 1m / 5m / 15m / 30m / 1h / 6h / 1d.
@@ -87,8 +88,8 @@ A third row shows the reading as a percentage of that same reference (60 against
 15 is 400%); percentages above 100% are bold red. Higher peaks take priority
 and are explicitly labeled. Particle comparisons name the WHO 24-hour reference;
 they do not assess daily exposure from a bucket. Humidity uses EPA's below-60%
-ceiling and 30% ideal minimum, with differences in percentage points. Temperature
-and PM1 stay neutral; unavailable measurements never receive an OK label.
+ceiling and 30% ideal minimum, with differences in percentage points. Temperature,
+PM1, and PM4.0 stay neutral; unavailable measurements never receive an OK label.
 
 CO₂ bands indicate ventilation reminders, not toxic exposure. PM2.5 and PM10
 card indicators compare time-weighted 24-hour averages with WHO daily references

@@ -21,7 +21,7 @@ function setup() {
 }
 function data() {
   return { enabled: true, stale: false, now: 1800000000, hours: 6, bucket_seconds: 240,
-    latest: { timestamp: 1799999940, co2: 900, pm1: 10, pm25: 30, pm10: 40, voc: null, nox: null, temperature: 24, humidity: 45 },
+    latest: { timestamp: 1799999940, co2: 900, pm1: 10, pm25: 30, pm4: 35, pm10: 40, voc: null, nox: null, temperature: 24, humidity: 45 },
     daily: { pm25: { value: 30, coverage: .1, complete: false } },
     points: [
       { timestamp: 1799999000, co2: 800, co2_peak: 1200 },
@@ -100,7 +100,8 @@ test('humidity uses percentage points and unbounded measurements stay neutral', 
   assert.equal(context.airPointStatus('humidity', 25).tone, 'watch');
   assert.equal(context.airPointStatus('temperature', 28).label, 'Context only');
   assert.equal(context.airPointStatus('pm1', 50).label, 'No guideline');
-  for (const key of ['co2', 'pm1', 'pm25', 'pm10', 'temperature', 'humidity']) {
+  assert.equal(context.airPointStatus('pm4', 50).label, 'No guideline');
+  for (const key of ['co2', 'pm1', 'pm25', 'pm4', 'pm10', 'temperature', 'humidity']) {
     assert.equal(context.airPointStatus(key, null).tone, 'neutral');
     assert.equal(context.airPointStatus(key, null).label, 'Unavailable');
   }
@@ -123,7 +124,7 @@ test('inspection percentages show the ratio to the reference, not the percentage
   assert.match(percentage('humidity', 25), /data-tone="watch".*30% ideal minimum.*<strong>83.3%/);
   assert.match(percentage('humidity', 45), /60% ceiling.*<strong>75%/);
   assert.match(percentage('pm25', 15.001), /data-tone="high"[^>]*><strong>>100%/);
-  for (const [key, mean] of [['pm1', 5], ['temperature', 28], ['pm25', null], ['voc', 0]]) {
+  for (const [key, mean] of [['pm1', 5], ['pm4', 50], ['temperature', 28], ['pm25', null], ['voc', 0]]) {
     assert.equal(percentage(key, mean), '');
   }
 });
@@ -136,7 +137,7 @@ test('inspection renders statuses for each series and keeps historical compariso
   context.renderAirQuality();
   context.inspectAirPoint('air', 0);
   const html = $('air-reading-air').innerHTML;
-  assert.equal((html.match(/class="air-reading-status"/g) || []).length, 6);
+  assert.equal((html.match(/class="air-reading-status"/g) || []).length, 7);
   assert.match(html, /data-tone="watch"[^>]*><b>Warning<\/b><span>\+300 ppm above/);
   assert.match(html, /Peak · \+20 µg\/m³ above 15 µg\/m³ · 24h ref/);
   assert.match(html, /data-tone="good"[^>]*><b>OK<\/b>/);
@@ -150,26 +151,34 @@ test('air chart shows all available series while retaining gaps and peaks', () =
   d.points[0].pm25 = 20;
   d.points[0].pm25_peak = 35;
   d.points[2].pm25 = 30;
+  d.points[0].pm4 = 25;
+  d.points[0].pm4_peak = 90;
+  d.points[2].pm4 = 35;
   seed(context, d);
   context.renderAirQuality();
-  assert.equal(($('air-cards').innerHTML.match(/class="air-card"/g) || []).length, 8);
-  assert.equal(($('air-cards').innerHTML.match(/data-air-group="air"/g) || []).length, 6);
+  assert.equal(($('air-cards').innerHTML.match(/class="air-card"/g) || []).length, 9);
+  assert.equal(($('air-cards').innerHTML.match(/data-air-group="air"/g) || []).length, 7);
   assert.equal(($('air-cards').innerHTML.match(/data-air-group="climate"/g) || []).length, 2);
+  assert.match($('air-cards').innerHTML, /data-air-metric="pm4".*PM4\.0.*air-card-value">35/);
   const paths = [...$('air-chart-air').innerHTML.matchAll(/<path d="([^"]+)"/g)].map(m => m[1]);
-  assert.equal(paths.length, 4);
+  assert.equal(paths.length, 6);
   for (const path of paths) {
     assert.equal((path.match(/M/g) || []).length, 2);
     assert.ok(!path.includes('L'));
   }
   assert.match($('air-chart-air').innerHTML, /data-series="co2"/);
   assert.match($('air-chart-air').innerHTML, /data-series="pm25"/);
+  assert.match($('air-chart-air').innerHTML, /data-series="pm4"/);
+  assert.ok(context.airChartScales('air', d.points).find(axis => axis.id === 'particles').maximum >= 90);
   assert.doesNotMatch($('air-chart-air').innerHTML, /data-series="voc"/);
   assert.match($('air-chart-air').innerHTML, /<circle /);
   assert.match($('air-legend-air').innerHTML, /1,200/);
+  assert.match($('air-legend-air').innerHTML, /data-air-series="pm4".*PM4\.0/);
   assert.match($('air-legend-air').innerHTML, /data-air-series="voc" title="No readings"/);
   context.inspectAirPoint('air', 99);
   assert.match($('air-reading-air').innerHTML, /CO₂ <strong>900/);
   assert.match($('air-reading-air').innerHTML, /PM2.5 <strong>30/);
+  assert.match($('air-reading-air').innerHTML, /PM4\.0 <strong>35/);
   assert.match($('air-reading-air').innerHTML, /VOC <strong>—/);
   assert.equal($('air-cursor-air').attributes.visibility, 'visible');
   assert.match($('air-chart-climate').innerHTML, /No readings for this section/);
@@ -200,7 +209,7 @@ test('gas indexes gain their own axis when present and never share the particle 
   d.points[0].voc = 400;
   const axes = context.airChartScales('air', d.points);
   assert.equal(axes.length, 3);
-  assert.deepEqual([...axes[1].metrics], ['pm1', 'pm25', 'pm10']);
+  assert.deepEqual([...axes[1].metrics], ['pm1', 'pm25', 'pm4', 'pm10']);
   assert.deepEqual([...axes[2].metrics], ['voc', 'nox']);
   assert.equal(axes[2].maximum, 500);
 });
