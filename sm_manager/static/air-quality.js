@@ -1,5 +1,11 @@
 /* Sensor data is fetched by the server; the browser only uses our private API. */
-const airState = { data: null, hours: 24, request: 0, loading: false, error: false, charts: {}, cursors: {} };
+const airState = { data: null, error: false, charts: {}, cursors: {}, expanded: null,
+  history: Object.fromEntries(["air", "climate"].map(group => [group,
+    { hours: 6, data: null, request: 0, loading: false, error: false }])) };
+const airRanges = [1, 6, 12, 24, 168, 720];
+function airRangeLabel(hours) {
+  return hours === 168 ? "1 week" : hours === 720 ? "30 days" : `${hours}h`;
+}
 const airMetrics = {
   co2: { label: "CO₂", unit: "ppm", digits: 0, color: "#58a6ff", refs: [1000, 1500, 2000], note: "Ventilation reminders at 1,000 / 1,500 / 2,000 ppm. Persistent readings above 1,500 ppm indicate poor ventilation." },
   pm25: { label: "PM2.5", unit: "µg/m³", digits: 1, color: "#63cf8c", refs: [15], note: "15 µg/m³ is the WHO 24-hour average reference. An individual point above this line is not a daily exposure assessment." },
@@ -96,8 +102,17 @@ function renderAirCharts() {
   for (const group of Object.keys(airGroups)) renderAirChart(group);
 }
 function renderAirChart(group) {
-  const data = airState.data, definition = airGroups[group], element = $("air-chart-" + group);
-  if (!data || element.closest("[hidden]")) return;
+  const history = airState.history[group], data = history.data;
+  const definition = airGroups[group], element = $("air-chart-" + group);
+  if (element.closest("[hidden]")) return;
+  const status = $("air-load-" + group);
+  status.textContent = history.loading ? `Loading ${airRangeLabel(history.hours)} history…`
+    : history.error ? `Could not load ${airRangeLabel(history.hours)} history.${data ? ` Showing previous ${airRangeLabel(data.hours)} history.` : " Retrying shortly…"}` : "";
+  status.hidden = !status.textContent;
+  if (!data) {
+    element.innerHTML = '<div class="chart-placeholder">Waiting for sensor history…</div>';
+    return;
+  }
   const points = data.points.filter(point => definition.metrics.some(key => Number.isFinite(point[key])));
   airState.charts[group] = null;
   $("air-reading-" + group).textContent = "Hover, tap, or use the arrow keys to inspect all readings.";
@@ -112,7 +127,7 @@ function renderAirChart(group) {
     element.setAttribute("aria-label", `${definition.label}: no readings in the selected range`);
     return;
   }
-  const width = Math.max(280, element.clientWidth), height = element.clientHeight || 340;
+  const width = Math.max(220, element.clientWidth), height = element.clientHeight || 340;
   const axes = airChartScales(group, data.points);
   const left = 48, right = width - (axes.length > 2 ? 105 : 46), top = 32, bottom = height - 32;
   const start = data.now - data.hours * 3600, end = data.now;
@@ -132,10 +147,11 @@ function renderAirChart(group) {
     const position = index === 0 ? left : index === 1 ? right : width - 8;
     svg += `<text x="${position}" y="15" text-anchor="${index === 0 ? "start" : "end"}" style="fill:${axis.color}">${e(axis.label)}</text>`;
   });
-  for (let i = 0; i <= 3; i++) {
-    const time = start + (end - start) * i / 3;
+  const timeTicks = width < 350 ? 2 : 3;
+  for (let i = 0; i <= timeTicks; i++) {
+    const time = start + (end - start) * i / timeTicks;
     const label = new Date(time * 1000).toLocaleString(undefined, data.hours > 24 ? { month: "short", day: "numeric" } : { hour: "2-digit", minute: "2-digit" });
-    svg += `<text x="${x(time)}" y="${height - 8}" text-anchor="${i === 0 ? "start" : i === 3 ? "end" : "middle"}">${e(label)}</text>`;
+    svg += `<text x="${x(time)}" y="${height - 8}" text-anchor="${i === 0 ? "start" : i === timeTicks ? "end" : "middle"}">${e(label)}</text>`;
   }
   // References belong to a particular metric and use that metric's axis.
   const references = group === "air" ? [["co2", 1500, "CO₂ 1,500"], ["pm25", 15, "PM2.5 15 · 24h"], ["pm10", 45, "PM10 45 · 24h"]] : [];
@@ -172,7 +188,7 @@ function inspectAirPoint(group, index) {
   if (!chart) return;
   airState.cursors[group] = Math.max(0, Math.min(chart.points.length - 1, index));
   const point = chart.points[airState.cursors[group]];
-  const bucket = airState.data.bucket_seconds;
+  const bucket = airState.history[group].data.bucket_seconds;
   $("air-reading-" + group).innerHTML = `<div class="air-reading-time">${e(new Date(point.timestamp * 1000).toLocaleString())} · ${Math.round(bucket / 60)} min bucket</div>` + airGroups[group].metrics.map(key => {
     const metric = airMetrics[key];
     return `<span class="air-series-reading" style="--series-color:${metric.color}"><i class="air-swatch" aria-hidden="true"></i>${metric.label} <strong>${airNumber(point[key], key)} ${e(metric.unit)}</strong><small>peak ${airNumber(point[`${key}_peak`], key)}</small></span>`;
@@ -182,44 +198,107 @@ function inspectAirPoint(group, index) {
   cursor.setAttribute("x2", chart.x(point.timestamp));
   cursor.setAttribute("visibility", "visible");
 }
-async function refreshAirQuality(force = false) {
-  if (document.hidden || (!force && airState.loading)) return;
-  const request = ++airState.request;
-  airState.loading = true;
-  try {
-    const data = await api(`/api/air-quality?hours=${airState.hours}`);
-    if (request !== airState.request) return;
-    airState.data = data;
-    airState.error = false;
-    renderAirQuality();
-  } catch {
-    if (request !== airState.request) return;
-    airState.error = true;
-    if (airState.data) renderAirQuality();
-    else {
-      $("air-status").dataset.stale = "true";
-      $("air-status").textContent = "Air quality unavailable. Retrying shortly…";
+async function refreshAirQuality(force = false, onlyGroup = null) {
+  if (document.hidden) return;
+  const requests = new Map();
+  await Promise.all((onlyGroup ? [onlyGroup] : Object.keys(airGroups)).map(async group => {
+    const history = airState.history[group];
+    if (!force && history.loading) return;
+    const request = ++history.request, hours = history.hours;
+    history.loading = true;
+    renderAirChart(group);
+    try {
+      // Share a response when both charts use the same range, while preserving
+      // their independent range, loading, failure, and request-order state.
+      if (!requests.has(hours)) requests.set(hours, api(`/api/air-quality?hours=${hours}`));
+      const data = await requests.get(hours);
+      if (request !== history.request) return;
+      history.data = data;
+      history.error = false;
+      if (!airState.data || data.now >= airState.data.now) airState.data = data;
+    } catch {
+      if (request !== history.request) return;
+      history.error = true;
+    } finally {
+      if (request === history.request) {
+        history.loading = false;
+        airState.error = Object.values(airState.history).every(item => item.error);
+        if (airState.data) renderAirQuality();
+        else {
+          renderAirChart(group);
+          $("air-status").dataset.stale = "true";
+          $("air-status").textContent = "Air quality unavailable. Retrying shortly…";
+        }
+      }
     }
-  } finally {
-    if (request === airState.request) airState.loading = false;
+  }));
+}
+function updateAirFullscreen() {
+  for (const group of Object.keys(airGroups)) {
+    const panel = $("air-panel-" + group);
+    const expanded = document.fullscreenElement === panel || airState.expanded?.panel === panel;
+    panel.classList.toggle("is-expanded", expanded);
+    const button = $("air-fullscreen-" + group);
+    button.textContent = expanded ? "Exit fullscreen" : "Fullscreen";
+    button.setAttribute("aria-pressed", String(expanded));
+    button.setAttribute("aria-label", `${expanded ? "Exit fullscreen for" : "Show fullscreen:"} ${airGroups[group].label}`);
   }
+  renderAirCharts();
+}
+async function toggleAirFullscreen(group) {
+  const panel = $("air-panel-" + group), dialog = $("air-fullscreen-dialog");
+  if (document.fullscreenElement === panel) {
+    await document.exitFullscreen();
+    return;
+  }
+  if (airState.expanded) {
+    dialog.close();
+    return;
+  }
+  if (document.fullscreenEnabled && panel.requestFullscreen) {
+    try {
+      await panel.requestFullscreen();
+      return;
+    } catch { /* Embedded browsers may disallow native fullscreen. */ }
+  }
+  // A modal fills the app viewport when native fullscreen is unavailable.
+  // Move the existing panel so controls and the chart retain their state.
+  const placeholder = document.createComment("Air chart position");
+  panel.before(placeholder);
+  airState.expanded = { panel, placeholder, group };
+  dialog.append(panel);
+  dialog.showModal();
+  updateAirFullscreen();
+  $("air-fullscreen-" + group).focus();
 }
 function initAirQuality() {
   $("air-cards").addEventListener("click", event => {
     const card = event.target.closest("[data-air-group]");
     if (card) $("air-chart-" + card.dataset.airGroup).focus({ preventScroll: true });
   });
-  $("air-range").addEventListener("click", event => {
-    const button = event.target.closest("[data-air-hours]");
-    if (!button) return;
-    airState.hours = Number(button.dataset.airHours);
-    $("air-range").querySelectorAll("button").forEach(el => {
-      el.classList.toggle("selected", el === button);
-      el.setAttribute("aria-pressed", String(el === button));
-    });
-    refreshAirQuality(true);
+  document.addEventListener("fullscreenchange", updateAirFullscreen);
+  $("air-fullscreen-dialog").addEventListener("close", () => {
+    const expanded = airState.expanded;
+    if (!expanded) return;
+    expanded.placeholder.replaceWith(expanded.panel);
+    airState.expanded = null;
+    updateAirFullscreen();
+    $("air-fullscreen-" + expanded.group).focus({ preventScroll: true });
   });
   for (const group of Object.keys(airGroups)) {
+    $("air-fullscreen-" + group).addEventListener("click", () => toggleAirFullscreen(group));
+    $("air-range-" + group).addEventListener("click", event => {
+      const button = event.target.closest("[data-air-hours]");
+      const hours = Number(button?.dataset.airHours);
+      if (!button || !airRanges.includes(hours)) return;
+      airState.history[group].hours = hours;
+      airState.cursors[group] = null;
+      $("air-range-" + group).querySelectorAll("button").forEach(el => {
+        el.classList.toggle("selected", el === button);
+        el.setAttribute("aria-pressed", String(el === button));
+      });
+      refreshAirQuality(true, group);
+    });
     const element = $("air-chart-" + group);
     function inspectPointer(event) {
       const chart = airState.charts[group];

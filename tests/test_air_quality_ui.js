@@ -20,7 +20,7 @@ function setup() {
   return { context, $ };
 }
 function data() {
-  return { enabled: true, stale: false, now: 1800000000, hours: 24, bucket_seconds: 240,
+  return { enabled: true, stale: false, now: 1800000000, hours: 6, bucket_seconds: 240,
     latest: { timestamp: 1799999940, co2: 900, pm1: 10, pm25: 30, pm10: 40, voc: null, nox: null, temperature: 24, humidity: 45 },
     daily: { pm25: { value: 30, coverage: .1, complete: false } },
     points: [
@@ -29,6 +29,10 @@ function data() {
       { timestamp: 1799999940, co2: 900, co2_peak: 900 },
     ],
   };
+}
+function seed(context, value) {
+  context.airState.data = value;
+  for (const history of Object.values(context.airState.history)) history.data = value;
 }
 test('level indicators respect missing values, staleness and daily coverage', () => {
   const { context } = setup();
@@ -54,7 +58,7 @@ test('air chart shows all available series while retaining gaps and peaks', () =
   d.points[0].pm25 = 20;
   d.points[0].pm25_peak = 35;
   d.points[2].pm25 = 30;
-  context.airState.data = d;
+  seed(context, d);
   context.renderAirQuality();
   assert.equal(($('air-cards').innerHTML.match(/class="air-card"/g) || []).length, 8);
   assert.equal(($('air-cards').innerHTML.match(/data-air-group="air"/g) || []).length, 6);
@@ -82,7 +86,7 @@ test('climate renders both series and uses a separate scale for each unit', () =
   const { context, $ } = setup();
   const d = data();
   d.points.forEach(point => Object.assign(point, { temperature: -2, temperature_peak: 2, humidity: 80, humidity_peak: 90 }));
-  context.airState.data = d;
+  seed(context, d);
   context.renderAirQuality();
   assert.match($('air-chart-climate').innerHTML, /data-series="temperature"/);
   assert.match($('air-chart-climate').innerHTML, /data-series="humidity"/);
@@ -110,23 +114,69 @@ test('gas indexes gain their own axis when present and never share the particle 
 });
 test('failed refresh retains data but suppresses fresh level indicators', async () => {
   const { context, $ } = setup();
-  context.airState.data = data();
+  seed(context, data());
   context.api = async () => { throw new Error('offline'); };
   await context.refreshAirQuality();
   assert.equal(context.airState.data.latest.co2, 900);
   assert.match($('air-status').textContent, /Stale.*Dashboard connection unavailable/);
   assert.doesNotMatch($('air-cards').innerHTML, /data-tone="good"/);
 });
-test('late response cannot replace a newer range request', async () => {
+test('late responses cannot replace the selected range or change the other chart', async () => {
   const { context } = setup();
   const pending = [];
   context.api = () => new Promise(resolve => pending.push(resolve));
-  const first = context.refreshAirQuality(true);
-  context.airState.hours = 1;
-  const second = context.refreshAirQuality(true);
+  const first = context.refreshAirQuality(true, 'air');
+  context.airState.history.air.hours = 1;
+  const second = context.refreshAirQuality(true, 'air');
   pending[1]({ ...data(), hours: 1 });
   await second;
   pending[0](data());
   await first;
-  assert.equal(context.airState.data.hours, 1);
+  assert.equal(context.airState.history.air.data.hours, 1);
+  assert.equal(context.airState.history.climate.hours, 6);
+  assert.equal(context.airState.history.climate.data, null);
+});
+test('both charts start at six hours and share the initial network request', async () => {
+  const { context } = setup();
+  const requests = [];
+  context.api = async url => { requests.push(url); return data(); };
+  await context.refreshAirQuality();
+  assert.deepEqual(requests, ['/api/air-quality?hours=6']);
+  for (const history of Object.values(context.airState.history)) {
+    assert.equal(history.hours, 6);
+    assert.equal(history.data.hours, 6);
+  }
+});
+test('different ranges refresh independently and use their own bucket sizes', async () => {
+  const { context, $ } = setup();
+  seed(context, data());
+  context.airState.history.climate.hours = 168;
+  const requests = [];
+  context.api = async url => {
+    requests.push(url);
+    const hours = Number(url.split('=')[1]);
+    const d = data();
+    d.points.forEach(point => { point.temperature = 20; point.humidity = 40; });
+    return { ...d, hours, bucket_seconds: hours === 168 ? 3600 : 60 };
+  };
+  await context.refreshAirQuality();
+  assert.deepEqual(requests, ['/api/air-quality?hours=6', '/api/air-quality?hours=168']);
+  assert.equal(context.airState.history.air.data.hours, 6);
+  assert.equal(context.airState.history.climate.data.hours, 168);
+  context.inspectAirPoint('air', 0);
+  context.inspectAirPoint('climate', 0);
+  assert.match($('air-reading-air').innerHTML, /1 min bucket/);
+  assert.match($('air-reading-climate').innerHTML, /60 min bucket/);
+});
+test('a failed range change labels cached history and does not disrupt the other chart', async () => {
+  const { context, $ } = setup();
+  seed(context, data());
+  context.airState.history.air.hours = 24;
+  context.api = async () => { throw new Error('offline'); };
+  await context.refreshAirQuality(true, 'air');
+  assert.match($('air-load-air').textContent, /Could not load 24h.*Showing previous 6h/);
+  assert.equal($('air-load-air').hidden, false);
+  assert.equal(context.airState.history.air.data.hours, 6);
+  assert.equal(context.airState.history.climate.error, false);
+  assert.equal(context.airState.history.climate.hours, 6);
 });

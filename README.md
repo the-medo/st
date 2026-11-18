@@ -70,8 +70,10 @@ new samples, outages remain gaps, and readings older than five minutes are
 marked stale. Unknown or invalid values, including zero gas indexes, are shown
 as unavailable. Eight measurement cards stay in a single row, grouped by color.
 Two charts show the six air measurements and temperature/humidity together,
-side by side on wide screens, with separate labeled scales for each unit. Charts
-show bucket means and peaks across 1h–30d; hover/touch or arrow keys inspect all
+side by side at a 6:2 width ratio on wide screens, with separate labeled scales
+for each unit. Both charts start at six hours and have independent 1h / 6h / 12h /
+24h / week / month controls and a fullscreen view (Escape exits). Charts show
+bucket means and peaks across 1h–30d; hover/touch or arrow keys inspect all
 series in a section. Clicking a card focuses its section’s chart.
 
 CO₂ bands indicate ventilation reminders, not toxic exposure. PM2.5 and PM10

@@ -245,27 +245,35 @@
           <div class="air-cards-scroll" tabindex="0" role="region" aria-label="All eight measurements; scroll horizontally on smaller screens">
             <div id="air-cards" class="air-cards"></div>
           </div>
-          <div class="air-history-controls">
-            <h2>Sensor history</h2>
-            <div id="air-range" class="segmented" aria-label="Air quality history range">
-              <button data-air-hours="1" aria-pressed="false">1h</button>
-              <button data-air-hours="6" aria-pressed="false">6h</button>
-              <button data-air-hours="24" class="selected" aria-pressed="true">24h</button>
-              <button data-air-hours="168" aria-pressed="false">7d</button>
-              <button data-air-hours="720" aria-pressed="false">30d</button>
-            </div>
-          </div>
           <div class="air-charts">
-            <article class="panel air-history" data-air-group="air" aria-labelledby="air-group-title">
-              <div class="panel-heading"><h2 id="air-group-title">Air measurements</h2><span class="air-group-count">6 measurements</span></div>
+            <article id="air-panel-air" class="panel air-history" data-air-group="air" aria-labelledby="air-group-title">
+              <div class="panel-heading"><h2 id="air-group-title">Air measurements</h2><button id="air-fullscreen-air" class="button air-fullscreen-button" aria-pressed="false" aria-label="Show fullscreen: Air measurements">Fullscreen</button></div>
+              <div id="air-range-air" class="segmented air-range" aria-label="Air measurements time range">
+                <button data-air-hours="1" aria-pressed="false">1h</button>
+                <button data-air-hours="6" class="selected" aria-pressed="true">6h</button>
+                <button data-air-hours="12" aria-pressed="false">12h</button>
+                <button data-air-hours="24" aria-pressed="false">24h</button>
+                <button data-air-hours="168" aria-pressed="false">Week</button>
+                <button data-air-hours="720" aria-pressed="false">Month</button>
+              </div>
+              <p id="air-load-air" class="section-note air-load" role="status" hidden></p>
               <div id="air-legend-air" class="air-series-legends" aria-label="Air measurement series"></div>
               <p class="air-axis-note">Separate scales for CO₂, particles, and gas indexes. Solid lines show means; dashed lines show peaks.</p>
               <div id="air-chart-air" class="chart air-chart" tabindex="0" role="img" aria-label="Air measurement history loading"></div>
               <div id="air-reading-air" class="air-readings">Hover, tap, or use the arrow keys to inspect all readings.</div>
               <p class="section-note air-reference">CO₂ line: 1,500 ppm ventilation reminder. PM2.5 / PM10 lines: WHO 24-hour references, not instant danger thresholds. VOC and NOₓ are relative indexes.</p>
             </article>
-            <article class="panel air-history" data-air-group="climate" aria-labelledby="air-climate-title">
-              <div class="panel-heading"><h2 id="air-climate-title">Temperature &amp; humidity</h2><span class="air-group-count">2 measurements</span></div>
+            <article id="air-panel-climate" class="panel air-history" data-air-group="climate" aria-labelledby="air-climate-title">
+              <div class="panel-heading"><h2 id="air-climate-title">Temperature &amp; humidity</h2><button id="air-fullscreen-climate" class="button air-fullscreen-button" aria-pressed="false" aria-label="Show fullscreen: Temperature and humidity">Fullscreen</button></div>
+              <div id="air-range-climate" class="segmented air-range" aria-label="Temperature and humidity time range">
+                <button data-air-hours="1" aria-pressed="false">1h</button>
+                <button data-air-hours="6" class="selected" aria-pressed="true">6h</button>
+                <button data-air-hours="12" aria-pressed="false">12h</button>
+                <button data-air-hours="24" aria-pressed="false">24h</button>
+                <button data-air-hours="168" aria-pressed="false">Week</button>
+                <button data-air-hours="720" aria-pressed="false">Month</button>
+              </div>
+              <p id="air-load-climate" class="section-note air-load" role="status" hidden></p>
               <div id="air-legend-climate" class="air-series-legends" aria-label="Temperature and humidity series"></div>
               <p class="air-axis-note">Temperature uses the left axis (°C); humidity uses the right (%). Solid lines show means; dashed lines show peaks.</p>
               <div id="air-chart-climate" class="chart air-chart" tabindex="0" role="img" aria-label="Temperature and humidity history loading"></div>
@@ -305,6 +313,7 @@
         </footer>
       </div>
     </main>
+    <dialog id="air-fullscreen-dialog" class="air-fullscreen-dialog" aria-label="Expanded air quality chart"></dialog>
     <dialog id="detail-dialog" aria-labelledby="detail-title">
       <div class="dialog-header">
         <div>
