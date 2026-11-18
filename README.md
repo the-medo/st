@@ -17,6 +17,8 @@ agent to inspect the host every time.
 - Discovers Codex worktrees and shows local thread recency and runtime overhead.
 - Links to apps that already have a private Tailscale Serve route.
 - Opens the exact remote checkout in your local Zed client from the dashboard.
+- Charts an optional M5Stack AirQ device with 30-day history and source-linked
+  ventilation, particle-exposure, and relative gas-index indicators.
 - Copies a cleanup brief with exact resource identities for an agent to review.
 - Checks Docker, private Tailscale access, sleep protection, free disk space,
   memory pressure, and observed operating-system version changes.
@@ -51,6 +53,49 @@ closed.
 
 Optional installation as a command: `pip install .`, then `sm-manager serve`.
 Running directly from the checkout needs no package installation.
+
+### Air quality
+
+Set `air_quality_device` to the device's 12-character MAC address in the local
+configuration (`~/.config/sm-manager/config.json`) and restart. Keep the device
+identifier and collected readings out of Git. **Devices → Air quality** opens
+the dashboard; the separate arrow opens M5Stack's original page. The dashboard
+also links to the raw feed and the RPiShop product.
+
+An independent worker makes a bounded HTTPS GET to M5Stack once a minute, even
+when the page is closed. It stores unique publication timestamps in
+`<data_dir>/air-quality.sqlite` for 30 days. The feed only supplies its latest
+reading, so earlier history cannot be backfilled. Repeated timestamps are not
+new samples, outages remain gaps, and readings older than five minutes are
+marked stale. Unknown or invalid values, including zero gas indexes, are shown
+as unavailable. Eight measurement cards stay in a single row, grouped by color.
+Two charts show the six air measurements and temperature/humidity together,
+side by side at a 6:2 width ratio on wide screens, with separate labeled scales
+for each unit. Both charts start at six hours and have independent 1h / 6h / 12h /
+24h / week / month controls and a fullscreen view (Escape exits). Each chart also
+has an independent bucket selector: Auto / 1m / 5m / 15m / 30m / 1h / 6h / 1d.
+Auto suits the selected range; unavailable combinations are disabled to keep
+charts within 1,440 intervals and avoid buckets longer than the range. Changing
+the range resets an incompatible bucket to Auto. Range and bucket controls share
+a compact toolbar, using inline dropdowns in narrow panels. Reference details
+are available in the collapsed chart guide. Charts show
+bucket means and peaks across 1h–30d; hover/touch or arrow keys inspect all
+series in a section. Clicking a card focuses its section’s chart.
+Inspection shows compact green OK or orange Warning labels, the applicable
+reference, and any excess in the measurement's units below each measurement.
+A third row shows the reading as a percentage of that same reference (60 against
+15 is 400%); percentages above 100% are bold red. Higher peaks take priority
+and are explicitly labeled. Particle comparisons name the WHO 24-hour reference;
+they do not assess daily exposure from a bucket. Humidity uses EPA's below-60%
+ceiling and 30% ideal minimum, with differences in percentage points. Temperature
+and PM1 stay neutral; unavailable measurements never receive an OK label.
+
+CO₂ bands indicate ventilation reminders, not toxic exposure. PM2.5 and PM10
+card indicators compare time-weighted 24-hour averages with WHO daily references
+only after 90% coverage (our display completeness rule). Each reading covers at
+most two minutes, so missing time never counts as clean air. VOC/NOₓ use
+Sensirion's relative purifier response bands, not concentration or toxicity
+limits. Sources and sensor limitations are explained on the page.
 
 ## Keep it running
 
@@ -312,6 +357,7 @@ Same-origin, read-only HTTP endpoints:
 | `GET /api/zed` | Published checkout groups with revisions and Zed URLs, plus links for monitor-only directories |
 | `GET /api/dbs` | Database connections, ownership, last check time, freshness, and validated CloudBeaver links |
 | `GET /api/history?hours=24&entity=host` | Time-bucketed CPU and memory |
+| `GET /api/air-quality?hours=6&bucket=300` | AirQ readings, per-bucket means and peaks, and daily particle averages; bucket is seconds or `auto` |
 | `GET /api/cleanup-plan/<worktree-id>` | Resource identities and a cleanup brief |
 | `GET /api/disk-usage` | Cached per-project scan results and current scan status |
 | `GET /api/disk-usage?scan=1&project=<project-id>` | Start a bounded read-only background scan; returns 202, or 409 if another project is scanning |
