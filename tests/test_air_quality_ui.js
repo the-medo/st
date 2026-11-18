@@ -74,7 +74,7 @@ test('air chart shows all available series while retaining gaps and peaks', () =
   assert.doesNotMatch($('air-chart-air').innerHTML, /data-series="voc"/);
   assert.match($('air-chart-air').innerHTML, /<circle /);
   assert.match($('air-legend-air').innerHTML, /1,200/);
-  assert.match($('air-legend-air').innerHTML, /VOC.*No readings/);
+  assert.match($('air-legend-air').innerHTML, /data-air-series="voc" title="No readings"/);
   context.inspectAirPoint('air', 99);
   assert.match($('air-reading-air').innerHTML, /CO₂ <strong>900/);
   assert.match($('air-reading-air').innerHTML, /PM2.5 <strong>30/);
@@ -208,8 +208,6 @@ test('same ranges with different buckets produce independent requests and readou
   assert.deepEqual(requests, ['/api/air-quality?hours=6&bucket=300', '/api/air-quality?hours=6&bucket=3600']);
   assert.equal(context.airState.history.air.data.bucket_seconds, 300);
   assert.equal(context.airState.history.climate.data.bucket_seconds, 3600);
-  assert.match($('air-bucket-summary-air').textContent, /5m averages/);
-  assert.match($('air-bucket-summary-climate').textContent, /1h averages/);
   context.inspectAirPoint('air', 0);
   context.inspectAirPoint('climate', 0);
   assert.match($('air-reading-air').innerHTML, /5 min bucket/);
@@ -237,5 +235,4 @@ test('a failed bucket change labels the bucket of cached data', async () => {
   context.api = async () => { throw new Error('offline'); };
   await context.refreshAirQuality(true, 'air');
   assert.match($('air-load-air').textContent, /with 5m buckets.*previous 6h history \(1m buckets\)/);
-  assert.match($('air-bucket-summary-air').textContent, /1m averages/);
 });

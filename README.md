@@ -76,8 +76,9 @@ for each unit. Both charts start at six hours and have independent 1h / 6h / 12h
 has an independent bucket selector: Auto / 1m / 5m / 15m / 30m / 1h / 6h / 1d.
 Auto suits the selected range; unavailable combinations are disabled to keep
 charts within 1,440 intervals and avoid buckets longer than the range. Changing
-the range resets an incompatible bucket to Auto. The displayed bucket size
-always describes the data currently shown. Charts show
+the range resets an incompatible bucket to Auto. Range and bucket controls share
+a compact toolbar, using inline dropdowns in narrow panels. Reference details
+are available in the collapsed chart guide. Charts show
 bucket means and peaks across 1h–30d; hover/touch or arrow keys inspect all
 series in a section. Clicking a card focuses its section’s chart.
 

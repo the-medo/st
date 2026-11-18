@@ -16,7 +16,10 @@ function airBucketAllowed(hours, bucket) {
 }
 function renderAirBucketControls(group) {
   const history = airState.history[group];
-  $("air-bucket-" + group).querySelectorAll("[data-air-bucket]").forEach(button => {
+  const bucketSelect = $("air-bucket-select-" + group);
+  bucketSelect.value = String(history.bucket);
+  [...$("air-bucket-" + group).querySelectorAll("[data-air-bucket]"),
+    ...bucketSelect.querySelectorAll("option")].forEach(button => {
     const bucket = button.dataset.airBucket === "auto" ? "auto" : Number(button.dataset.airBucket);
     const allowed = airBucketAllowed(history.hours, bucket);
     button.disabled = !allowed;
@@ -26,9 +29,6 @@ function renderAirBucketControls(group) {
     button.classList.toggle("selected", bucket === history.bucket);
     button.setAttribute("aria-pressed", String(bucket === history.bucket));
   });
-  $("air-bucket-summary-" + group).textContent = history.data
-    ? `Showing ${airBucketLabel(history.data.bucket_seconds)} averages and peaks.`
-    : "Each point groups readings into one time bucket.";
 }
 function airRangeLabel(hours) {
   return hours === 168 ? "1 week" : hours === 720 ? "30 days" : `${hours}h`;
@@ -143,14 +143,15 @@ function renderAirChart(group) {
   }
   const points = data.points.filter(point => definition.metrics.some(key => Number.isFinite(point[key])));
   airState.charts[group] = null;
-  $("air-reading-" + group).textContent = "Hover, tap, or use the arrow keys to inspect all readings.";
+  if (airState.cursors[group] == null) $("air-reading-" + group).textContent = "";
   $("air-legend-" + group).innerHTML = definition.metrics.map(key => {
     const metric = airMetrics[key], available = points.some(point => Number.isFinite(point[key]));
     const values = points.map(point => point[`${key}_peak`] ?? point[key]).filter(Number.isFinite);
     const detail = available ? `Peak ${airNumber(Math.max(...values), key)} ${metric.unit}` : "No readings";
-    return `<span class="air-series-legend" data-air-series="${key}" style="--series-color:${metric.color}"><i class="air-swatch" aria-hidden="true"></i><strong>${metric.label}</strong><span>${e(detail)}</span></span>`;
+    return `<span class="air-series-legend" data-air-series="${key}" title="${e(detail)}" style="--series-color:${metric.color}"><i class="air-swatch" aria-hidden="true"></i><strong>${metric.label}</strong>${available ? "" : '<small>unavailable</small>'}</span>`;
   }).join("");
   if (!points.length) {
+    $("air-reading-" + group).textContent = "";
     element.innerHTML = `<div class="chart-placeholder">No readings for this section in this range yet.</div>`;
     element.setAttribute("aria-label", `${definition.label}: no readings in the selected range`);
     return;
@@ -210,6 +211,7 @@ function renderAirChart(group) {
   element.innerHTML = `<svg viewBox="0 0 ${width} ${height}" aria-hidden="true">${svg}</svg>`;
   element.setAttribute("aria-label", `${definition.label} history over ${data.hours} hours. ${definition.metrics.map(key => airMetrics[key].label).join(", ")}. Separate scales: ${axes.map(axis => axis.label).join(", ")}. Arrow keys inspect all readings. Solid lines: bucket means; dashed: peaks. Gaps indicate missing data.`);
   airState.charts[group] = { points, start, end, left, right, x };
+  if (airState.cursors[group] != null) inspectAirPoint(group, airState.cursors[group]);
 }
 function inspectAirPoint(group, index) {
   const chart = airState.charts[group];
@@ -316,28 +318,36 @@ function initAirQuality() {
   });
   for (const group of Object.keys(airGroups)) {
     $("air-fullscreen-" + group).addEventListener("click", () => toggleAirFullscreen(group));
-    $("air-range-" + group).addEventListener("click", event => {
-      const button = event.target.closest("[data-air-hours]");
-      const hours = Number(button?.dataset.airHours);
-      if (!button || !airRanges.includes(hours)) return;
+    function selectRange(hours) {
+      if (!airRanges.includes(hours)) return;
       airState.history[group].hours = hours;
       if (!airBucketAllowed(hours, airState.history[group].bucket)) airState.history[group].bucket = "auto";
       airState.cursors[group] = null;
+      $("air-range-select-" + group).value = String(hours);
       $("air-range-" + group).querySelectorAll("button").forEach(el => {
-        el.classList.toggle("selected", el === button);
-        el.setAttribute("aria-pressed", String(el === button));
+        const selected = Number(el.dataset.airHours) === hours;
+        el.classList.toggle("selected", selected);
+        el.setAttribute("aria-pressed", String(selected));
       });
       refreshAirQuality(true, group);
-    });
-    $("air-bucket-" + group).addEventListener("click", event => {
-      const button = event.target.closest("[data-air-bucket]");
-      if (!button || button.disabled) return;
-      const bucket = button.dataset.airBucket === "auto" ? "auto" : Number(button.dataset.airBucket);
+    }
+    function selectBucket(value) {
+      const bucket = value === "auto" ? "auto" : Number(value);
       if (!airBucketAllowed(airState.history[group].hours, bucket)) return;
       airState.history[group].bucket = bucket;
       airState.cursors[group] = null;
       refreshAirQuality(true, group);
+    }
+    $("air-range-" + group).addEventListener("click", event => {
+      const button = event.target.closest("[data-air-hours]");
+      if (button) selectRange(Number(button.dataset.airHours));
     });
+    $("air-range-select-" + group).addEventListener("change", event => selectRange(Number(event.target.value)));
+    $("air-bucket-" + group).addEventListener("click", event => {
+      const button = event.target.closest("[data-air-bucket]");
+      if (button && !button.disabled) selectBucket(button.dataset.airBucket);
+    });
+    $("air-bucket-select-" + group).addEventListener("change", event => selectBucket(event.target.value));
     const element = $("air-chart-" + group);
     function inspectPointer(event) {
       const chart = airState.charts[group];
