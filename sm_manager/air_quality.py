@@ -13,6 +13,8 @@ from .history import RETENTION, RETENTION_HOURS
 POLL_SECONDS = 60
 STALE_SECONDS = 300
 MAX_RESPONSE_BYTES = 256 * 1024
+BUCKET_SECONDS = (60, 300, 900, 1800, 3600, 21600, 86400)
+MAX_CHART_BUCKETS = 1440
 METRICS = {
     "co2": ("scd40", "co2", 1, 40000),
     "pm1": ("sen55", "pm1.0", 0, 1000),
@@ -131,11 +133,16 @@ class AirQuality:
             self.db.execute("DELETE FROM readings WHERE timestamp < ?", (now - RETENTION,))
             self.checked_at, self.error = now, error
 
-    def query(self, hours=24, now=None):
+    def query(self, hours=24, now=None, bucket_seconds=None):
         if not math.isfinite(hours) or not 0.25 <= hours <= RETENTION_HOURS:
             raise ValueError(f"Use hours=0.25..{RETENTION_HOURS}")
         now = time.time() if now is None else now
-        bucket = max(POLL_SECONDS, math.ceil(hours * 3600 / 360))
+        minimum_bucket = max(POLL_SECONDS, math.ceil(hours * 3600 / MAX_CHART_BUCKETS))
+        if bucket_seconds is not None and (
+                type(bucket_seconds) is not int or bucket_seconds not in BUCKET_SECONDS
+                or not minimum_bucket <= bucket_seconds <= hours * 3600):
+            raise ValueError("Choose a supported bucket size for this time range")
+        bucket = bucket_seconds or max(POLL_SECONDS, math.ceil(hours * 3600 / 360))
         aggregations = ", ".join(f"AVG({key}) AS {key}, MAX({key}) AS {key}_peak" for key in METRICS)
         with self.lock:
             latest = self.db.execute("SELECT * FROM readings WHERE device=? AND timestamp>=? AND timestamp<=? ORDER BY timestamp DESC LIMIT 1",

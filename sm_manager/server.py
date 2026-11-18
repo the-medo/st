@@ -80,10 +80,13 @@ def handler_for(collector, config, air_quality=None):
                     if air_quality is None:
                         return self.respond(503, {"error": "Air quality collector unavailable"})
                     try:
-                        hours = float(parse_qs(url.query).get("hours", ["24"])[0])
-                        return self.respond(200, air_quality.query(hours))
+                        query = parse_qs(url.query)
+                        hours = float(query.get("hours", ["24"])[0])
+                        bucket = query.get("bucket", ["auto"])[0]
+                        return self.respond(200, air_quality.query(
+                            hours, bucket_seconds=None if bucket == "auto" else int(bucket)))
                     except ValueError:
-                        return self.respond(400, {"error": f"Use hours=0.25..{RETENTION_HOURS}"})
+                        return self.respond(400, {"error": f"Use hours=0.25..{RETENTION_HOURS} and bucket=auto,60,300,900,1800,3600,21600,86400; choose a bucket within the range and at most 1440 intervals."})
                 if url.path == "/api/faceplate":
                     try:
                         return self.respond(200, read_faceplate_frame(config["faceplate_frame_path"]))

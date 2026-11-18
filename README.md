@@ -72,7 +72,12 @@ as unavailable. Eight measurement cards stay in a single row, grouped by color.
 Two charts show the six air measurements and temperature/humidity together,
 side by side at a 6:2 width ratio on wide screens, with separate labeled scales
 for each unit. Both charts start at six hours and have independent 1h / 6h / 12h /
-24h / week / month controls and a fullscreen view (Escape exits). Charts show
+24h / week / month controls and a fullscreen view (Escape exits). Each chart also
+has an independent bucket selector: Auto / 1m / 5m / 15m / 30m / 1h / 6h / 1d.
+Auto suits the selected range; unavailable combinations are disabled to keep
+charts within 1,440 intervals and avoid buckets longer than the range. Changing
+the range resets an incompatible bucket to Auto. The displayed bucket size
+always describes the data currently shown. Charts show
 bucket means and peaks across 1h–30d; hover/touch or arrow keys inspect all
 series in a section. Clicking a card focuses its section’s chart.
 
@@ -343,6 +348,7 @@ Same-origin, read-only HTTP endpoints:
 | `GET /api/zed` | Published checkout groups with revisions and Zed URLs, plus links for monitor-only directories |
 | `GET /api/dbs` | Database connections, ownership, last check time, freshness, and validated CloudBeaver links |
 | `GET /api/history?hours=24&entity=host` | Time-bucketed CPU and memory |
+| `GET /api/air-quality?hours=6&bucket=300` | AirQ readings, per-bucket means and peaks, and daily particle averages; bucket is seconds or `auto` |
 | `GET /api/cleanup-plan/<worktree-id>` | Resource identities and a cleanup brief |
 | `GET /api/disk-usage` | Cached per-project scan results and current scan status |
 | `GET /api/disk-usage?scan=1&project=<project-id>` | Start a bounded read-only background scan; returns 202, or 409 if another project is scanning |

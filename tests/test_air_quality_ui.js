@@ -9,7 +9,7 @@ function setup() {
     if (!elements.has(id)) elements.set(id, {
       innerHTML: '', textContent: '', dataset: {}, hidden: false,
       clientWidth: 800, clientHeight: 340, attributes: {},
-      closest: () => null, setAttribute(key, value) { this.attributes[key] = value; },
+      closest: () => null, querySelectorAll: () => [], setAttribute(key, value) { this.attributes[key] = value; },
     });
     return elements.get(id);
   };
@@ -179,4 +179,63 @@ test('a failed range change labels cached history and does not disrupt the other
   assert.equal(context.airState.history.air.data.hours, 6);
   assert.equal(context.airState.history.climate.error, false);
   assert.equal(context.airState.history.climate.hours, 6);
+});
+
+test('bucket choices adapt to the range and stay within bounded detail', () => {
+  const { context } = setup();
+  assert.equal(context.airBucketAllowed(6, 'auto'), true);
+  assert.equal(context.airBucketAllowed(6, 60), true);
+  assert.equal(context.airBucketAllowed(6, 86400), false);
+  assert.equal(context.airBucketAllowed(168, 300), false);
+  assert.equal(context.airBucketAllowed(720, 900), false);
+  assert.equal(context.airBucketAllowed(720, 1800), true);
+  assert.equal(context.airBucketAllowed(24, 60), true);
+  assert.equal(context.airBucketAllowed(6, 123), false);
+});
+test('same ranges with different buckets produce independent requests and readouts', async () => {
+  const { context, $ } = setup();
+  const requests = [];
+  context.airState.history.air.bucket = 300;
+  context.airState.history.climate.bucket = 3600;
+  context.api = async url => {
+    requests.push(url);
+    const params = new URL(url, 'http://localhost').searchParams;
+    const d = data();
+    d.points.forEach(point => { point.temperature = 20; point.humidity = 40; });
+    return { ...d, hours: Number(params.get('hours')), bucket_seconds: Number(params.get('bucket')) };
+  };
+  await context.refreshAirQuality();
+  assert.deepEqual(requests, ['/api/air-quality?hours=6&bucket=300', '/api/air-quality?hours=6&bucket=3600']);
+  assert.equal(context.airState.history.air.data.bucket_seconds, 300);
+  assert.equal(context.airState.history.climate.data.bucket_seconds, 3600);
+  assert.match($('air-bucket-summary-air').textContent, /5m averages/);
+  assert.match($('air-bucket-summary-climate').textContent, /1h averages/);
+  context.inspectAirPoint('air', 0);
+  context.inspectAirPoint('climate', 0);
+  assert.match($('air-reading-air').innerHTML, /5 min bucket/);
+  assert.match($('air-reading-climate').innerHTML, /60 min bucket/);
+});
+test('a late bucket response cannot replace a newer bucket selection', async () => {
+  const { context } = setup();
+  const pending = [];
+  context.api = () => new Promise(resolve => pending.push(resolve));
+  context.airState.history.air.bucket = 60;
+  const first = context.refreshAirQuality(true, 'air');
+  context.airState.history.air.bucket = 300;
+  const second = context.refreshAirQuality(true, 'air');
+  pending[1]({ ...data(), bucket_seconds: 300 });
+  await second;
+  pending[0]({ ...data(), bucket_seconds: 60 });
+  await first;
+  assert.equal(context.airState.history.air.data.bucket_seconds, 300);
+  assert.equal(context.airState.history.climate.bucket, 'auto');
+});
+test('a failed bucket change labels the bucket of cached data', async () => {
+  const { context, $ } = setup();
+  seed(context, { ...data(), bucket_seconds: 60 });
+  context.airState.history.air.bucket = 300;
+  context.api = async () => { throw new Error('offline'); };
+  await context.refreshAirQuality(true, 'air');
+  assert.match($('air-load-air').textContent, /with 5m buckets.*previous 6h history \(1m buckets\)/);
+  assert.match($('air-bucket-summary-air').textContent, /1m averages/);
 });

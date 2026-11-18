@@ -150,6 +150,32 @@ class AirQualityTests(unittest.TestCase):
         self.assertFalse(result["complete"])
         self.assertEqual(daily_average([], NOW)["pm25"]["coverage"], 0)
 
+    def test_selected_bucket_changes_aggregation_without_losing_peaks(self):
+        for offset, co2 in ((290, 500), (230, 2000), (170, 800)):
+            self.poll(payload(NOW - offset, {"scd40": {"co2": co2}}))
+        fine = self.air.query(6, NOW, bucket_seconds=60)
+        coarse = self.air.query(6, NOW, bucket_seconds=300)
+        self.assertEqual(fine["bucket_seconds"], 60)
+        self.assertEqual(len(fine["points"]), 3)
+        self.assertEqual(coarse["bucket_seconds"], 300)
+        self.assertEqual(len(coarse["points"]), 1)
+        self.assertEqual(coarse["points"][0]["co2"], 1100)
+        self.assertEqual(coarse["points"][0]["co2_peak"], 2000)
+        self.assertEqual(fine["latest"], coarse["latest"])
+        self.assertEqual(fine["daily"], coarse["daily"])
+
+    def test_bucket_validation_and_automatic_resolution_keep_queries_bounded(self):
+        for bucket in (0, -1, 1, 120, True, 300.0, "300", float("nan"), float("inf")):
+            with self.subTest(bucket=bucket), self.assertRaises(ValueError):
+                self.air.query(6, NOW, bucket_seconds=bucket)
+        for hours, bucket in ((720, 60), (168, 300), (1, 86400)):
+            with self.subTest(hours=hours, bucket=bucket), self.assertRaises(ValueError):
+                self.air.query(hours, NOW, bucket_seconds=bucket)
+        self.assertEqual(self.air.query(24, NOW)["bucket_seconds"], 240)
+        self.assertEqual(self.air.query(720, NOW)["bucket_seconds"], 7200)
+        self.assertEqual(self.air.query(720, NOW, bucket_seconds=1800)["bucket_seconds"], 1800)
+        self.assertEqual(self.air.query(24, NOW, bucket_seconds=60)["bucket_seconds"], 60)
+
     def test_devices_are_isolated_disabled_does_not_poll_and_redirects_blocked(self):
         self.poll(payload())
         other = AirQuality({**self.config, "air_quality_device": "000000000001"})
@@ -192,6 +218,13 @@ class AirQualityTests(unittest.TestCase):
         self.assertNotIn("Access-Control-Allow-Origin", headers)
         for query in ("NaN", "inf", "721", "bad", "0"):
             self.assertEqual(request("/api/air-quality?hours=" + query)[0], 400)
+        for query in ("60", "300", "900", "1800", "3600", "21600", "auto"):
+            status, body, _ = request("/api/air-quality?hours=6&bucket=" + query)
+            self.assertEqual(status, 200)
+            self.assertEqual(json.loads(body)["bucket_seconds"], 60 if query == "auto" else int(query))
+        for query in ("NaN", "inf", "bad", "0", "120", "300.5", "86400"):
+            self.assertEqual(request("/api/air-quality?hours=6&bucket=" + query)[0], 400)
+        self.assertEqual(request("/api/air-quality?hours=720&bucket=60")[0], 400)
         for headers in ({"Host": "evil.test"}, {"Origin": "https://evil.test"}, {"Sec-Fetch-Site": "cross-site"}):
             self.assertEqual(request(**headers)[0], 403)
         self.assertEqual(request("/air-quality.js")[0], 200)

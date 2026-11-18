@@ -2051,7 +2051,13 @@ dialog::backdrop {
 .air-history .panel-heading { min-height: 62px; }
 .air-history .panel-heading h2 { min-width: 0; }
 .air-range { flex-wrap: wrap; padding: 8px 10px; border-bottom: 1px solid var(--line); }
-.air-range button { padding: 3px 5px; }
+.air-range button, .air-bucket button { padding: 3px 5px; }
+.air-bucket-controls { padding: 7px 10px; border-bottom: 1px solid var(--line); min-height: 80px; }
+.air-control-label { display: block; color: var(--muted); font-size: 11px; margin-bottom: 4px; }
+.air-bucket { flex-wrap: wrap; }
+.air-bucket button:disabled { cursor: not-allowed; }
+.air-bucket-summary { display: block; color: var(--muted); font: 10px/1.5 var(--mono); margin-top: 4px; }
+.air-history.is-expanded .air-bucket-controls { min-height: 0; flex-shrink: 0; }
 .air-load { padding: 6px 12px; color: #f0b65f; }
 .air-history[data-air-group="climate"] .air-series-legends { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .air-history[data-air-group="climate"] .air-axis-note { min-height: 78px; }

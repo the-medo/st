@@ -1,8 +1,35 @@
 /* Sensor data is fetched by the server; the browser only uses our private API. */
 const airState = { data: null, error: false, charts: {}, cursors: {}, expanded: null,
   history: Object.fromEntries(["air", "climate"].map(group => [group,
-    { hours: 6, data: null, request: 0, loading: false, error: false }])) };
+    { hours: 6, bucket: "auto", data: null, request: 0, loading: false, error: false }])) };
 const airRanges = [1, 6, 12, 24, 168, 720];
+const airBuckets = ["auto", 60, 300, 900, 1800, 3600, 21600, 86400];
+function airBucketLabel(bucket) {
+  if (bucket === "auto") return "Auto";
+  if (bucket >= 86400) return `${bucket / 86400}d`;
+  if (bucket >= 3600 && bucket % 3600 === 0) return `${bucket / 3600}h`;
+  return bucket % 60 === 0 ? `${bucket / 60}m` : `${bucket}s`;
+}
+function airBucketAllowed(hours, bucket) {
+  return bucket === "auto" || (airBuckets.includes(bucket)
+    && bucket >= Math.max(60, Math.ceil(hours * 3600 / 1440)) && bucket <= hours * 3600);
+}
+function renderAirBucketControls(group) {
+  const history = airState.history[group];
+  $("air-bucket-" + group).querySelectorAll("[data-air-bucket]").forEach(button => {
+    const bucket = button.dataset.airBucket === "auto" ? "auto" : Number(button.dataset.airBucket);
+    const allowed = airBucketAllowed(history.hours, bucket);
+    button.disabled = !allowed;
+    button.title = allowed ? bucket === "auto" ? "Choose a bucket to suit the time range" : `Average readings in ${airBucketLabel(bucket)} buckets`
+      : bucket > history.hours * 3600 ? "Choose a longer time range for this bucket"
+      : "Choose a shorter time range for this level of detail";
+    button.classList.toggle("selected", bucket === history.bucket);
+    button.setAttribute("aria-pressed", String(bucket === history.bucket));
+  });
+  $("air-bucket-summary-" + group).textContent = history.data
+    ? `Showing ${airBucketLabel(history.data.bucket_seconds)} averages and peaks.`
+    : "Each point groups readings into one time bucket.";
+}
 function airRangeLabel(hours) {
   return hours === 168 ? "1 week" : hours === 720 ? "30 days" : `${hours}h`;
 }
@@ -104,10 +131,11 @@ function renderAirCharts() {
 function renderAirChart(group) {
   const history = airState.history[group], data = history.data;
   const definition = airGroups[group], element = $("air-chart-" + group);
+  renderAirBucketControls(group);
   if (element.closest("[hidden]")) return;
   const status = $("air-load-" + group);
-  status.textContent = history.loading ? `Loading ${airRangeLabel(history.hours)} history…`
-    : history.error ? `Could not load ${airRangeLabel(history.hours)} history.${data ? ` Showing previous ${airRangeLabel(data.hours)} history.` : " Retrying shortly…"}` : "";
+  status.textContent = history.loading ? `Loading ${airRangeLabel(history.hours)} history · ${airBucketLabel(history.bucket)} buckets…`
+    : history.error ? `Could not load ${airRangeLabel(history.hours)} history with ${airBucketLabel(history.bucket)} buckets.${data ? ` Showing previous ${airRangeLabel(data.hours)} history (${airBucketLabel(data.bucket_seconds)} buckets).` : " Retrying shortly…"}` : "";
   status.hidden = !status.textContent;
   if (!data) {
     element.innerHTML = '<div class="chart-placeholder">Waiting for sensor history…</div>';
@@ -204,14 +232,15 @@ async function refreshAirQuality(force = false, onlyGroup = null) {
   await Promise.all((onlyGroup ? [onlyGroup] : Object.keys(airGroups)).map(async group => {
     const history = airState.history[group];
     if (!force && history.loading) return;
-    const request = ++history.request, hours = history.hours;
+    const request = ++history.request, hours = history.hours, bucket = history.bucket;
+    const url = `/api/air-quality?hours=${hours}${bucket === "auto" ? "" : `&bucket=${bucket}`}`;
     history.loading = true;
     renderAirChart(group);
     try {
-      // Share a response when both charts use the same range, while preserving
+      // Share a response only when both the range and bucket match, preserving
       // their independent range, loading, failure, and request-order state.
-      if (!requests.has(hours)) requests.set(hours, api(`/api/air-quality?hours=${hours}`));
-      const data = await requests.get(hours);
+      if (!requests.has(url)) requests.set(url, api(url));
+      const data = await requests.get(url);
       if (request !== history.request) return;
       history.data = data;
       history.error = false;
@@ -292,11 +321,21 @@ function initAirQuality() {
       const hours = Number(button?.dataset.airHours);
       if (!button || !airRanges.includes(hours)) return;
       airState.history[group].hours = hours;
+      if (!airBucketAllowed(hours, airState.history[group].bucket)) airState.history[group].bucket = "auto";
       airState.cursors[group] = null;
       $("air-range-" + group).querySelectorAll("button").forEach(el => {
         el.classList.toggle("selected", el === button);
         el.setAttribute("aria-pressed", String(el === button));
       });
+      refreshAirQuality(true, group);
+    });
+    $("air-bucket-" + group).addEventListener("click", event => {
+      const button = event.target.closest("[data-air-bucket]");
+      if (!button || button.disabled) return;
+      const bucket = button.dataset.airBucket === "auto" ? "auto" : Number(button.dataset.airBucket);
+      if (!airBucketAllowed(airState.history[group].hours, bucket)) return;
+      airState.history[group].bucket = bucket;
+      airState.cursors[group] = null;
       refreshAirQuality(true, group);
     });
     const element = $("air-chart-" + group);

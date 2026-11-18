@@ -256,6 +256,20 @@
                 <button data-air-hours="168" aria-pressed="false">Week</button>
                 <button data-air-hours="720" aria-pressed="false">Month</button>
               </div>
+              <div class="air-bucket-controls">
+                <span class="air-control-label" id="air-bucket-label-air">Bucket size</span>
+                <div id="air-bucket-air" class="segmented air-bucket" role="group" aria-labelledby="air-bucket-label-air">
+                  <button data-air-bucket="auto" class="selected" aria-pressed="true">Auto</button>
+                  <button data-air-bucket="60" aria-pressed="false">1m</button>
+                  <button data-air-bucket="300" aria-pressed="false">5m</button>
+                  <button data-air-bucket="900" aria-pressed="false">15m</button>
+                  <button data-air-bucket="1800" aria-pressed="false">30m</button>
+                  <button data-air-bucket="3600" aria-pressed="false">1h</button>
+                  <button data-air-bucket="21600" aria-pressed="false">6h</button>
+                  <button data-air-bucket="86400" disabled aria-pressed="false">1d</button>
+                </div>
+                <span id="air-bucket-summary-air" class="air-bucket-summary">Each point groups readings into one time bucket.</span>
+              </div>
               <p id="air-load-air" class="section-note air-load" role="status" hidden></p>
               <div id="air-legend-air" class="air-series-legends" aria-label="Air measurement series"></div>
               <p class="air-axis-note">Separate scales for CO₂, particles, and gas indexes. Solid lines show means; dashed lines show peaks.</p>
@@ -272,6 +286,20 @@
                 <button data-air-hours="24" aria-pressed="false">24h</button>
                 <button data-air-hours="168" aria-pressed="false">Week</button>
                 <button data-air-hours="720" aria-pressed="false">Month</button>
+              </div>
+              <div class="air-bucket-controls">
+                <span class="air-control-label" id="air-bucket-label-climate">Bucket size</span>
+                <div id="air-bucket-climate" class="segmented air-bucket" role="group" aria-labelledby="air-bucket-label-climate">
+                  <button data-air-bucket="auto" class="selected" aria-pressed="true">Auto</button>
+                  <button data-air-bucket="60" aria-pressed="false">1m</button>
+                  <button data-air-bucket="300" aria-pressed="false">5m</button>
+                  <button data-air-bucket="900" aria-pressed="false">15m</button>
+                  <button data-air-bucket="1800" aria-pressed="false">30m</button>
+                  <button data-air-bucket="3600" aria-pressed="false">1h</button>
+                  <button data-air-bucket="21600" aria-pressed="false">6h</button>
+                  <button data-air-bucket="86400" disabled aria-pressed="false">1d</button>
+                </div>
+                <span id="air-bucket-summary-climate" class="air-bucket-summary">Each point groups readings into one time bucket.</span>
               </div>
               <p id="air-load-climate" class="section-note air-load" role="status" hidden></p>
               <div id="air-legend-climate" class="air-series-legends" aria-label="Temperature and humidity series"></div>
