@@ -42,17 +42,17 @@ const airMetrics = {
   temperature: { label: "Temperature", unit: "°C", digits: 1, color: "#f0b65f", refs: [], note: "Temperature from the SEN55 sensor. The enclosure and sensor electronics can affect this reading." },
   humidity: { label: "Humidity", unit: "%", digits: 1, color: "#a5d6ff", refs: [], note: "EPA recommends indoor humidity below 60%, ideally 30–50%. Differences are percentage points (pp)." },
   pm1: { label: "PM1", unit: "µg/m³", digits: 1, color: "#b6dc7b", refs: [], note: "PM1 particle mass concentration. No WHO daily guideline is applied to this size fraction." },
-  pm4: { label: "PM4", unit: "µg/m³", digits: 1, color: "#9cd5cb", refs: [], note: "PM4 particle mass concentration. No WHO daily guideline is applied to this size fraction." },
+  pm4: { label: "PM4.0", unit: "µg/m³", digits: 1, color: "#9cd5cb", refs: [], note: "PM4.0 particle mass concentration. No WHO daily guideline is applied to this size fraction." },
 };
 const airGroups = {
-  air: { label: "Air measurements", metrics: ["co2", "pm1", "pm25", "pm10", "voc", "nox"], axes: [
+  air: { label: "Air measurements", metrics: ["co2", "pm1", "pm25", "pm4", "pm10", "voc", "nox"], axes: [
     { id: "co2", label: "CO₂ · ppm", metrics: ["co2"], minimum: 0, baseline: 2000, color: "#58a6ff" },
-    { id: "particles", label: "PM · µg/m³", metrics: ["pm1", "pm25", "pm10"], minimum: 0, baseline: 50, color: "#63cf8c" },
+    { id: "particles", label: "PM · µg/m³", metrics: ["pm1", "pm25", "pm4", "pm10"], minimum: 0, baseline: 50, color: "#63cf8c" },
     { id: "gas", label: "Gas index", metrics: ["voc", "nox"], minimum: 0, baseline: 500, color: "#d2a8ff", optional: true },
   ] },
   climate: { label: "Temperature & humidity", metrics: ["temperature", "humidity"], axes: [
-    { id: "temperature", label: "Temperature · °C", metrics: ["temperature"], minimum: 0, baseline: 40, color: "#f0b65f" },
-    { id: "humidity", label: "Humidity · %", metrics: ["humidity"], minimum: 0, baseline: 100, color: "#a5d6ff" },
+    { id: "temperature", label: "Temperature · °C", compactLabel: "Temp · °C", metrics: ["temperature"], minimum: 0, baseline: 40, color: "#f0b65f" },
+    { id: "humidity", label: "Humidity · %", compactLabel: "RH · %", metrics: ["humidity"], minimum: 0, baseline: 100, color: "#a5d6ff" },
   ] },
 };
 function airNumber(value, metric = "co2") {
@@ -225,7 +225,8 @@ function renderAirChart(group) {
   }
   axes.forEach((axis, index) => {
     const position = index === 0 ? left : index === 1 ? right : width - 8;
-    svg += `<text x="${position}" y="15" text-anchor="${index === 0 ? "start" : "end"}" style="fill:${axis.color}">${e(axis.label)}</text>`;
+    const label = width < 350 ? axis.compactLabel || axis.label : axis.label;
+    svg += `<text x="${position}" y="15" text-anchor="${index === 0 ? "start" : "end"}" style="fill:${axis.color}">${e(label)}</text>`;
   });
   const timeTicks = width < 350 ? 2 : 3;
   for (let i = 0; i <= timeTicks; i++) {
