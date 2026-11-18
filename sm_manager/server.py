@@ -144,6 +144,7 @@ def handler_for(collector, config):
                 return self.respond(404, {"error": "Not found"})
             name = {"/": "index.html", "/app.js": "app.js", "/style.css": "style.css",
                     "/favicon.svg": "favicon.svg", "/zed.svg": "zed.svg", "/db.svg": "db.svg",
+                    "/prusa-connect.svg": "prusa-connect.svg",
                     "/dbs.js": "dbs.js"}.get(url.path)
             if not name:
                 return self.respond(404, {"error": "Not found"})

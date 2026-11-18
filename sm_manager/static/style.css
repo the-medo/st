@@ -63,6 +63,7 @@ button:disabled {
   border-right: 1px solid var(--line);
   background: #10151c;
   padding: 16px 10px 12px;
+  overflow-y: auto;
 }
 .brand {
   display: flex;
@@ -117,6 +118,26 @@ nav {
 }
 .sidebar-bottom {
   margin-top: auto;
+}
+.sidebar-devices {
+  margin: 20px 0 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.sidebar-heading {
+  margin: 0 9px 8px;
+  color: var(--muted);
+  font: 10px var(--mono);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+.sidebar-devices .nav-icon {
+  flex-shrink: 0;
+  border-radius: 3px;
+}
+.nav-external {
+  margin-left: auto;
+  font-size: 12px;
 }
 .machine {
   display: flex;
@@ -1669,7 +1690,10 @@ dialog::backdrop {
   }
   .brand > span,
   .nav-count,
-  .sidebar-bottom {
+  .sidebar-heading,
+  .nav-external,
+  .machine,
+  .sidebar-version {
     display: none;
   }
   .nav-link {
@@ -1725,6 +1749,7 @@ dialog::backdrop {
     border-right: 0;
     border-bottom: 1px solid var(--line);
     gap: 15px;
+    row-gap: 8px;
   }
   .brand > span {
     display: inline;
@@ -1744,6 +1769,14 @@ dialog::backdrop {
     margin: 0;
     flex: 1;
     justify-content: flex-end;
+  }
+  .sidebar-bottom {
+    flex-basis: 100%;
+    margin: 0;
+  }
+  .sidebar-devices {
+    margin: 0;
+    padding: 8px 0 0;
   }
   .zed-repo li {
     grid-template-columns: minmax(0, 1fr) auto;
