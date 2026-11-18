@@ -259,7 +259,7 @@ function inspectAirPoint(group, index) {
   $("air-reading-" + group).innerHTML = `<div class="air-reading-time">${e(new Date(point.timestamp * 1000).toLocaleString())} · ${Math.round(bucket / 60)} min bucket</div>` + airGroups[group].metrics.map(key => {
     const metric = airMetrics[key];
     const status = airPointStatus(key, point[key], point[`${key}_peak`]);
-    return `<span class="air-series-reading" data-air-reading="${key}" style="--series-color:${metric.color}"><i class="air-swatch" aria-hidden="true"></i>${metric.label} <strong>${airNumber(point[key], key)} ${e(metric.unit)}</strong><small>peak ${airNumber(point[`${key}_peak`], key)}</small><span class="air-reading-status" data-tone="${status.tone}" title="${e(metric.note)}"><b>${e(status.label)}</b>${status.detail ? `<span>${e(status.detail)}</span>` : ""}</span></span>`;
+    return `<span class="air-series-reading" data-air-reading="${key}" style="--series-color:${metric.color}"><span class="air-reading-value"><i class="air-swatch" aria-hidden="true"></i>${metric.label} <strong>${airNumber(point[key], key)} ${e(metric.unit)}</strong><small>peak ${airNumber(point[`${key}_peak`], key)}</small></span><span class="air-reading-status" data-tone="${status.tone}" title="${e(metric.note)}"><b>${e(status.label)}</b>${status.detail ? `<span>${e(status.detail)}</span>` : ""}</span></span>`;
   }).join("");
   const cursor = $("air-cursor-" + group);
   cursor.setAttribute("x1", chart.x(point.timestamp));

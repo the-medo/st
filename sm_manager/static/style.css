@@ -2074,7 +2074,8 @@ dialog::backdrop {
 .air-readings:empty { display: none; }
 .air-readings { padding: 6px 10px; border-top: 1px solid var(--line); color: var(--muted); font: 10px/1.6 var(--mono); display: flex; flex-wrap: wrap; align-content: start; gap: 5px 14px; }
 .air-reading-time { width: 100%; color: var(--ink); margin-bottom: 2px; }
-.air-series-reading { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.air-series-reading { display: inline-flex; flex-direction: column; align-items: flex-start; max-width: 100%; }
+.air-reading-value { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .air-series-reading strong { color: var(--ink); font-weight: 500; }
 .air-series-reading small { font-size: 9px; }
 .air-reading-status { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 4px; }
