@@ -1,0 +1,191 @@
+import base64
+import json
+import logging
+import mimetypes
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
+
+from .collector import Collector, cleanup_plan
+from .air_quality import AirQuality
+from .dbs import read_db_catalog
+from .history import RETENTION_HOURS
+from .zed import read_catalog
+
+STATIC = Path(__file__).parent / "static"
+
+
+def read_faceplate_frame(path):
+    """Read STapp's latest atomically published capture, bounded to its upload limit."""
+    try:
+        with Path(path).expanduser().open("rb") as handle:
+            data = handle.read(3 * 1024 * 1024 + 1)
+    except FileNotFoundError:
+        return None
+    if len(data) > 3 * 1024 * 1024:
+        raise ValueError("Frame exceeds limit")
+    frame = json.loads(data)
+    if not isinstance(frame, dict) or frame.get("display") != "SCR-SM1":
+        raise ValueError("Unexpected display")
+    image = frame.get("image")
+    prefix = "data:image/png;base64,"
+    if not isinstance(image, str) or not image.startswith(prefix):
+        raise ValueError("Expected PNG")
+    if not base64.b64decode(image[len(prefix):], validate=True).startswith(b"\x89PNG\r\n\x1a\n"):
+        raise ValueError("Invalid PNG")
+    timestamp = frame.get("timestamp")
+    if type(timestamp) is not int or timestamp <= 0:
+        raise ValueError("Invalid capture time")
+    return {"display": "SCR-SM1", "timestamp": timestamp, "image": image}
+
+
+def handler_for(collector, config, air_quality=None):
+    class Handler(BaseHTTPRequestHandler):
+        server_version = "SMManager"
+
+        def log_message(self, format, *args):
+            logging.getLogger("http").debug(format, *args)
+
+        def respond(self, status, payload, content_type="application/json", icon=False):
+            body = json.dumps(payload, separators=(",", ":")).encode() if content_type == "application/json" else payload
+            self.send_response(status)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "private, max-age=3600" if icon else "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Referrer-Policy", "no-referrer")
+            self.send_header("Content-Security-Policy", "sandbox; default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'" if icon else "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
+            self.end_headers()
+            try:
+                self.wfile.write(body)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+
+        def do_GET(self):
+            # Host validation blocks DNS rebinding. Never enable wildcard hosts or CORS.
+            host = self.headers.get("Host", "").lower()
+            allowed = {str(h).lower() for h in config["allowed_hosts"]}
+            allowed |= {f"{h}:{config['port']}" for h in list(allowed)}
+            if host not in allowed:
+                return self.respond(403, {"error": "Host not allowed"})
+            if self.headers.get("Sec-Fetch-Site") == "cross-site":
+                return self.respond(403, {"error": "Cross-site access denied"})
+            origin = self.headers.get("Origin")
+            if origin and origin not in {f"http://{host}", f"https://{host}"}:
+                return self.respond(403, {"error": "Origin not allowed"})
+            url = urlsplit(self.path)
+            if url.path.startswith("/api/"):
+                if url.path == "/api/air-quality":
+                    if air_quality is None:
+                        return self.respond(503, {"error": "Air quality collector unavailable"})
+                    try:
+                        query = parse_qs(url.query)
+                        hours = float(query.get("hours", ["24"])[0])
+                        bucket = query.get("bucket", ["auto"])[0]
+                        return self.respond(200, air_quality.query(
+                            hours, bucket_seconds=None if bucket == "auto" else int(bucket)))
+                    except ValueError:
+                        return self.respond(400, {"error": f"Use hours=0.25..{RETENTION_HOURS} and bucket=auto,60,300,900,1800,3600,21600,86400; choose a bucket within the range and at most 1440 intervals."})
+                if url.path == "/api/faceplate":
+                    try:
+                        return self.respond(200, read_faceplate_frame(config["faceplate_frame_path"]))
+                    except (OSError, ValueError, RecursionError):
+                        return self.respond(503, {"error": "Faceplate capture unavailable"})
+                if url.path == "/api/dbs":
+                    try:
+                        catalog = read_db_catalog(config["db_catalog_path"])
+                    except OSError:
+                        return self.respond(503, {"error": "Could not read the DB catalog. Check db_catalog_path."})
+                    except (ValueError, RecursionError):
+                        return self.respond(503, {"error": "Invalid DB catalog. Expected a version 1 connections file with a UTC check time."})
+                    return self.respond(200, catalog)
+                snapshot = collector.get_snapshot()
+                if url.path == "/api/zed":
+                    projects = (snapshot or {}).get("projects", [])
+                    paths = {w["path"] for p in projects for w in p["worktrees"]}
+                    if projects:
+                        cached = collector.disk_usage.status({p["id"] for p in projects})["projects"]
+                        paths.update(w["path"] for p in cached.values() for w in p.get("worktrees", []) if w.get("path"))
+                    try:
+                        catalog = read_catalog(config["zed_catalog_path"], paths)
+                    except OSError:
+                        return self.respond(503, {"error": "Could not read the Zed catalog. Check zed_catalog_path."})
+                    except (ValueError, RecursionError):
+                        return self.respond(503, {"error": "Invalid Zed catalog. Expected a version 1 projects file."})
+                    return self.respond(200, catalog)
+                if url.path == "/api/health":
+                    healthy = bool(snapshot and not snapshot["stale"])
+                    return self.respond(200 if healthy else 503, {"status": "ok" if healthy else "warming" if not snapshot else "stale", "last_sample": snapshot["timestamp"] if snapshot else None})
+                if not snapshot:
+                    return self.respond(503, {"error": "Taking the first sample. Please wait a moment."})
+                if url.path == "/api/snapshot":
+                    return self.respond(200, snapshot)
+                if url.path.startswith("/api/project-icon/"):
+                    parts = url.path.split("/")
+                    if len(parts) != 5 or parts[3] not in {p["id"] for p in snapshot["projects"]}:
+                        return self.respond(404, {"error": "Project icon not found"})
+                    icon = collector.get_project_icon(parts[3], parts[4])
+                    if not icon:
+                        return self.respond(404, {"error": "Project icon not found"})
+                    return self.respond(200, icon["data"], icon["mime"], icon=True)
+                if url.path == "/api/history":
+                    query = parse_qs(url.query)
+                    try:
+                        hours = float(query.get("hours", ["24"])[0])
+                        entity = query.get("entity", ["host"])[0]
+                        if len(entity) > 100 or not 0.25 <= hours <= RETENTION_HOURS:
+                            raise ValueError()
+                    except ValueError:
+                        return self.respond(400, {"error": f"Use hours=0.25..{RETENTION_HOURS} and a valid entity"})
+                    return self.respond(200, collector.history.query(entity, hours))
+                if url.path == "/api/disk-usage":
+                    query = parse_qs(url.query)
+                    project_ids = {project["id"] for project in snapshot["projects"]}
+                    if query.get("scan") == ["1"]:
+                        project_id = query.get("project", [""])[0]
+                        if project_id not in project_ids:
+                            return self.respond(404, {"error": "Project not found"})
+                        if not collector.disk_usage.start(snapshot["projects"], project_id):
+                            return self.respond(409, {"error": "Another project scan is in progress"})
+                        return self.respond(202, collector.disk_usage.status(project_ids))
+                    return self.respond(200, collector.disk_usage.status(project_ids))
+                if url.path.startswith("/api/cleanup-plan/"):
+                    plan = cleanup_plan(snapshot, url.path.rsplit("/", 1)[-1])
+                    return self.respond(200 if plan else 404, plan or {"error": "Worktree not found"})
+                return self.respond(404, {"error": "Not found"})
+            name = {"/": "index.html", "/app.js": "app.js", "/style.css": "style.css",
+                    "/favicon.svg": "favicon.svg", "/zed.svg": "zed.svg", "/db.svg": "db.svg",
+                    "/prusa-connect.svg": "prusa-connect.svg",
+                    "/dbs.js": "dbs.js", "/air-quality.js": "air-quality.js"}.get(url.path)
+            if not name:
+                return self.respond(404, {"error": "Not found"})
+            mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
+            return self.respond(200, (STATIC / name).read_bytes(), mime + ("; charset=utf-8" if mime.startswith("text/") else ""))
+
+    return Handler
+
+
+def serve(config):
+    collector = Collector(config)
+    air_quality = AirQuality(config)
+    server = ThreadingHTTPServer(("127.0.0.1", config["port"]), handler_for(collector, config, air_quality))
+    air_thread = threading.Thread(target=air_quality.run, name="air-quality", daemon=True)
+    air_thread.start()
+    thread = threading.Thread(target=collector.run, name="collector", daemon=True)
+    thread.start()
+    logging.info("SM Manager listening at http://127.0.0.1:%s", config["port"])
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+        air_quality.stop_event.set()
+        air_thread.join(timeout=15)
+        if not air_thread.is_alive():
+            air_quality.close()
+        collector.stop_event.set()
+        thread.join(timeout=30)
+        if not thread.is_alive():
+            collector.history.close()
