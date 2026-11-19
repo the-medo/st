@@ -1,3 +1,7 @@
 .codex-attachments/
 .ruff_cache/
 __pycache__/
+
+# Machine-local notes, faceplate designs and agent preferences
+/home/
+AGENTS.local.md

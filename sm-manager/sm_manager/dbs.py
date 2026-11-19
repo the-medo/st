@@ -11,12 +11,12 @@ from urllib.parse import parse_qsl, urlsplit
 STALE_AFTER_SECONDS = 3 * 60
 
 
-def launch_url(value):
-    if not isinstance(value, str) or any(c.isspace() or ord(c) < 32 or c in "\\#" for c in value):
+def launch_url(value, host):
+    if not host or not isinstance(value, str) or any(c.isspace() or ord(c) < 32 or c in "\\#" for c in value):
         return None
     try:
         url = urlsplit(value)
-        if (url.scheme != "https" or url.netloc.lower() not in {"db.example.com", "db.example.com:443"}
+        if (url.scheme != "https" or url.netloc.lower() not in {host.lower(), host.lower() + ":443"}
                 or url.path != "/cloudbeaver/open"):
             return None
         query = parse_qsl(url.query, keep_blank_values=True, strict_parsing=True, max_num_fields=1)
@@ -37,7 +37,7 @@ def text_fields(record, fields):
     return {key: record[key] for key in fields}
 
 
-def connection(record, stale):
+def connection(record, stale, host_allowed):
     entry = text_fields(record, ("id", "name", "engine", "database", "source", "status"))
     if entry["status"] not in {"available", "configured", "stopped", "unreachable"}:
         raise ValueError("Unknown database status")
@@ -65,11 +65,11 @@ def connection(record, stale):
         if branch is not None and not isinstance(branch, str):
             raise ValueError("Invalid branch")
         owner["branch"] = branch
-    url = launch_url(record["cloudbeaver_url"]) if entry["status"] == "available" and not stale else None
+    url = launch_url(record["cloudbeaver_url"], host_allowed) if entry["status"] == "available" and not stale else None
     return {**entry, "host": host, "port": port, "owner": owner, "cloudbeaver_url": url}
 
 
-def read_db_catalog(filename):
+def read_db_catalog(filename, host_allowed=""):
     catalog = json.loads(Path(filename).read_text(encoding="utf-8"))
     if not isinstance(catalog, dict) or type(catalog.get("schema_version")) is not int or catalog["schema_version"] != 1:
         raise ValueError("Expected DB catalog version 1")
@@ -85,5 +85,5 @@ def read_db_catalog(filename):
     return {
         "schema_version": 1, "checked_at": checked.isoformat(), "stale": stale,
         "fresh_for_seconds": max(0, STALE_AFTER_SECONDS - age),
-        "connections": [connection(record, stale) for record in catalog["connections"]],
+        "connections": [connection(record, stale, host_allowed) for record in catalog["connections"]],
     }

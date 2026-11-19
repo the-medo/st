@@ -1,5 +1,6 @@
 import base64
 import json
+from html import escape
 import logging
 import mimetypes
 import threading
@@ -94,7 +95,7 @@ def handler_for(collector, config, air_quality=None):
                         return self.respond(503, {"error": "Faceplate capture unavailable"})
                 if url.path == "/api/dbs":
                     try:
-                        catalog = read_db_catalog(config["db_catalog_path"])
+                        catalog = read_db_catalog(config["db_catalog_path"], config.get("cloudbeaver_host", ""))
                     except OSError:
                         return self.respond(503, {"error": "Could not read the DB catalog. Check db_catalog_path."})
                     except (ValueError, RecursionError):
@@ -161,7 +162,12 @@ def handler_for(collector, config, air_quality=None):
             if not name:
                 return self.respond(404, {"error": "Not found"})
             mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
-            return self.respond(200, (STATIC / name).read_bytes(), mime + ("; charset=utf-8" if mime.startswith("text/") else ""))
+            body = (STATIC / name).read_bytes()
+            if name == "index.html":
+                printer = config.get("printer_url", "")
+                link = 'href="' + escape(printer, quote=True) + '"' if printer.startswith("https://") else "hidden"
+                body = body.replace(b"data-printer-link", link.encode())
+            return self.respond(200, body, mime + ("; charset=utf-8" if mime.startswith("text/") else ""))
 
     return Handler
 

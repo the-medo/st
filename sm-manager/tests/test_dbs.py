@@ -14,6 +14,7 @@ from sm_manager.dbs import STALE_AFTER_SECONDS, launch_url, read_db_catalog
 from sm_manager.server import handler_for
 
 
+HOST = "db.example.com"
 LAUNCHER = "https://db.example.com/cloudbeaver/open"
 URL = LAUNCHER + "?id=postgres-jdbc-example"
 
@@ -49,7 +50,8 @@ class DbCatalogTests(unittest.TestCase):
         rows = [dict(self.db, owner=None, secret="unpublished")]
         rows += [dict(self.db, id=status, status=status) for status in ("configured", "stopped", "unreachable")]
         self.publish(rows)
-        catalog = read_db_catalog(self.path)
+        catalog = read_db_catalog(self.path, HOST)
+        self.assertIsNone(read_db_catalog(self.path)["connections"][0]["cloudbeaver_url"])
         self.assertFalse(catalog["stale"])
         unassigned, *offline = catalog["connections"]
         self.assertIsNone(unassigned["owner"])
@@ -61,26 +63,26 @@ class DbCatalogTests(unittest.TestCase):
     def test_stale_catalog_preserves_rows_without_launch_urls(self):
         old = (self.now - timedelta(seconds=STALE_AFTER_SECONDS)).isoformat()
         self.publish([self.db], checked_at=old)
-        catalog = read_db_catalog(self.path)
+        catalog = read_db_catalog(self.path, HOST)
         self.assertTrue(catalog["stale"])
         self.assertEqual(catalog["fresh_for_seconds"], 0)
         self.assertEqual(catalog["checked_at"], old)
         self.assertEqual(catalog["connections"], [dict(self.db, cloudbeaver_url=None)])
         self.publish([self.db])
-        fresh = read_db_catalog(self.path)
+        fresh = read_db_catalog(self.path, HOST)
         self.assertGreater(fresh["fresh_for_seconds"], 0)
         self.assertEqual(fresh["connections"], [self.db])
 
     def test_external_group_preserves_name_and_launch_rules_without_checkout_ownership(self):
         external = dict(self.db, group="Demo DEV", name="dev-example", owner=None, group_checked_at=self.now.isoformat())
         self.publish([external, dict(external, id="offline", status="configured")])
-        online, offline = read_db_catalog(self.path)["connections"]
+        online, offline = read_db_catalog(self.path, HOST)["connections"]
         self.assertEqual(online, external)
         self.assertIsNone(offline["cloudbeaver_url"])
 
     def test_only_cloudbeaver_https_open_urls_with_one_id(self):
         for url in (URL, LAUNCHER + "?id=connection%3Aexample", URL.replace(".com/", ".com:443/")):
-            self.assertEqual(launch_url(url), url)
+            self.assertEqual(launch_url(url, HOST), url)
         for url in (
             None, 23, "", "javascript:alert(1)", URL[6:], URL.replace("https:", "http:"),
             URL.replace(".com/", ".com.evil.test/"), URL.replace(".com/", ".com:444/"),
@@ -90,9 +92,9 @@ class DbCatalogTests(unittest.TestCase):
             LAUNCHER + "?id=%00", LAUNCHER + "?other=x", URL + "&id=second", URL + "#other",
         ):
             with self.subTest(url=url):
-                self.assertIsNone(launch_url(url))
+                self.assertIsNone(launch_url(url, HOST))
         self.publish([dict(self.db, cloudbeaver_url="https://other.test/")])
-        self.assertIsNone(read_db_catalog(self.path)["connections"][0]["cloudbeaver_url"])
+        self.assertIsNone(read_db_catalog(self.path, HOST)["connections"][0]["cloudbeaver_url"])
 
     def test_api_distinguishes_missing_invalid_and_empty_and_checks_origin(self):
         config = {"port": 0, "allowed_hosts": ["localhost"], "db_catalog_path": str(self.path)}

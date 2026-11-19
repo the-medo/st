@@ -194,6 +194,8 @@ Create `~/.config/sm-manager/config.json` (or under `$XDG_CONFIG_HOME`):
 ```json
 {
   "port": 8790,
+  "cloudbeaver_host": "db.example.com",
+  "printer_url": "https://printer.example.com/",
   "roots": ["~/dev", "~/.codex/worktrees"],
   "interval": 10,
   "discovery_interval": 60,
@@ -208,7 +210,7 @@ Create `~/.config/sm-manager/config.json` (or under `$XDG_CONFIG_HOME`):
 }
 ```
 
-Restart the service after changes. `--config /path/to/config.json` before a CLI
+Set `cloudbeaver_host` to the trusted database launcher hostname and `printer_url` to your printer dashboard HTTPS URL. Each link is optional. Restart the service after changes. `--config /path/to/config.json` before a CLI
 subcommand selects another file. `codex_home` defaults to `$CODEX_HOME` or
 `~/.codex`. `data_dir` defaults to `~/.local/share/sm-manager` (honoring
 `$XDG_DATA_HOME`). Runtime data and machine configuration never belong in Git.

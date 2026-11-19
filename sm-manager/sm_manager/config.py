@@ -24,6 +24,8 @@ def load_config(path=None):
         "db_catalog_path": "~/db-projects/connections.json",
         "faceplate_frame_path": "~/.local/share/stapp/frame.json",
         "air_quality_device": "",
+        "cloudbeaver_host": "",
+        "printer_url": "",
         "container_overrides": {},
     }
     config.update(custom)
