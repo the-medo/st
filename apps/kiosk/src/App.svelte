@@ -3,7 +3,8 @@
   import Icon from './Icon.svelte';
   import Scene from './Scene.svelte';
   import RecordWidgets from './RecordWidgets.svelte';
-  import type { Panel } from './calendar';
+  import ProjectManager from './ProjectManager.svelte';
+  import type { Panel, TaskProject } from './calendar';
   import { themes, findTheme, type Theme } from './themes';
   import './faceplate.css';
 
@@ -19,6 +20,7 @@
   let online = $state(false), connected = $state(false), busy = $state(false);
   let menu = $state<Menu>('themes'), dialog: HTMLDialogElement, notice = $state('');
   let lastRevision = -1;
+  let projectManager: ProjectManager;
   let timezone = $derived(zone.formatToParts(now).find(part => part.type === 'timeZoneName')?.value || '');
   const viewLabel = (view: string) => view === 'home' ? 'Home' : view === 'clock' ? '3D clock' : view.replaceAll(/[-_]/g, ' ');
 
@@ -36,6 +38,19 @@
   function openMenu(next: Menu) {
     menu = next;
     dialog.showModal();
+  }
+  async function refresh() {
+    try {
+      const response = await fetch('/api/display');
+      if (response.ok) apply(await response.json());
+    } catch {} // Confirmed saves remain visible while the event stream reconnects.
+  }
+  function projectSaved(project: TaskProject) {
+    const projects = (panel.task_projects || []).filter(p => p.id !== project.id);
+    if (!project.deleted) projects.push(project);
+    panel = {...panel, task_projects:projects, records:panel.records.filter(r =>
+      r.kind !== 'task' || r.project_id !== project.id || (!project.deleted && project.visible_on_screen))};
+    cache(panel);
   }
   async function change(selection: {name: string} | {theme: string}) {
     if (busy) return;
@@ -96,7 +111,7 @@
           {@render connection()}
         </header>
         {#if panel.planner_status==='unavailable'}<p role="status">Calendar and tasks are temporarily unavailable. Showing the last saved view.</p>{/if}
-        <RecordWidgets ids={panel.spec.widgets || []} records={panel.records} clock={hm.format(now)} online={online && panel.planner_status!=='unavailable'} onSaved={apply}/>
+        <RecordWidgets ids={panel.spec.widgets || []} records={panel.records} projects={panel.task_projects} clock={hm.format(now)} online={online && panel.planner_status!=='unavailable'} onSaved={apply}/>
       </section>
     {:else if panel.spec.kind === 'scene'}
       <section class="stage" aria-label="3D clock"><Scene {theme}/></section>
@@ -110,6 +125,7 @@
       <nav aria-label="Faceplate navigation">
         <button class="nav-button" class:active={panel.view === 'home'} aria-current={panel.view === 'home' ? 'page' : undefined} disabled={busy} onclick={() => change({name:'home'})}><Icon name="home"/>Home</button>
         <button class="nav-button" class:active={panel.view !== 'home'} aria-haspopup="dialog" onclick={() => openMenu('views')}><Icon name="views"/>Views</button>
+        {#if panel.task_projects}<button class="nav-button" aria-haspopup="dialog" onclick={() => projectManager.open()}><Icon name="projects"/>Projects</button>{/if}
       </nav>
       <div class="delivery" aria-live="polite">
         {#if notice || panel.room_reply}
@@ -138,4 +154,5 @@
     {:else}<p class="message">{notice || panel.room_reply}</p>{/if}
     {#if menu !== 'reply' && notice}<p role="status" class="message">{notice}</p>{/if}
   </dialog>
+  <ProjectManager bind:this={projectManager} projects={panel.task_projects || []} online={online && panel.planner_status === 'ok'} onSaved={projectSaved} {refresh}/>
 </main>

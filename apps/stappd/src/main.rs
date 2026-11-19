@@ -95,7 +95,25 @@ async fn display_snapshot(a: &App) -> Result<Value> {
         let remote = client.display().await;
         let records = value["records"].as_array_mut().unwrap();
         records.retain(|r| r["kind"] == "note");
-        records.extend(remote["records"].as_array().into_iter().flatten().cloned());
+        records.extend(
+            remote["records"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|r| {
+                    r["kind"] != "task"
+                        || r["project_id"].is_null()
+                        || remote["projects"]
+                            .as_array()
+                            .into_iter()
+                            .flatten()
+                            .any(|project| {
+                                project["id"] == r["project_id"]
+                                    && project["visible_on_screen"] != false
+                            })
+                })
+                .cloned(),
+        );
         value["task_projects"] = remote["projects"].clone();
         value["planner_status"] = remote["status"].clone();
     }

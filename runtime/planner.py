@@ -11,6 +11,7 @@ import copy
 import hashlib
 import json
 import os
+import re
 import socketserver
 import sqlite3
 import threading
@@ -196,6 +197,9 @@ def decode(data, etag):
         if "X-STAPP-DATA" in component:
             value = json.loads(base64.urlsafe_b64decode(str(component["X-STAPP-DATA"])))
             require(value.get("schema") == 1, "Unsupported planner record schema", 502)
+            if value.get("kind") == "project":
+                value.setdefault("color", "#8aa7ff")
+                value.setdefault("visible_on_screen", True)
             value["version"] = etag
             return value
     raise PlannerError("Unmanaged calendar object in ST's private collection", 502)
@@ -277,6 +281,11 @@ class Planner:
         record["title"] = title.strip()
         require(isinstance(record.get("body", ""), str) and len(record.get("body", "")) <= 32000, "Description is too long")
         require(isinstance(record.get("done"), bool), "Expected a completion boolean")
+        if record["kind"] == "project":
+            color = record.setdefault("color", "#8aa7ff")
+            require(isinstance(color, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", color), "Choose a six-digit hex project color")
+            record["color"] = color.lower()
+            require(type(record.setdefault("visible_on_screen", True)) is bool, "Screen visibility must be a boolean")
         try:
             ZoneInfo(record["zone"])
         except (KeyError, TypeError, ValueError):
@@ -342,9 +351,10 @@ class Planner:
             "recurrence_completed": 0,
         }
         if action == "save":
-            allowed = {"id", "version", "kind", "title", "body", "zone", "due", "starts", "ends", "priority", "labels", "project_id", "parent_id", "recurrence", "done"}
+            allowed = {"id", "version", "kind", "title", "body", "zone", "due", "starts", "ends", "priority", "labels", "project_id", "parent_id", "recurrence", "done", "color", "visible_on_screen"}
             require(set(args) <= allowed, "Unknown record field")
             require(not old or args.get("kind", old["kind"]) == old["kind"], "Cannot change record kind")
+            require(record["kind"] == "project" or not ({"color", "visible_on_screen"} & set(args)), "Color and screen visibility belong to projects")
             for field in allowed - {"id", "version", "done"}:
                 if field in args:
                     record[field] = copy.deepcopy(args[field])

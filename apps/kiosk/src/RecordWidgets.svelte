@@ -1,9 +1,9 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
-  import { agendaDays, type Entry, type Panel } from './calendar';
+  import { agendaDays, type Entry, type Panel, type TaskProject } from './calendar';
 
-  let { ids, records, clock, online, onSaved }: {
-    ids: string[]; records: Entry[]; clock: string; online: boolean; onSaved: (value: Panel) => void;
+  let { ids, records, projects, clock, online, onSaved }: {
+    ids: string[]; records: Entry[]; projects?: TaskProject[]; clock: string; online: boolean; onSaved: (value: Panel) => void;
   } = $props();
 
   const labels = {calendar:'Calendar', tasks:'Tasks', notes:'Notes', clock:'Clock'} as const;
@@ -17,14 +17,17 @@
   let savingId = $state<number | string | null>(null), error = $state(''), conflict = $state(false);
   let latest = $derived(selected && records.find(r=>r.id===selected!.id));
   let rowError = $state('');
+  let projectId = $state('');
+  let projectMap = $derived(new Map((projects || []).map(p => [p.id, p])));
+  let projectChoices = $derived([...(projects || [])].sort((a,b) => a.title.localeCompare(b.title)));
 
   function draft(entry: Entry) {
-    selected={...entry}; title=entry.title; body=entry.body || ''; error=''; conflict=false;
+    selected={...entry}; title=entry.title; body=entry.body || ''; projectId=entry.project_id || ''; error=''; conflict=false;
   }
   function open(entry: Entry) {
     draft(entry); mode=entry.kind==='task' ? 'edit' : 'read'; editor.showModal();
   }
-  async function update(entry: Entry, patch: {done:boolean} | {title:string;body?:string}) {
+  async function update(entry: Entry, patch: {done:boolean} | {title:string;body?:string;project_id?:string | null}) {
     if (savingId !== null) return;
     savingId=entry.id; error=''; rowError=''; conflict=false;
     try {
@@ -34,7 +37,10 @@
         if (current.ok) onSaved(await current.json());
         conflict=true; throw new Error('This item changed on another screen.');
       }
-      if (!response.ok) throw new Error(response.status===400 ? 'Check the text length and try again.' : 'Could not save. Check the connection and try again.');
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(response.status===400 && message.length<300 && !message.includes('<') ? message : 'Could not save. Check the connection and try again.');
+      }
       onSaved(await response.json());
       if (editor.open) editor.close();
     } catch (cause) {
@@ -45,7 +51,8 @@
   }
   function save() {
     if (!selected || !title.trim()) return;
-    void update(selected,selected.kind==='note' ? {title:title.trim(),body} : {title:title.trim()});
+    void update(selected,selected.kind==='note' ? {title:title.trim(),body} :
+      {title:title.trim(), ...(projects ? {project_id:projectId || null} : {})});
   }
 </script>
 
@@ -67,9 +74,10 @@
           {:else if id==='tasks'}
             {#if rowError}<p role="alert" class="record-error">{rowError}</p>{/if}
             <ul>{#each tasks as task (task.id)}
+              {@const project = task.project_id ? projectMap.get(task.project_id) : undefined}
               <li class="task-row" class:done={task.done}>
                 <button class="toggle" role="checkbox" aria-checked={task.done} aria-label={(task.done ? 'Reopen ' : 'Complete ') + task.title} disabled={!online || savingId!==null} onclick={()=>update(task,{done:!task.done})}><span>{#if task.done}<Icon name="check" size={14}/>{/if}</span></button>
-                <button class="entry-button" aria-label={'Edit task: '+task.title} disabled={savingId!==null} onclick={()=>open(task)}><span>{task.title}</span><Icon name="edit" size={14}/></button>
+                <button class="entry-button" aria-label={'Edit task: '+task.title} disabled={savingId!==null} onclick={()=>open(task)}><span><span class="task-title">{task.title}</span>{#if project}<small class="task-project"><i class="project-dot" style:background={project.color} aria-hidden="true"></i>{project.title}</small>{/if}</span><Icon name="edit" size={14}/></button>
               </li>
             {:else}<li class="empty">No tasks</li>{/each}</ul>
           {:else if id==='notes'}
@@ -96,6 +104,13 @@
     {:else}
       <form onsubmit={event=>{event.preventDefault();save()}}>
         <label>Title<input required maxlength="4000" bind:value={title}/></label>
+        {#if selected.kind==='task' && projects}
+          <label>Project<select bind:value={projectId} disabled={savingId!==null}>
+            <option value="">No project</option>
+            {#each projectChoices as project}<option value={project.id}>{project.title}{project.visible_on_screen ? '' : ' (hidden)'}</option>{/each}
+          </select></label>
+          {#if projectId && projectMap.get(projectId)?.visible_on_screen === false}<p class="project-help">This task will be hidden from the screen after saving.</p>{/if}
+        {/if}
         {#if selected.kind==='note'}<label>Note text<textarea rows="4" maxlength="32000" bind:value={body}></textarea></label>{/if}
         {#if error}<p role="alert" class="record-error">{error}</p>{/if}
         {#if !online}<p class="record-error">Reconnect to save changes.</p>{/if}

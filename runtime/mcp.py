@@ -74,7 +74,8 @@ TOOLS = [
     ),
     tool("get_record", "Read a planner record and its current version before editing.", ["id"], id=S),
     tool("list_task_projects", "List personal task projects; these are separate from coding workspaces.", []),
-    tool("save_task_project", "Create or rename a personal task project. Existing projects require their current version.", ["title"], title=S, body=S, id=S, version=S),
+    tool("save_task_project", "Create or edit a personal task project. Existing projects require their current version. Color is #RRGGBB. visible_on_screen controls its tasks on all faceplates; hidden tasks remain available to the assistant.", ["title"], title=S, body=S, id=S, version=S,
+         color={"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"}, visible_on_screen=property_("boolean")),
     tool("complete_task", "Complete one occurrence. The backend records history and advances a recurring task. Send the current version; do not repeat with a new version unless the next occurrence was also completed.", ["id", "version"], id=S, version=S),
     tool("delete_record", "Delete a planner task, event or empty task project. Requires its current version.", ["id", "version"], id=S, version=S),
     tool(

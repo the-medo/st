@@ -11,3 +11,9 @@ because a reply was lost. Use dates for all-day items and IANA zones for times.
 Recurring calendar events, reminders, attachments and mobile push are not yet
 implemented; do not report them as configured. Do not write raw CalDAV objects
 or bypass the planner, which owns recurrence and concurrent-edit rules.
+
+Task projects have a hex color and visible_on_screen setting. Changing visibility
+affects every faceplate's task list; the assistant can still find and edit hidden
+tasks. Tasks without a project stay visible. The Projects menu manages these
+settings, and the task editor assigns projects. Keep a project's other settings
+when renaming it; use its current version for every update.

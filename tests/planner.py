@@ -4,16 +4,19 @@ import concurrent.futures
 import importlib.util
 import json
 import os
+import runpy
 import socket
 import sqlite3
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 import urllib.error
 import urllib.request
 import uuid
+from unittest import mock
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -119,6 +122,26 @@ level = error
         reopened = self.save(id=renamed["id"], version=renamed["version"], done=False)
         self.assertFalse(reopened["done"])
         self.assertEqual(len(self.call("list")["records"]), 1)
+
+    def test_project_color_and_visibility_persist_and_validate(self):
+        project = self.save(kind="project", title="House")
+        self.assertEqual((project["color"], project["visible_on_screen"]), ("#8aa7ff", True))
+        changed = self.save(id=project["id"], version=project["version"], color="#AABBCC", visible_on_screen=False)
+        renamed = self.save(id=changed["id"], version=changed["version"], title="Home")
+        restarted = Planner(self.config, self.data)
+        self.addCleanup(restarted.db.close)
+        saved = restarted.dav.get(project["id"])
+        self.assertEqual((saved["title"], saved["color"], saved["visible_on_screen"]), ("Home", "#aabbcc", False))
+        for patch in ({"color":"red"}, {"color":"#fff"}, {"color":None}, {"visible_on_screen":"false"}, {"visible_on_screen":0}):
+            with self.assertRaises(PlannerError) as error:
+                self.save(id=renamed["id"], version=renamed["version"], **patch)
+            self.assertEqual(error.exception.status, 400)
+        with self.assertRaises(PlannerError):
+            self.save(kind="task", title="Invalid", color="#aabbcc")
+        # Existing Radicale project resources need no destructive rewrite.
+        legacy = {k:v for k,v in saved.items() if k not in ("color", "visible_on_screen")}
+        read = module.decode(module.encode(legacy), saved["version"])
+        self.assertEqual((read["color"], read["visible_on_screen"]), ("#8aa7ff", True))
 
     def test_completion_relative_and_monthly_rules(self):
         task = self.save(kind="task", title="Filter", due="2020-01-01", recurrence={"frequency": "weekly", "mode": "completion"})
@@ -246,12 +269,60 @@ level = error
         reply = json.loads(output)["result"]
         self.assertNotIn("isError", reply)
         self.assertEqual(json.loads(reply["content"][0]["text"])["completion_count"], 2)
+        project = rpc({"device":"owner", "op":"tools", "name":"save_task_project", "args":{
+            "title":"Work", "color":"#f18bb6", "visible_on_screen":False}})["result"]
+        hidden = http("/api/planner", {"action":"save", "idempotency_key":"hidden-task", "args":{
+            "kind":"task", "title":"Work item", "project_id":project["id"]}})
+        event = http("/api/planner", {"action":"save", "idempotency_key":"event", "args":{
+            "kind":"event", "title":"Appointment", "starts":"2026-11-23"}})
+        display = http("/api/display")
+        self.assertEqual({r["id"] for r in display["records"]}, {task["id"],event["id"]})
+        self.assertEqual(display["task_projects"][0]["color"], "#f18bb6")
+        self.assertIn(hidden["id"], {r["id"] for r in http("/api/planner")["records"]})
+        all_tasks = rpc({"device":"owner", "op":"tools", "name":"list_records", "args":{}})["result"]
+        self.assertIn(hidden["id"], {r["id"] for r in all_tasks})
+
+        # Exercise the installed panel relay's allowlist and bearer forwarding.
+        cfg = self.data / ".config/stapp"
+        cfg.mkdir(parents=True)
+        (cfg / "key").write_text("test-panel")
+        (cfg / "panel.json").write_text(json.dumps({"server":"https://fixture.invalid", "key_file":str(cfg / "key")}))
+        with mock.patch.object(Path, "home", return_value=self.data):
+            proxy = runpy.run_path(str(ROOT / "deploy/panel/proxy.py"))
+        proxy_port = port()
+        proxy["Panel"].log_message = lambda *args: None
+        namespace = proxy["Panel"].proxy.__globals__
+        namespace["config"]["server"] = url
+        namespace["local"] = f"127.0.0.1:{proxy_port}"
+        server = proxy["ThreadingHTTPServer"](("127.0.0.1", proxy_port), proxy["Panel"])
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        proxy_url = f"http://127.0.0.1:{proxy_port}"
+        def panel(path, value=None, origin=None):
+            request = urllib.request.Request(proxy_url + path, data=json.dumps(value).encode() if value is not None else None,
+                headers={"Content-Type":"application/json", **({"Origin":origin} if origin else {})})
+            with urllib.request.urlopen(request, timeout=15) as response:
+                return json.load(response)
+        shown = panel("/api/planner", {"action":"save", "idempotency_key":"show-work", "args":{
+            "id":project["id"], "version":project["version"], "visible_on_screen":True}})
+        self.assertIn(hidden["id"], {r["id"] for r in panel("/api/display")["records"]})
+        moved = panel("/api/records/" + hidden["id"], {"version":hidden["version"], "project_id":None, "title":"Personal item"})
+        self.assertIsNone(next(r for r in moved["records"] if r["id"]==hidden["id"])["project_id"])
+        panel("/api/planner", {"action":"save", "idempotency_key":"hide-work", "args":{
+            "id":shown["id"], "version":shown["version"], "visible_on_screen":False}})
+        self.assertEqual(len(panel("/api/display")["records"]), 3)
+        for path,value,origin in [("/api/planner",{},"https://untrusted.invalid"), ("/api/records/not-a-uuid",{},None)]:
+            with self.assertRaises(urllib.error.HTTPError) as denied:
+                panel(path,value,origin)
+            self.assertEqual(denied.exception.code,403)
+            denied.exception.close()
         http("/api/display")
         # A failed planner keeps cached records visible and blocks writes.
         stop(service)
         stale = http("/api/display")
         self.assertEqual(stale["planner_status"], "unavailable")
-        self.assertEqual(stale["records"][0]["id"], task["id"])
+        self.assertIn(task["id"], {r["id"] for r in stale["records"]})
 
     def test_migration_is_repeatable_and_keeps_source(self):
         settings = self.data / "settings.json"

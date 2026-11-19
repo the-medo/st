@@ -31,6 +31,13 @@ are independent of coding workspaces.
 ## Current capabilities
 
 - Create, read, update and delete tasks, events and flat named task projects.
+- Project administration on the faceplate: create, rename, pick a color, toggle
+  **Show on screen**, and delete empty projects. The task editor includes a
+  project selector, and tasks show a colored project label.
+- Screen visibility is shared by all faceplates and saved with the project in
+  Radicale. Display snapshots and SSE exclude tasks from hidden projects. Tasks
+  without a project stay visible; calendar events and notes are unaffected.
+  MCP and `/api/planner` still include hidden tasks for administration.
 - Task descriptions, labels, priorities (1 highest, 0 unset), due dates and
   subtasks within the same project. Cycles and deletion of referenced parents or
   projects are rejected. Completing a parent does not complete its subtasks.
@@ -52,8 +59,9 @@ are independent of coding workspaces.
 Recurring calendar events, reminders/notification scheduling, attachments,
 comments, project nesting, bulk import from external accounts, mobile pairing,
 mobile offline synchronization and the Android application are future work.
-The current faceplate lists and edits task titles and completes occurrences;
-project/recurrence editing is available through MCP/HTTP, not yet a screen form.
+The current faceplate edits task titles and project assignment and completes
+occurrences. Recurrence editing is available through MCP/HTTP, not yet a screen
+form. To edit a hidden task on the faceplate, first show its project again.
 
 ## HTTP and MCP contract
 
@@ -65,6 +73,8 @@ credential. Radicale credentials never reach the browser or MCP process.
   `complete`, `delete`. Reuse the same key and exact arguments after a timeout.
   Use a new UUID per intentional action.
 - Existing `GET /api/display` and SSE `/api/events` include planner records.
+  Their task lists honor each project's `visible_on_screen` setting; the complete
+  project list is returned as `task_projects` for the management dialog.
 - Existing `POST /api/records/{id}` handles a title edit or completion from the
   faceplate. It derives a retry key from the record ID, expected version and edit.
 - `version` is an opaque ETag string for planner objects; local notes retain
@@ -98,6 +108,12 @@ recurrence, `weekdays` accepts MO through SU. `count` includes the initial
 occurrence; `until` uses the same date/time type as `due`. Changing the schedule
 starts a new recurrence sequence; renaming it preserves the schedule and count.
 
+Project saves accept `color` as a six-digit `#RRGGBB` string and
+`visible_on_screen` as a boolean. These fields also appear in `save_task_project`.
+New and older projects default to `#8aa7ff` and visible; older stored resources
+receive these defaults on read without a migration. Colors are normalized to
+lowercase. Project updates require the same ETag/idempotency contract as tasks.
+
 Listings omit full history; `get_record` returns it. Reads are cached for at most
 three seconds. A successful mutation invalidates this cache. If the planner is
 unavailable, the daemon's display retains its last in-memory records and marks
@@ -127,6 +143,10 @@ Add `STAPP_PLANNER_SOCKET=/home/YOUR_USER/.local/share/stapp/planner.sock` to
 run `scripts/install-host` to install and restart the built STapp. Services run
 from `~/.local/lib/`, independently of this Git worktree. Future backend upgrades
 run `scripts/install-radicale` again; STapp upgrades use `scripts/install-host`.
+An independently hosted panel also needs its updated shell and `proxy.py` from
+`deploy/panel/install`; its relay now permits planner requests and UUID record
+edits. Updating the Steam Machine's web assets alone does not replace a shell
+installed on a separate display host.
 
 Verify `systemctl --user status stapp-radicale stapp-planner stapp stapp-worker`,
 an authenticated `GET /api/planner`, and the private faceplate. Keep user
@@ -156,3 +176,5 @@ Run `python tests/planner.py` in a venv installed from
 processes and checks authenticated CalDAV, task relationships, DST and recurrence,
 concurrent completion, stale versions, lost-response recovery, migration,
 HTTP/MCP access and an unavailable planner. All test stores are temporary.
+The project checks cover persisted color/visibility, validation, display-only
+filtering, task reassignment, and actual requests through the panel relay.

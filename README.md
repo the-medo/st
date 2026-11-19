@@ -10,6 +10,13 @@ Open the private faceplate URL printed by the installer. Choose **Views → 3D c
 
 On Home, the calendar groups events by date and shows times in the event’s saved time zone. Tap a task’s checkbox to complete or reopen it, or tap its title to rename it. Tap a note to read it, then choose **Edit note** to change its title or text. Saved changes appear on other connected faceplates. You can read cached notes offline and save edits when connected.
 
+Choose **Projects** to create or rename task projects, choose a color and toggle
+**Show on screen**. Hidden projects' tasks disappear from the dashboard on every
+connected screen; tasks without a project stay visible. Tap a task's title to
+assign its project. Each assigned task shows its project's name and color.
+Empty projects can be deleted from their editor. These task projects are separate
+from the coding workspaces registered with `stctl`.
+
 Calendar events and tasks use the **Radicale-backed ST planner** when installed
 and configured as described below. Its shared
 backend supports task projects, labels, priorities, subtasks, and recurrence from

@@ -41,11 +41,11 @@ class Panel(SimpleHTTPRequestHandler):
             super().do_GET()
 
     def record_path(self):
-        return re.fullmatch(r"/api/records/[1-9][0-9]*", self.path) is not None
+        return re.fullmatch(r"/api/records/(?:[1-9][0-9]*|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})", self.path) is not None
 
     def do_POST(self):
         if not self.allowed() or not (
-            self.path == "/api/display" or self.record_path()
+            self.path in ("/api/display", "/api/planner") or self.record_path()
         ):
             self.send_error(403)
             return
@@ -57,6 +57,7 @@ class Panel(SimpleHTTPRequestHandler):
             not in (
                 "/api/display",
                 "/api/events",
+                "/api/planner",
             )
             and not self.path.startswith("/api/asset/")
             and not (self.command == "POST" and self.record_path())
@@ -65,7 +66,7 @@ class Panel(SimpleHTTPRequestHandler):
             return
         try:
             size = int(self.headers.get("Content-Length", "0"))
-            limit = 256 * 1024 if self.record_path() else 2048
+            limit = 256 * 1024 if self.record_path() or self.path == "/api/planner" else 2048
             if not 0 <= size <= limit:
                 self.send_error(413)
                 return

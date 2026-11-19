@@ -1,11 +1,15 @@
 export type Entry = {
   id: number | string; kind: string; title: string; starts?: string | null; zone?: string | null;
-  done: boolean; body?: string; version?: number | string;
+  done: boolean; body?: string; version?: number | string; project_id?: string | null;
+};
+export type TaskProject = {
+  id: string; title: string; color: string; visible_on_screen: boolean; version: string; deleted?: boolean;
 };
 export type Panel = {
   view: string; revision: number; theme?: string; spec: {kind:string; widgets?:string[]; asset?:string};
   records: Entry[]; room_reply?: string; views: string[];
   planner_status?: 'ok' | 'unavailable';
+  task_projects?: TaskProject[];
 };
 type AgendaRow = {entry: Entry; time: string; zone: string; order: string};
 type AgendaDay = {key: string; label: string; rows: AgendaRow[]};
