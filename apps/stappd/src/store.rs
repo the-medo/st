@@ -33,6 +33,20 @@ where
     Ok(result)
 }
 impl Store {
+    pub fn authorize_tool(&self, device: &str, v: &Value) -> Result<()> {
+        if let Some(job) = v["job"].as_str() {
+            field(v, "key")?;
+            ensure!(self.db.query_row(
+                "SELECT EXISTS(SELECT 1 FROM jobs WHERE id=? AND device=? AND claim=? AND status='running')",
+                params![job, device, v["claim"].as_str()], |r| r.get::<_, bool>(0))?, "Unbound tool request");
+        } else {
+            ensure!(
+                device == "owner",
+                "Planner tools require an active assistant request"
+            );
+        }
+        Ok(())
+    }
     pub fn open(data: &Path, root: PathBuf) -> Result<Self> {
         let mut db = Connection::open(data.join("stapp.sqlite"))?;
         db.execute_batch(include_str!("../migrations/001.sql"))?;

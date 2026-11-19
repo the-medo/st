@@ -10,6 +10,13 @@ Open the private faceplate URL printed by the installer. Choose **Views → 3D c
 
 On Home, the calendar groups events by date and shows times in the event’s saved time zone. Tap a task’s checkbox to complete or reopen it, or tap its title to rename it. Tap a note to read it, then choose **Edit note** to change its title or text. Saved changes appear on other connected faceplates. You can read cached notes offline and save edits when connected.
 
+Calendar events and tasks use the **Radicale-backed ST planner** when installed
+and configured as described below. Its shared
+backend supports task projects, labels, priorities, subtasks, and recurrence from
+either the due date or completion date. MCP, the faceplate and future ST mobile
+clients use the same rules. [Planner setup, API and limitations](docs/planner.md)
+cover installation, migration, backups and the planned Android app/widgets.
+
 ```sh
 ~/.local/bin/stctl projects
 ~/.local/bin/stctl ask --project stapp "Summarize this repository in one sentence."

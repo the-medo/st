@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+"""Copy local ST tasks/events into Radicale once; preserve the source for rollback.
+
+Stop STapp and its worker during the final copy/enable operation. This script
+does not switch the daemon or migrate external Todoist/Google accounts.
+"""
+
+import argparse
+import json
+import os
+import socket
+import sqlite3
+import uuid
+from pathlib import Path
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--data", type=Path, default=Path.home() / ".local/share/stapp")
+args = parser.parse_args()
+os.umask(0o077)
+identity = args.data / "planner-migration-id"
+if not identity.exists():
+    with identity.open("x") as file:
+        file.write(str(uuid.uuid4()))
+namespace = identity.read_text().strip()
+database = args.data / "stapp.sqlite"
+with sqlite3.connect(f"file:{database}?mode=ro", uri=True) as db:
+    db.row_factory = sqlite3.Row
+    records = list(db.execute("SELECT * FROM records WHERE kind IN ('task','event') ORDER BY id"))
+    with sqlite3.connect(args.data / "pre-planner.sqlite") as backup:
+        db.backup(backup)
+
+
+def call(action, record, key):
+    with socket.socket(socket.AF_UNIX) as client:
+        client.settimeout(30)
+        client.connect(str(args.data / "planner.sock"))
+        client.sendall(json.dumps({"action": action, "args": record, "key": key}).encode() + b"\n")
+        response = json.loads(client.makefile("rb").readline(4 * 1024 * 1024))
+        if "error" in response:
+            raise SystemExit(response["error"])
+        return response["result"]
+
+
+for record in records:
+    value = {"kind": record["kind"], "title": record["title"], "zone": record["zone"] or "Europe/Prague"}
+    if record["starts"]:
+        value["starts" if record["kind"] == "event" else "due"] = record["starts"]
+    key = f"migration/{namespace}/{record['id']}"
+    saved = call("save", value, key)
+    if record["done"] and record["kind"] == "task":
+        call("complete", {"id": saved["id"], "version": saved["version"]}, key + "/complete")
+print(f"Migrated {len(records)} task/event records; original SQLite records and pre-planner.sqlite retained.")

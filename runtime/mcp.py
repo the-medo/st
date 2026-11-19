@@ -14,6 +14,21 @@ def property_(kind, **extra):
 
 S = {"type": "string"}
 I = {"type": "integer"}
+RID = {"anyOf": [I, S]}
+NULLABLE_S = {"type": ["string", "null"]}
+RECURRENCE = {
+    "type": ["object", "null"],
+    "properties": {
+        "frequency": {"type": "string", "enum": ["daily", "weekly", "monthly", "yearly"]},
+        "interval": {"type": "integer", "minimum": 1, "maximum": 100},
+        "mode": {"type": "string", "enum": ["due", "completion"]},
+        "weekdays": {"type": "array", "items": {"type": "string", "enum": ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]}},
+        "count": {"type": "integer", "minimum": 1},
+        "until": S,
+    },
+    "required": ["frequency"],
+    "additionalProperties": False,
+}
 
 
 def tool(tool_name, description, required, **props):
@@ -39,16 +54,29 @@ TOOLS = [
     tool("list_records", "Read tasks, notes and calendar events.", []),
     tool(
         "save_record",
-        "Create or update a task, note or calendar event. Include local date/time and IANA zone for events.",
+        "Create or update a task, note or calendar event. For existing planner records send their current version. Use complete_task to advance recurrence. Notes stay local; tasks/events use the configured planner. Events require starts and zone; ends is exclusive for all-day events.",
         ["kind", "title"],
         kind=property_("string", enum=["task", "event", "note"]),
         title=S,
         body=S,
-        id=I,
+        id=RID,
+        version=RID,
         starts=S,
+        ends=NULLABLE_S,
         zone=S,
+        due=NULLABLE_S,
+        project_id=NULLABLE_S,
+        parent_id=NULLABLE_S,
+        priority={"type": "integer", "minimum": 0, "maximum": 9, "description": "1 is highest, 0 is unset"},
+        labels={"type": "array", "items": S},
+        recurrence=RECURRENCE,
         done=property_("boolean"),
     ),
+    tool("get_record", "Read a planner record and its current version before editing.", ["id"], id=S),
+    tool("list_task_projects", "List personal task projects; these are separate from coding workspaces.", []),
+    tool("save_task_project", "Create or rename a personal task project. Existing projects require their current version.", ["title"], title=S, body=S, id=S, version=S),
+    tool("complete_task", "Complete one occurrence. The backend records history and advances a recurring task. Send the current version; do not repeat with a new version unless the next occurrence was also completed.", ["id", "version"], id=S, version=S),
+    tool("delete_record", "Delete a planner task, event or empty task project. Requires its current version.", ["id", "version"], id=S, version=S),
     tool(
         "save_view",
         "Save a named layout. Dashboard widgets may be calendar, tasks, notes or clock. Photo/app views require an installed asset ID.",

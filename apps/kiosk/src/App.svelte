@@ -95,7 +95,8 @@
           </div>
           {@render connection()}
         </header>
-        <RecordWidgets ids={panel.spec.widgets || []} records={panel.records} clock={hm.format(now)} {online} onSaved={apply}/>
+        {#if panel.planner_status==='unavailable'}<p role="status">Calendar and tasks are temporarily unavailable. Showing the last saved view.</p>{/if}
+        <RecordWidgets ids={panel.spec.widgets || []} records={panel.records} clock={hm.format(now)} online={online && panel.planner_status!=='unavailable'} onSaved={apply}/>
       </section>
     {:else if panel.spec.kind === 'scene'}
       <section class="stage" aria-label="3D clock"><Scene {theme}/></section>

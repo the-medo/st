@@ -1,10 +1,11 @@
 export type Entry = {
-  id: number; kind: string; title: string; starts?: string | null; zone?: string | null;
-  done: boolean; body?: string; version?: number;
+  id: number | string; kind: string; title: string; starts?: string | null; zone?: string | null;
+  done: boolean; body?: string; version?: number | string;
 };
 export type Panel = {
   view: string; revision: number; theme?: string; spec: {kind:string; widgets?:string[]; asset?:string};
   records: Entry[]; room_reply?: string; views: string[];
+  planner_status?: 'ok' | 'unavailable';
 };
 type AgendaRow = {entry: Entry; time: string; zone: string; order: string};
 type AgendaDay = {key: string; label: string; rows: AgendaRow[]};
@@ -49,6 +50,6 @@ export function agendaDays(records: Entry[]): AgendaDay[] {
     }
     days.get(day)!.rows.push({entry,time,zone,order});
   }
-  for (const section of days.values()) section.rows.sort((a,b) => a.order.localeCompare(b.order) || a.entry.id-b.entry.id);
+  for (const section of days.values()) section.rows.sort((a,b) => a.order.localeCompare(b.order) || String(a.entry.id).localeCompare(String(b.entry.id)));
   return [...days.values()].sort((a,b) => Number(!a.key)-Number(!b.key) || a.key.localeCompare(b.key));
 }

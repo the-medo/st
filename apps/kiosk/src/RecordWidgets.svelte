@@ -14,7 +14,7 @@
   let editor: HTMLDialogElement;
   let selected = $state<Entry | null>(null);
   let mode = $state<'read' | 'edit'>('read'), title = $state(''), body = $state('');
-  let savingId = $state<number | null>(null), error = $state(''), conflict = $state(false);
+  let savingId = $state<number | string | null>(null), error = $state(''), conflict = $state(false);
   let latest = $derived(selected && records.find(r=>r.id===selected!.id));
   let rowError = $state('');
 

@@ -1,3 +1,4 @@
+mod planner;
 mod store;
 use anyhow::{bail, Context, Result};
 use axum::{
@@ -34,10 +35,14 @@ struct App {
     origin: String,
     panel_key: String,
     claims: Arc<Mutex<HashMap<String, (Instant, String)>>>,
+    planner: Option<planner::Client>,
 }
 type HttpError = (StatusCode, String);
 fn err(e: impl std::fmt::Display) -> HttpError {
     (StatusCode::BAD_REQUEST, e.to_string())
+}
+fn stable_key(value: &str) -> uuid::Uuid {
+    uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, value.as_bytes())
 }
 fn is_panel(a: &App, h: &HeaderMap) -> bool {
     !a.panel_key.is_empty()
@@ -82,7 +87,61 @@ async fn headers(State(a): State<App>, req: axum::extract::Request, next: Next) 
 }
 async fn snapshot(State(a): State<App>, h: HeaderMap) -> Result<Json<Value>, HttpError> {
     auth(&a, &h)?;
-    Ok(Json(a.store.lock().unwrap().snapshot().map_err(err)?))
+    Ok(Json(display_snapshot(&a).await.map_err(err)?))
+}
+async fn display_snapshot(a: &App) -> Result<Value> {
+    let mut value = a.store.lock().unwrap().snapshot()?;
+    if let Some(client) = &a.planner {
+        let remote = client.display().await;
+        let records = value["records"].as_array_mut().unwrap();
+        records.retain(|r| r["kind"] == "note");
+        records.extend(remote["records"].as_array().into_iter().flatten().cloned());
+        value["task_projects"] = remote["projects"].clone();
+        value["planner_status"] = remote["status"].clone();
+    }
+    Ok(value)
+}
+fn planner_error(error: anyhow::Error) -> HttpError {
+    let status = error
+        .downcast_ref::<planner::Failure>()
+        .and_then(|e| StatusCode::from_u16(e.status).ok())
+        .unwrap_or(StatusCode::SERVICE_UNAVAILABLE);
+    (status, error.to_string())
+}
+async fn planner_read(State(a): State<App>, h: HeaderMap) -> Result<Json<Value>, HttpError> {
+    auth(&a, &h)?;
+    let client = a.planner.as_ref().ok_or((
+        StatusCode::SERVICE_UNAVAILABLE,
+        "Planner is not configured".into(),
+    ))?;
+    Ok(Json(
+        client
+            .request("list", json!({"fresh":true}), None)
+            .await
+            .map_err(planner_error)?,
+    ))
+}
+async fn planner_write(
+    State(a): State<App>,
+    h: HeaderMap,
+    Json(v): Json<Value>,
+) -> Result<Json<Value>, HttpError> {
+    auth(&a, &h)?;
+    let client = a.planner.as_ref().ok_or((
+        StatusCode::SERVICE_UNAVAILABLE,
+        "Planner is not configured".into(),
+    ))?;
+    let action = field(&v, "action").map_err(err)?;
+    if !matches!(action, "save" | "complete" | "delete") {
+        return Err(err("Unknown planner action"));
+    }
+    let key = field(&v, "idempotency_key").map_err(err)?;
+    Ok(Json(
+        client
+            .request(action, v["args"].clone(), Some(format!("http/{key}")))
+            .await
+            .map_err(planner_error)?,
+    ))
 }
 async fn view(
     State(a): State<App>,
@@ -90,31 +149,78 @@ async fn view(
     Json(v): Json<Value>,
 ) -> Result<Json<Value>, HttpError> {
     auth(&a, &h)?;
-    let mut store = a.store.lock().unwrap();
-    if v.get("theme").is_some() {
-        if v.get("name").is_some() {
-            return Err(err("Choose a theme or a view per request"));
+    {
+        let mut store = a.store.lock().unwrap();
+        if v.get("theme").is_some() {
+            if v.get("name").is_some() {
+                return Err(err("Choose a theme or a view per request"));
+            }
+            store
+                .set_theme(field(&v, "theme").map_err(err)?)
+                .map_err(err)?;
+        } else {
+            store
+                .call("room", &json!({"op":"tools","name":"show_view","args":v}))
+                .map_err(err)?;
         }
-        store
-            .set_theme(field(&v, "theme").map_err(err)?)
-            .map_err(err)?;
-    } else {
-        store
-            .call("room", &json!({"op":"tools","name":"show_view","args":v}))
-            .map_err(err)?;
     }
-    Ok(Json(store.snapshot().map_err(err)?))
+    Ok(Json(display_snapshot(&a).await.map_err(err)?))
 }
 async fn edit_record(
     State(a): State<App>,
     h: HeaderMap,
-    Param(id): Param<i64>,
+    Param(id): Param<String>,
     Json(patch): Json<Value>,
 ) -> Result<Json<Value>, HttpError> {
     auth(&a, &h)?;
-    let mut store = a.store.lock().unwrap();
-    match store.edit_record(id, &patch).map_err(err)? {
-        EditResult::Saved => Ok(Json(store.snapshot().map_err(err)?)),
+    if !patch.is_object() {
+        return Err(err("Expected an edit object"));
+    }
+    if let Some(client) = &a.planner {
+        if uuid::Uuid::parse_str(&id).is_ok() {
+            let mut args = patch.clone();
+            args["id"] = json!(id);
+            let action = if patch["done"] == true {
+                "complete"
+            } else {
+                "save"
+            };
+            if action == "complete" {
+                if patch.as_object().is_none_or(|p| p.len() != 2) {
+                    return Err(err("Expected completion and version"));
+                }
+                args.as_object_mut().unwrap().remove("done");
+            }
+            let operation = json!([id, patch]).to_string();
+            // The expected version makes a retry of a checkbox completion unique
+            // to that occurrence, even if the HTTP reply was lost.
+            client
+                .request(
+                    action,
+                    args,
+                    Some(format!("panel/{}", stable_key(&operation))),
+                )
+                .await
+                .map_err(planner_error)?;
+            return Ok(Json(display_snapshot(&a).await.map_err(err)?));
+        }
+    }
+    let id = id.parse::<i64>().map_err(err)?;
+    let result = {
+        let mut store = a.store.lock().unwrap();
+        if a.planner.is_some() {
+            let kind: Option<String> = store
+                .db
+                .query_row("SELECT kind FROM records WHERE id=?", [id], |r| r.get(0))
+                .ok();
+            if kind.as_deref().is_some_and(|k| k != "note") {
+                return Err(err("Use the migrated planner record"));
+            }
+        }
+        store.edit_record(id, &patch).map_err(err)?
+    };
+    match result {
+        EditResult::Saved => Ok(Json(display_snapshot(&a).await.map_err(err)?)),
         EditResult::Missing => Err((StatusCode::NOT_FOUND, "Record no longer exists".into())),
         EditResult::Conflict => Err((StatusCode::CONFLICT, "Record has changed".into())),
     }
@@ -123,7 +229,7 @@ async fn updates(State(a): State<App>, h: HeaderMap) -> Result<impl IntoResponse
     use axum::response::sse::{Event, KeepAlive, Sse};
     auth(&a, &h)?;
     let stream = async_stream::stream! {let mut last=String::new();loop{
-        let current={a.store.lock().unwrap().snapshot().map(|s|s.to_string()).unwrap_or_default()};
+        let current=display_snapshot(&a).await.map(|s|s.to_string()).unwrap_or_default();
         if !current.is_empty()&&current!=last{last=current.clone();yield Ok::<_,std::convert::Infallible>(Event::default().data(current));}
         tokio::time::sleep(Duration::from_secs(1)).await;
     }};
@@ -190,6 +296,69 @@ async fn asset(
     Ok(([(header::CONTENT_TYPE, mime)], data).into_response())
 }
 async fn call(a: &App, device: &str, v: &Value) -> Result<Value> {
+    if v["op"] == "tools" {
+        let name = v["name"].as_str().unwrap_or("");
+        anyhow::ensure!(v["args"].is_object(), "Expected tool arguments");
+        if name == "save_record" && v["args"]["kind"] == "note" {
+            anyhow::ensure!(
+                v["args"].get("id").is_none_or(|id| id.is_i64()),
+                "Notes use local integer IDs"
+            );
+        }
+        if let Some(client) = &a.planner {
+            let remote = matches!(
+                name,
+                "list_task_projects"
+                    | "save_task_project"
+                    | "complete_task"
+                    | "delete_record"
+                    | "get_record"
+            ) || name == "list_records"
+                || (name == "save_record" && v["args"]["kind"] != "note");
+            if remote {
+                a.store.lock().unwrap().authorize_tool(device, v)?;
+                if name == "list_records" || name == "list_task_projects" {
+                    let remote = client.request("list", json!({"fresh":true}), None).await?;
+                    if name == "list_task_projects" {
+                        return Ok(remote["projects"].clone());
+                    }
+                    let mut records = a.store.lock().unwrap().snapshot()?["records"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .filter(|r| r["kind"] == "note")
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    records.extend(remote["records"].as_array().into_iter().flatten().cloned());
+                    return Ok(json!(records));
+                }
+                let mut args = v["args"].clone();
+                let action = match name {
+                    "get_record" => "get",
+                    "complete_task" => "complete",
+                    "delete_record" => "delete",
+                    "save_task_project" => {
+                        args["kind"] = json!("project");
+                        "save"
+                    }
+                    _ => "save",
+                };
+                let key = if action == "get" {
+                    None
+                } else if let Some(job) = v["job"].as_str() {
+                    Some(format!("mcp/{job}/{}", field(v, "key")?))
+                } else {
+                    Some(format!(
+                        "owner/{}",
+                        v["key"]
+                            .as_str()
+                            .unwrap_or(&uuid::Uuid::new_v4().to_string())
+                    ))
+                };
+                return client.request(action, args, key).await;
+            }
+        }
+    }
     if v["op"] == "wake" {
         let token = field(v, "id")?;
         uuid::Uuid::parse_str(token)?;
@@ -296,6 +465,7 @@ async fn main() -> Result<()> {
         origin: env::var("STAPP_ORIGIN").unwrap_or_default(),
         data,
         claims: Default::default(),
+        planner: planner::Client::from_env(),
     };
     let ipc = app.clone();
     tokio::spawn(async move {
@@ -316,6 +486,7 @@ async fn main() -> Result<()> {
         )
         .route("/api/display", get(snapshot).post(view))
         .route("/api/records/{id}", post(edit_record))
+        .route("/api/planner", get(planner_read).post(planner_write))
         .route("/api/events", get(updates))
         .route("/api/frame", get(frame).post(upload_frame))
         .route("/api/asset/{kind}/{name}", get(asset))
