@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="797" viewBox="0 0 1200 797" role="img" aria-labelledby="title desc">
+  <title id="title">S.T. home assistant device map</title>
+  <desc id="desc">The PC and Steam Machine run the same voice client. The PC sends a transcript to STapp over SSH. The room client sends it over a loopback SSH bridge to the daemon socket. Steam drives the TV over HDMI. STapp delivers views to an independent panel host, routes requests locally or through Cloudflare, and uses Codex for background work. SM Manager shows timestamped kiosk frames.</desc>
+  <defs>
+    <style>
+      text { font-family: "Inter", "DejaVu Sans", sans-serif; fill: #173039 }
+      .title { font-size: 32px; font-weight: 700; letter-spacing: -1px }
+      .host { font-size: 24px; font-weight: 700; letter-spacing: -.6px }
+      .name { font-size: 19px; font-weight: 700; letter-spacing: -.4px }
+      .small { font-size: 15px; fill: #425b61 }
+      .label { font-family: "IBM Plex Mono", "DejaVu Sans Mono", monospace; font-size: 13px; fill: #286c66 }
+      .wire { fill: none; stroke: #3d746e; stroke-width: 2.4; stroke-linejoin: round; marker-end: url(#localArrow) }
+      .network { fill: none; stroke: #765388; stroke-width: 2.6; stroke-dasharray: 6 4; marker-end: url(#netArrow) }
+      .icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round }
+      .panel { fill: white; stroke: #bacdcb; stroke-width: 1.5 }
+    </style>
+    <marker id="localArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M1 1 9 5 1 9" fill="none" stroke="#3d746e" stroke-width="1.6" stroke-linejoin="round"/>
+    </marker>
+    <marker id="netArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M1 1 9 5 1 9" fill="none" stroke="#765388" stroke-width="1.6" stroke-linejoin="round"/>
+    </marker>
+    <g id="mic" class="icon">
+      <rect x="7" y="1" width="10" height="15" rx="5"/><path d="M3 11v1a9 9 0 0 0 18 0v-1M12 21v5m-5 0h10"/>
+    </g>
+    <g id="wave" class="icon"><path d="M1 13h3m3-6v12m4-17v22m4-18v14m4-11v8m3-4h3"/></g>
+    <g id="screen" class="icon"><rect x="1" y="3" width="27" height="19" rx="2.5"/><path d="M5 7h18M6 11h6v7H6zm10 0h7m-7 4h5"/></g>
+    <g id="speaker" class="icon"><rect x="1" y="5" width="28" height="17" rx="6"/><circle cx="10" cy="13.5" r="4"/><circle cx="21" cy="13.5" r="2.5"/></g>
+    <g id="folder" class="icon"><path d="M2 9V5h10l3 3h12v14H2zM2 11h25"/></g>
+    <g id="cloud" class="icon"><path d="M7 22a6 6 0 0 1-1-12 9 9 0 0 1 17-1 6.5 6.5 0 0 1 0 13z"/></g>
+  </defs>
+  <rect width="1200" height="797" rx="18" fill="#f5f7f4"/>
+  <text x="32" y="59" class="title">S.T. home assistant</text>
+  <text x="34" y="88" class="small">Device connections and command routing</text>
+  <path d="M818 65h38" class="wire"/><text x="869" y="70" class="small">On device</text>
+  <path d="M995 65h38" class="network"/><text x="1046" y="70" class="small">Network</text>
+
+  <rect x="32" y="118" width="304" height="316" rx="20" class="panel"/>
+  <g transform="translate(53 139)" class="icon" color="#286c66">
+    <rect x="1" y="2" width="33" height="23" rx="3"/><path d="M17 25v6m-8 1h18"/>
+  </g>
+  <text x="101" y="164" class="host">Personal PC</text>
+  <line x1="54" y1="189" x2="313" y2="189" stroke="#d9e2df"/>
+  <use href="#mic" transform="translate(59 224)" color="#286c66"/>
+  <text x="103" y="236" class="name">MIC-PC</text>
+  <text x="103" y="260" class="small">Desk microphone</text>
+  <path d="M182 280v45" class="wire"/>
+  <rect x="53" y="331" width="260" height="79" rx="11" fill="#e4f3ed" stroke="#b2d0c6"/>
+  <use href="#wave" transform="translate(68 347)" color="#176c5c"/>
+  <text x="106" y="359" class="name">Rust voice client</text>
+  <text x="70" y="387" class="small">Wake word + local transcript</text>
+
+  <rect x="439" y="118" width="729" height="466" rx="20" fill="#edf3f0" stroke="#bacdcb" stroke-width="1.5"/>
+  <g transform="translate(465 137)" class="icon" color="#286c66">
+    <path d="m1 9 18-7 15 6v22l-17 6L1 30zM1 9l16 6 17-7m-17 7v21"/><path d="m4 14 9 3v9l-9-3z"/>
+  </g>
+  <text x="517" y="164" class="host">Steam Machine</text>
+  <text x="1137" y="161" class="label" text-anchor="end">SteamOS · game or desktop</text>
+  <line x1="463" y1="189" x2="1144" y2="189" stroke="#c8d8d2"/>
+
+  <rect x="464" y="207" width="304" height="80" rx="11" fill="#e4f3ed" stroke="#b2d0c6"/>
+  <use href="#mic" transform="translate(481 221)" color="#176c5c"/>
+  <text x="518" y="236" class="name">MIC-SM</text>
+  <text x="481" y="264" class="small">USB microphone · same Rust client</text>
+  <path d="M614 288v40" class="wire"/>
+  <text x="626" y="314" class="label">local SSH</text>
+
+  <rect x="464" y="331" width="304" height="80" rx="11" fill="#194b46"/>
+  <text x="483" y="363" class="host" style="fill:#fff">STapp</text>
+  <text x="483" y="390" class="small" style="fill:#ddf2e9">Requests, replies and job history</text>
+  <path d="M314 371h145" class="network"/>
+  <text x="389" y="351" text-anchor="middle" class="label" style="fill:#68477c">SSH · text</text>
+  <path d="M614 412v51" class="wire"/>
+  <text x="626" y="444" class="label">stdio</text>
+
+  <rect x="464" y="466" width="304" height="91" rx="11" class="panel"/>
+  <text x="482" y="497" class="name">Codex app-server</text>
+  <text x="482" y="524" class="small">Project threads, skills and MCP</text>
+  <path d="M996 190v14" class="wire"/>
+  <path d="M769 371h69" class="wire"/>
+  <path d="M492 413v24H360v44h-21" class="network"/>
+  <text x="412" y="429" text-anchor="middle" class="label" style="fill:#68477c">route</text>
+  <path d="M770 512h68" class="wire"/>
+  <path d="M463 512H340" class="network"/>
+  <text x="400" y="495" text-anchor="middle" class="label" style="fill:#68477c">HTTPS</text>
+
+  <rect x="843" y="207" width="299" height="86" rx="11" class="panel"/>
+  <use href="#screen" transform="translate(857 223)" color="#286c66"/>
+  <text x="900" y="238" class="name">TV · HDMI</text>
+  <text x="859" y="267" class="small">Steam library, game or desktop</text>
+  <rect x="843" y="331" width="299" height="80" rx="11" class="panel"/>
+  <use href="#speaker" transform="translate(857 344)" color="#286c66"/>
+  <text x="900" y="360" class="name">SM-SPK1</text>
+  <text x="859" y="389" class="small">Room audio output</text>
+  <rect x="843" y="466" width="299" height="91" rx="11" class="panel"/>
+  <use href="#folder" transform="translate(857 480)" color="#286c66"/>
+  <text x="898" y="496" class="name">Projects and tools</text>
+  <text x="859" y="524" class="small">Checkouts, calendar and to-dos</text>
+
+  <rect x="32" y="463" width="304" height="101" rx="15" fill="#f0eaf3" stroke="#cbbbd0"/>
+  <use href="#cloud" transform="translate(53 480)" color="#765388"/>
+  <text x="98" y="497" class="name">Online services</text>
+  <text x="54" y="529" class="small">OpenAI model · Rohlík MCP</text>
+  <text x="54" y="550" class="small">Cloudflare Workers AI · routing</text>
+
+  <rect x="32" y="607" width="1136" height="165" rx="18" fill="#fff" stroke="#bacdcb" stroke-width="1.5"/>
+  <text x="54" y="640" class="host">Always-on faceplate</text>
+  <text x="54" y="667" class="small">STapp sends view changes over the private network. The panel host stays powered through TV and SteamOS mode changes.</text>
+  <rect x="52" y="686" width="262" height="67" rx="10" fill="#f0eaf3" stroke="#cbbbd0"/>
+  <text x="68" y="713" class="name">SM Manager</text>
+  <text x="68" y="738" class="small">Private read-only preview</text>
+  <path d="M500 730H319" class="network"/>
+  <text x="406" y="712" class="label" style="fill:#68477c" text-anchor="middle">frame via STapp</text>
+  <rect x="505" y="686" width="253" height="67" rx="10" fill="#e4f3ed" stroke="#b2d0c6"/>
+  <text x="521" y="713" class="name">Display host</text>
+  <text x="521" y="738" class="small">Pi kiosk · separate power</text>
+  <path d="M759 730h127" class="wire"/>
+  <text x="825" y="712" class="label" text-anchor="middle">HDMI + USB</text>
+  <rect x="891" y="686" width="251" height="67" rx="10" class="panel"/>
+  <text x="907" y="713" class="name">SCR-SM1</text>
+  <text x="907" y="738" class="small">Panel: 800 × 480 touch</text>
+</svg>

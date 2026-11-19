@@ -1,0 +1,19 @@
+PRAGMA journal_mode=WAL;
+PRAGMA foreign_keys=ON;
+CREATE TABLE IF NOT EXISTS projects(name TEXT PRIMARY KEY, path TEXT NOT NULL, host TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS jobs(
+ id TEXT PRIMARY KEY, device TEXT NOT NULL, prompt TEXT NOT NULL, project TEXT NOT NULL REFERENCES projects(name),
+ parent TEXT REFERENCES jobs(id), status TEXT NOT NULL, thread TEXT, claim TEXT, updated INTEGER NOT NULL DEFAULT(unixepoch())
+);
+CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY, job TEXT NOT NULL REFERENCES jobs(id), kind TEXT NOT NULL, body TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS events_job ON events(job);
+CREATE TABLE IF NOT EXISTS answers(job TEXT PRIMARY KEY REFERENCES jobs(id), answer TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS records(id INTEGER PRIMARY KEY, kind TEXT NOT NULL, title TEXT NOT NULL, starts TEXT, zone TEXT, done INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS views(name TEXT PRIMARY KEY, spec TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS panel(id INTEGER PRIMARY KEY CHECK(id=1), view TEXT NOT NULL, revision INTEGER DEFAULT 0);
+INSERT OR IGNORE INTO panel(id,view) VALUES(1,'home');
+INSERT OR IGNORE INTO views VALUES('home','{"kind":"dashboard","widgets":["calendar","tasks","notes"]}'),('clock','{"kind":"scene"}');
+CREATE TABLE IF NOT EXISTS operations(job TEXT, op_key TEXT, result TEXT NOT NULL, PRIMARY KEY(job,op_key));
+
+CREATE TABLE IF NOT EXISTS apps(name TEXT PRIMARY KEY, html TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS voice_answers(id TEXT PRIMARY KEY, device TEXT NOT NULL, prompt TEXT NOT NULL, job TEXT NOT NULL REFERENCES jobs(id));

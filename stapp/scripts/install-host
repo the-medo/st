@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+"""Install native binaries, kiosk and an owned user service on the Steam Machine."""
+
+import json
+import os
+import secrets
+import socket
+import time
+import urllib.request
+import shutil
+import subprocess
+from pathlib import Path
+
+root = Path(__file__).resolve().parents[1]
+home = Path.home()
+data = home / ".local/share/stapp"
+install = home / ".local/lib/stapp"
+config = home / ".config/stapp"
+units = home / ".config/systemd/user"
+port = int(os.environ.get("STAPP_PORT", "18641"))
+for p in [data, install, config, units, home / ".local/bin"]:
+    p.mkdir(parents=True, exist_ok=True)
+os.chmod(data, 0o700)
+os.chmod(config, 0o700)
+
+
+def run(*args):
+    return subprocess.check_output(args, text=True).strip()
+
+
+tailscale = shutil.which("tailscale") or "/opt/tailscale/tailscale"
+status = json.loads(run(tailscale, "status", "--json"))
+dns = status["Self"]["DNSName"].rstrip(".")
+owner = status["User"][str(status["Self"]["UserID"])]["LoginName"]
+host = f"{dns}:{port}"
+origin = "https://" + host
+target = f"http://127.0.0.1:{port}"
+serve = json.loads(run(tailscale, "serve", "status", "--json"))
+registered = (serve.get("Web") or {}).get(host)
+if registered and registered.get("Handlers", {}).get("/", {}).get("Proxy") != target:
+    raise SystemExit("Private port already belongs to another app")
+if not registered and str(port) in (serve.get("TCP") or {}):
+    raise SystemExit("TCP port already reserved")
+if not registered and not (data / "control.sock").exists():
+    with socket.socket() as check:
+        check.bind(("127.0.0.1", port))
+for name in ["stctl", "stappd", "st-voice"]:
+    binary = root / "target/release" / name
+    dest = install / name
+    shutil.copy2(binary, dest.with_suffix(".new"))
+    dest.with_suffix(".new").replace(dest)
+    link = home / ".local/bin" / name
+    if not link.exists():
+        link.symlink_to(dest)
+for file in (root / "runtime").glob("*.py"):
+    shutil.copy2(file, install / file.name)
+shutil.copytree(root / "assistant", data / "assistant", dirs_exist_ok=True)
+shutil.copytree(root / "apps/kiosk/dist", install / "web", dirs_exist_ok=True)
+key = config / "panel.key"
+if not key.exists():
+    fd = os.open(key, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(secrets.token_urlsafe(32))
+environment = config / "host.env"
+extra = config / "integrations.env"
+environment.write_text(
+    f"STAPP_DATA={data}\nSTAPP_WEB={install}/web\nSTAPP_ORIGIN={origin}\nSTAPP_OWNER={owner}\nSTAPP_PORT={port}\nSTAPP_PANEL_KEY={key.read_text().strip()}\nSTAPP_PROJECTS_ROOT={home}/dev\n"
+)
+environment.chmod(0o600)
+
+
+def service(name, command, after):
+    (units / name).write_text(f"""[Unit]
+Description=S.T. {name.removesuffix(".service")}
+After={after}
+
+[Service]
+EnvironmentFile={environment}
+EnvironmentFile=-{extra}
+Environment=PATH={home}/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart={command}
+Restart=on-failure
+RestartSec=2
+UMask=0077
+WorkingDirectory={data}
+
+[Install]
+WantedBy=default.target
+""")
+
+
+service("stapp.service", str(install / "stappd"), "network.target")
+service(
+    "stapp-worker.service",
+    "/usr/bin/python3 " + str(install / "worker.py"),
+    "stapp.service",
+)
+run("systemctl", "--user", "daemon-reload")
+run("systemctl", "--user", "enable", "stapp.service", "stapp-worker.service")
+run("systemctl", "--user", "restart", "stapp.service", "stapp-worker.service")
+if not registered:
+    run(tailscale, "serve", "--bg", f"--https={port}", target)
+for attempt in range(50):
+    try:
+        with urllib.request.urlopen(target + "/api/health", timeout=1) as response:
+            if response.status == 200 and (data / "control.sock").exists():
+                break
+    except OSError:
+        pass
+    time.sleep(0.1)
+else:
+    raise SystemExit("STapp did not become ready; inspect journalctl --user -u stapp")
+print(origin)

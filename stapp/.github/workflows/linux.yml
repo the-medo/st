@@ -1,0 +1,17 @@
+name: Linux
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+      - run: npm ci && npm run build
+        working-directory: apps/kiosk
+      - run: cargo fmt --all --check && cargo build --release --locked
+      - run: python3 tests/integration.py
+      - run: python3 -m venv .cache/planner-venv && .cache/planner-venv/bin/pip install -r runtime/planner-requirements.txt
+      - run: .cache/planner-venv/bin/python tests/planner.py

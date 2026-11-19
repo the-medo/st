@@ -1,0 +1,10 @@
+Radicale==3.9.2
+bcrypt==5.0.0
+defusedxml==0.7.1
+icalendar==7.3.0
+libpass==1.9.4
+python-dateutil==4.0.0
+pytz==2026.6
+six==1.17.0
+tzdata==2026.6
+vobject==0.9.9

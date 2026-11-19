@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+: "${STAPP_URL:?Set STAPP_URL to the private HTTPS faceplate URL}"
+exec chromium --kiosk --noerrdialogs --disable-session-crashed-bubble --app="$STAPP_URL"

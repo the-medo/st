@@ -1,0 +1,10 @@
+[Unit]
+Description=S.T. room microphone and speaker
+After=pipewire.service
+[Service]
+EnvironmentFile=%h/.config/stapp/room.env
+ExecStart=%h/.local/share/stapp-voice-venv/bin/python %h/.local/lib/stapp/client.py
+Restart=on-failure
+RestartSec=3
+[Install]
+WantedBy=default.target

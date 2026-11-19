@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+"""Install the panel shell and launch it on graphical login on a dedicated Wayland host."""
+
+import argparse
+import json
+import os
+import shutil
+from pathlib import Path
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("server")
+parser.add_argument("output")
+parser.add_argument("key_file", type=Path)
+args = parser.parse_args()
+if not args.server.startswith("https://"):
+    parser.error("Provide STapp's private HTTPS origin")
+source = Path(__file__).resolve().parent
+web = (
+    source / "web"
+    if (source / "web").is_dir()
+    else source.parents[1] / "apps/kiosk/dist"
+)
+if not (web / "index.html").is_file():
+    parser.error("Use the faceplate release bundle or build the kiosk")
+for name in ("grim", "chromium"):
+    if not shutil.which(name):
+        parser.error("Install " + name + " on the dedicated display host")
+if not args.key_file.is_file():
+    parser.error("Copy the panel credential to this device first")
+config = Path.home() / ".config/stapp"
+config.mkdir(mode=0o700, parents=True, exist_ok=True)
+key = config / "panel.key"
+if args.key_file.resolve() != key.resolve():
+    shutil.copyfile(args.key_file, key)
+key.chmod(0o600)
+(config / "panel.json").write_text(
+    json.dumps(
+        {"server": args.server.rstrip("/"), "output": args.output, "key_file": str(key)}
+    )
+)
+destination = Path.home() / ".local/lib/stapp-panel"
+destination.mkdir(parents=True, exist_ok=True)
+for name in ("session.py", "capture.py", "proxy.py"):
+    shutil.copy2(source / name, destination / name)
+shutil.copytree(web, destination / "web", dirs_exist_ok=True)
+startup = Path.home() / ".config/autostart"
+startup.mkdir(parents=True, exist_ok=True)
+(startup / "stapp-panel.desktop").write_text(
+    '[Desktop Entry]\nType=Application\nName=S.T. Faceplate\nExec=/usr/bin/python3 "'
+    + str(destination / "session.py")
+    + '"\n'
+)
+print(
+    "Installed. Start",
+    destination / "session.py",
+    "in the panel desktop or log in again.",
+)

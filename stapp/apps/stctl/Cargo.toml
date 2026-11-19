@@ -1,0 +1,11 @@
+[package]
+name="stctl"
+version="0.1.0"
+edition="2021"
+[dependencies]
+st-core.workspace=true
+clap.workspace=true
+anyhow.workspace=true
+serde_json.workspace=true
+uuid.workspace=true
+base64="0.22"

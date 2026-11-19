@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+"""Install room voice as the SteamOS user who owns the physical audio devices."""
+
+import argparse
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+p = argparse.ArgumentParser(description=__doc__)
+p.add_argument("--ssh", required=True, help="SSH alias paired to the room bridge")
+p.add_argument("--mic", required=True, help="Exact CPAL input name")
+p.add_argument("--speaker", required=True, help="Explicit PipeWire output node.name")
+args = p.parse_args()
+if sys.version_info < (3, 11):
+    p.error("Use Python 3.11 or later with supported sherpa/Piper wheels")
+root = Path(__file__).resolve().parent
+source = root / "runtime" if (root / "runtime").is_dir() else root.parent / "runtime"
+binary = (
+    root / "st-voice"
+    if (root / "st-voice").is_file()
+    else root.parent / "target/release/st-voice"
+)
+models = root / "models.py"
+unit = (
+    root / "voice.service.example"
+    if (root / "voice.service.example").is_file()
+    else root.parent / "deploy/steamos/voice.service.example"
+)
+home = Path.home()
+base = home / ".local/lib/stapp"
+conf = home / ".config/stapp"
+state = home / ".local/share/stapp-room"
+cache = home / ".cache/stapp/models"
+venv = home / ".local/share/stapp-voice-venv"
+for path in (base, conf, state, cache):
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+for name in ("speech.py", "client.py", "transport.py"):
+    shutil.copy2(source / name, base / name)
+shutil.copy2(binary, base / "st-voice")
+(base / "st-voice").chmod(0o755)
+
+
+def run(*cmd, **opts):
+    return subprocess.run(cmd, check=True, **opts)
+
+
+import json
+
+probe = run(
+    "ssh",
+    "-T",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "ConnectTimeout=5",
+    args.ssh,
+    "stctl",
+    "bridge",
+    input='{"op":"projects"}\n',
+    capture_output=True,
+    text=True,
+)
+if "result" not in json.loads(probe.stdout):
+    p.error("Pair the room SSH key first")
+run(sys.executable, "-m", "venv", str(venv))
+python = str(venv / "bin/python")
+run(python, "-m", "pip", "install", "-r", str(source / "requirements.txt"))
+run(python, str(models), str(cache))
+voice = "en_US-lessac-medium"
+run(python, "-m", "piper.download_voices", "--download-dir", str(cache), voice)
+names = run(
+    str(base / "st-voice"), "--list", capture_output=True, text=True
+).stdout.splitlines()
+if args.mic not in names:
+    p.error("Selected microphone not found. Available: " + ", ".join(names))
+settings = {
+    "STAPP_DEVICE": "room",
+    "STAPP_SSH": args.ssh,
+    "STAPP_MIC": args.mic,
+    "STAPP_SPEAKER_NODE": args.speaker,
+    "STAPP_CLIENT_STATE": state,
+    "STAPP_MODELS": cache,
+    "STAPP_VOICE_BIN": base / "st-voice",
+    "STAPP_SPEECH_PYTHON": python,
+    "STAPP_SPEECH_SCRIPT": base / "speech.py",
+    "STAPP_PIPER_MODEL": cache / (voice + ".onnx"),
+}
+if any(any(c in str(v) for c in ["\n", "\r", '"', "\\"]) for v in settings.values()):
+    p.error("Invalid configuration value")
+(conf / "room.env").write_text("".join(f'{k}="{v}"\n' for k, v in settings.items()))
+units = home / ".config/systemd/user"
+units.mkdir(parents=True, exist_ok=True)
+shutil.copy2(unit, units / "stapp-room.service")
+run("systemctl", "--user", "daemon-reload")
+run("systemctl", "--user", "enable", "--now", "stapp-room.service")
