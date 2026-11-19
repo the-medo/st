@@ -3,6 +3,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+defaults:
+  run:
+    working-directory: stapp
 jobs:
   build:
     runs-on: windows-latest
@@ -11,11 +14,11 @@ jobs:
       - run: cargo build --locked --release -p stctl -p st-voice
       - shell: pwsh
         run: |
-          mkdir package/bin
+          New-Item -ItemType Directory -Force package/bin
           Copy-Item target/release/stctl.exe,target/release/st-voice.exe package/bin
           Copy-Item runtime package/runtime -Recurse
           Copy-Item scripts/models.py,deploy/windows/install.ps1 package/
       - uses: actions/upload-artifact@v4
         with:
           name: stapp-windows-x64
-          path: package/
+          path: stapp/package/

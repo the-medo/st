@@ -35,6 +35,7 @@ def git(directory, *args, check=True):
 
 
 def validate(checkout):
+    checkout = checkout / "sm-manager"
     # A candidate's tests never use the real user's config, history, or Codex DB.
     with tempfile.TemporaryDirectory(prefix="sm-manager-test-") as directory:
         env = {**os.environ, "HOME": directory, "XDG_CONFIG_HOME": directory + "/config",
@@ -72,7 +73,7 @@ def provision(directory, remote, config_path):
         temporary = directory / "updater.py.tmp"
         shutil.copyfile(__file__, temporary)
         temporary.replace(installed)
-    return checkout
+    return checkout / "sm-manager"
 
 
 class Deployment:

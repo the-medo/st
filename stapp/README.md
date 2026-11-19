@@ -40,8 +40,8 @@ The owner shell has a separate inbox. Add `--device pc` or `--device room` when 
 Prerequisites are Git, Linux x86-64, Python 3.11+, Node 22.12+ with npm, a signed-in Codex CLI, Tailscale configured for private Serve, and a systemd user manager. Use Cargo with the ALSA development headers, or Docker with `scripts/cargo` on SteamOS. The deployed services run natively. Keep the host awake when it should receive commands.
 
 ```sh
-git clone git@github.com:the-medo/stapp.git
-cd stapp
+git clone git@github.com:the-medo/st.git
+cd st/stapp
 (cd apps/kiosk && npm ci && npm run build)
 scripts/cargo build --release --locked
 python3 tests/integration.py
@@ -146,4 +146,4 @@ systemctl --user restart stapp-worker
 | `deploy`, `scripts` | Host installer, paired-device provisioning, Windows startup and independent panel capture |
 | `tests`, `.github/workflows` | Isolated protocol tests, Linux checks and Windows packaging |
 
-The implementation milestones and device acceptance checks are in [IMPLEMENTATION.md](IMPLEMENTATION.md). The related monitor is [SM Manager](https://github.com/the-medo/sm-manager).
+The implementation milestones and device acceptance checks are in [IMPLEMENTATION.md](IMPLEMENTATION.md). The related monitor is [SM Manager](../sm-manager/README.md).

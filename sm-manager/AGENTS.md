@@ -23,7 +23,7 @@ private browser URL. Do not hardcode a host, username, or machine path in source
 Verify `/api/health`, `/api/snapshot`, and the browser through that URL.
 
 With `install --auto-update`, the service runs remote `main` from the independent
-`<data_dir>/deployment/checkout`, not a development worktree. It checks for updates
+`<deployment_dir>/checkout/sm-manager`, not a development worktree. It checks for updates
 before startup and every five minutes. Do not edit or remove that runtime clone.
 After merging this project's branch, run `python3 scripts/manage.py update` and
 verify the service before cleaning up the merged development branch/worktree.

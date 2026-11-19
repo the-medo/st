@@ -1,5 +1,8 @@
 name: Linux
 on: [push, pull_request]
+defaults:
+  run:
+    working-directory: stapp
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -10,7 +13,7 @@ jobs:
           node-version: '22'
       - run: sudo apt-get update && sudo apt-get install -y libasound2-dev
       - run: npm ci && npm run build
-        working-directory: apps/kiosk
+        working-directory: stapp/apps/kiosk
       - run: cargo fmt --all --check && cargo build --release --locked
       - run: python3 tests/integration.py
       - run: python3 -m venv .cache/planner-venv && .cache/planner-venv/bin/pip install -r runtime/planner-requirements.txt

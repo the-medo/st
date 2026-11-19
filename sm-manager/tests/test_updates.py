@@ -23,10 +23,12 @@ class UpdateTests(unittest.TestCase):
         updater.git(self.remote, "init", "-b", "main")
         updater.git(self.remote, "config", "user.name", "Test")
         updater.git(self.remote, "config", "user.email", "test@example.invalid")
-        (self.remote / "sm_manager").mkdir()
-        (self.remote / "sm_manager/__main__.py").write_text("")
-        (self.remote / "tests").mkdir()
-        (self.remote / "tests/test_app.py").write_text(
+        self.app = self.remote / "sm-manager"
+        self.app.mkdir()
+        (self.app / "sm_manager").mkdir()
+        (self.app / "sm_manager/__main__.py").write_text("")
+        (self.app / "tests").mkdir()
+        (self.app / "tests/test_app.py").write_text(
             "import os, unittest\nfrom pathlib import Path\n"
             "class AppTest(unittest.TestCase):\n"
             "    def test_app(self):\n"
@@ -65,7 +67,7 @@ class UpdateTests(unittest.TestCase):
         return updater.git(self.remote, "rev-parse", "HEAD").stdout.strip()
 
     def new_main(self, broken=False):
-        (self.remote / ("broken" if broken else "version")).write_text("new\n")
+        (self.app / ("broken" if broken else "version")).write_text("new\n")
         return self.commit("new main")
 
     def test_update_checks_out_remote_main_and_restarts_once(self):

@@ -41,8 +41,8 @@ with the same access checks as the API. No external favicon service is used.
 ## Run
 
 ```bash
-git clone https://github.com/the-medo/sm-manager.git
-cd sm-manager
+git clone https://github.com/the-medo/st.git
+cd st/sm-manager
 python3 -m sm_manager serve
 ```
 
@@ -127,7 +127,7 @@ python3 scripts/manage.py install --auto-update
 
 This enables user lingering and installs `sm-manager-update.timer`. It creates
 an independent clone of this repository's `origin` in
-`<data_dir>/deployment/checkout`, and runs the service there. Development
+`<deployment_dir>/checkout/sm-manager`, and runs the service there. Development
 branches, uncommitted edits, and disposable worktrees do not affect the running
 app. The installer retains the saved private URL, HTTPS proxy configuration,
 and history. Git access must work without interactive prompts or a login-session
