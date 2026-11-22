@@ -45,6 +45,11 @@ def tool(tool_name, description, required, **props):
 
 
 TOOLS = [
+    tool("photos_status", "Check the private Immich photo backend and get its browser URL.", []),
+    tool("photos_albums", "List albums accessible to the configured S.T. Immich account.", []),
+    tool("photos_recent", "List recent timeline photos from the configured S.T. account, with links.", [], limit=I, page=I),
+    tool("photos_search", "Search Immich by filename, or image content when semantic=true. Only the configured account's accessible library is searched.", ["query"], query=S, semantic=property_("boolean"), limit=I, page=I),
+    tool("photos_show", "Show a chosen Immich photo preview on the shared living-room faceplate, only when the user explicitly requests it. The preview remains cached in S.T.", ["id"], id=S),
     tool(
         "ask_user",
         "Ask the originating device a clarification and wait for its answer.",

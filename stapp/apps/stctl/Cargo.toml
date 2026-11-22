@@ -2,6 +2,7 @@
 name="stctl"
 version="0.1.0"
 edition="2021"
+default-run="st"
 [dependencies]
 st-core.workspace=true
 clap.workspace=true

@@ -15,7 +15,7 @@ jobs:
       - shell: pwsh
         run: |
           New-Item -ItemType Directory -Force package/bin
-          Copy-Item target/release/stctl.exe,target/release/st-voice.exe package/bin
+          Copy-Item target/release/st.exe,target/release/stctl.exe,target/release/st-voice.exe package/bin
           Copy-Item runtime package/runtime -Recurse
           Copy-Item scripts/models.py,deploy/windows/install.ps1 package/
       - uses: actions/upload-artifact@v4

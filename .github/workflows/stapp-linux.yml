@@ -16,5 +16,7 @@ jobs:
         working-directory: stapp/apps/kiosk
       - run: cargo fmt --all --check && cargo build --release --locked
       - run: python3 tests/integration.py
+      - run: python3 tests/photos.py
+      - run: python3 tests/cli.py && python3 tests/immich_access.py
       - run: python3 -m venv .cache/planner-venv && .cache/planner-venv/bin/pip install -r runtime/planner-requirements.txt
       - run: .cache/planner-venv/bin/python tests/planner.py

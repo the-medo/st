@@ -44,7 +44,11 @@ if not registered and str(port) in (serve.get("TCP") or {}):
 if not registered and not (data / "control.sock").exists():
     with socket.socket() as check:
         check.bind(("127.0.0.1", port))
-for name in ["stctl", "stappd", "st-voice"]:
+for name in ["st", "stctl", "stappd", "st-voice"]:
+    link = home / ".local/bin" / name
+    if (link.exists() or link.is_symlink()) and link.resolve() != (install / name).resolve():
+        raise SystemExit(f"Refusing to replace an unrelated command: {link}")
+for name in ["st", "stctl", "stappd", "st-voice"]:
     binary = root / "target/release" / name
     dest = install / name
     shutil.copy2(binary, dest.with_suffix(".new"))
