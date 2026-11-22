@@ -1,3 +1,4 @@
+mod photos;
 mod planner;
 mod store;
 use anyhow::{bail, Context, Result};
@@ -317,6 +318,40 @@ async fn call(a: &App, device: &str, v: &Value) -> Result<Value> {
     if v["op"] == "tools" {
         let name = v["name"].as_str().unwrap_or("");
         anyhow::ensure!(v["args"].is_object(), "Expected tool arguments");
+        if matches!(
+            name,
+            "photos_status" | "photos_albums" | "photos_recent" | "photos_search" | "photos_show"
+        ) {
+            a.store.lock().unwrap().authorize_tool(device, v)?;
+            let result = photos::request(&json!({"name":name,"args":v["args"]})).await?;
+            if name != "photos_show" {
+                return Ok(result);
+            }
+            // Recheck the request lease after the network operation, before changing the panel.
+            a.store.lock().unwrap().authorize_tool(device, v)?;
+            let id = uuid::Uuid::parse_str(field(&result, "id")?)?;
+            let view = format!("immich-{id}");
+            let bytes = STANDARD.decode(field(&result, "data")?)?;
+            anyhow::ensure!(
+                bytes.len() <= 5_000_000 && bytes.starts_with(&[255, 216, 255]),
+                "Invalid photo preview"
+            );
+            let folder = a.data.join("photos");
+            fs::create_dir_all(&folder)?;
+            let temp = folder.join(format!("{}.tmp", uuid::Uuid::new_v4()));
+            fs::write(&temp, bytes)?;
+            fs::rename(temp, folder.join(format!("{view}.jpg")))?;
+            let mut save = v.clone();
+            save["name"] = json!("save_view");
+            save["key"] = json!(format!("{}/save", v["key"].as_str().unwrap_or("owner")));
+            save["args"] = json!({"name":view,"spec":{"kind":"photo","asset":view}});
+            a.store.lock().unwrap().call(device, &save)?;
+            let mut show = v.clone();
+            show["name"] = json!("show_view");
+            show["key"] = json!(format!("{}/show", v["key"].as_str().unwrap_or("owner")));
+            show["args"] = json!({"name":view});
+            return a.store.lock().unwrap().call(device, &show);
+        }
         if name == "save_record" && v["args"]["kind"] == "note" {
             anyhow::ensure!(
                 v["args"].get("id").is_none_or(|id| id.is_i64()),

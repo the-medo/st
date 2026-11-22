@@ -126,6 +126,30 @@ Generated dashboards can contain tasks, events, notes and a clock. Generated app
 
 ## Optional integrations
 
+### Immich photos
+
+Immich can run on the Steam Machine with photos on a NAS and PostgreSQL on
+local storage. S.T. can check its status, list albums, search your connected
+library, and show a chosen photo on the faceplate. The API key stays on the
+host and only has read permissions. See the [installation and PC/phone
+tutorial](docs/immich.md) for private Tailscale access, separate accounts,
+backups and service management.
+
+```sh
+stctl photos status
+stctl photos albums
+stctl photos recent --limit 10
+stctl photos search "beach" --semantic
+stctl photos show ASSET_UUID
+stctl show home
+```
+
+The assistant also supports these actions: “Find my beach photos” and
+“Show that photo on the living-room screen.” Searching does not change the
+screen; displaying a photo is a separate request.
+
+### Routing and shopping
+
 The host responds immediately after accepting a request. Project work and routing run afterward. The default uses local rules and Codex. To enable Cloudflare Workers AI classification, place `STAPP_CF_ACCOUNT` and `STAPP_CF_TOKEN` in `~/.config/stapp/integrations.env` (mode 0600). Enabling this sends eligible command text and a capability list to Workers AI. The router uses Granite 4.0 H Micro and falls back to general routing on timeout. [Cloudflare model](https://developers.cloudflare.com/workers-ai/models/granite-4.0-h-micro/)
 
 For Rohlík, run the following as the Codex worker’s account, complete browser sign-in, set `STAPP_ROHLIK=1` in that same file, and restart the worker. The shopping skill asks about ambiguous products and checks the cart after an uncertain write. Start with a product lookup. [Rohlík MCP](https://www.rohlik.cz/en-CZ/mcp-docs)

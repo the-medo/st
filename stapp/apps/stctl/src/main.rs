@@ -41,6 +41,11 @@ enum Op {
         after: i64,
     },
     Projects,
+    /// Browse the configured Immich library through S.T.
+    Photos {
+        #[command(subcommand)]
+        command: PhotoOp,
+    },
     Register {
         name: String,
         path: String,
@@ -67,6 +72,31 @@ enum Op {
     },
     Mcp,
 }
+#[derive(Subcommand)]
+enum PhotoOp {
+    Status,
+    Albums,
+    Recent {
+        #[arg(long, default_value_t = 20)]
+        limit: u32,
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+    },
+    Search {
+        query: String,
+        /// Search image content with Immich machine learning instead of filenames.
+        #[arg(long)]
+        semantic: bool,
+        #[arg(long, default_value_t = 20)]
+        limit: u32,
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+    },
+    /// Show a JPEG preview on the shared living-room faceplate.
+    Show {
+        id: String,
+    },
+}
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let v = match cli.op {
@@ -82,6 +112,26 @@ fn main() -> Result<()> {
         Op::Answer { id, text } => json!({"op":"answer","id":id,"text":text}),
         Op::Inbox { after } => json!({"op":"inbox","after":after}),
         Op::Projects => json!({"op":"projects"}),
+        Op::Photos { command } => {
+            let (name, args) = match command {
+                PhotoOp::Status => ("photos_status", json!({})),
+                PhotoOp::Albums => ("photos_albums", json!({})),
+                PhotoOp::Recent { limit, page } => {
+                    ("photos_recent", json!({"limit":limit,"page":page}))
+                }
+                PhotoOp::Search {
+                    query,
+                    semantic,
+                    limit,
+                    page,
+                } => (
+                    "photos_search",
+                    json!({"query":query,"semantic":semantic,"limit":limit,"page":page}),
+                ),
+                PhotoOp::Show { id } => ("photos_show", json!({"id":id})),
+            };
+            json!({"op":"tools","name":name,"args":args})
+        }
         Op::Register { name, path, host } => {
             json!({"op":"register","name":name,"path":path,"host":host})
         }
