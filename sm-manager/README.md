@@ -4,7 +4,7 @@ A quiet, local dashboard for the projects running on your machine. See which app
 branch, worktree, or Docker container is using memory and CPU without asking an
 agent to inspect the host every time.
 
-**Linux · Python 3.11+ · no runtime dependencies · no frontend build**
+**Linux · Python 3.11+ · buildless system console; optional DAVe subapp uses Node.js**
 
 The dashboard is branded **ST**. Its chiseled vector mark lives in
 `sm_manager/static/st-logo.svg`; `sm_manager/static/favicon.svg` uses the same
@@ -45,6 +45,85 @@ preferring the primary checkout. Bounded scans read `package.json`,
 `pyproject.toml`, HTML icon declarations, and common favicon files; dependencies,
 build output, hidden files, and symlinks are skipped. Icons are served locally
 with the same access checks as the API. No external favicon service is used.
+
+## Tasks and Calendar
+
+With DAVe configured, the sidebar opens **Tasks** at `/planner/tasks` and
+**Calendar** at `/planner/calendar`. These are full-page ST subapps: DAVe owns
+the sidebar, collections, search, settings and editors. Click the ST logo to
+return to the system console. Direct links, refresh and browser Back work;
+mobile has an ST home button as well as DAVe's drawer and bottom navigation.
+
+The browser needs no additional login. ST's loopback bridge opens the configured
+DAVe account on the server and retains its session there. DAV credentials and
+DAVe cookies are never sent to the browser. Host/origin checks remain in force,
+and writes require a token obtained from the same ST origin. This is a shared
+owner account for the existing private Tailscale access boundary, not a public
+or multi-user deployment. Keep DAVe itself on loopback.
+
+The integration is an optional frontend patch against the pinned upstream in
+`integrations/dave/upstream.json`. Radicale and DAVe's backend remain upstream.
+The system console keeps its Python standard-library backend; Node.js 22+ and
+DAVe dependencies run separately. The sidebar's **DAVe · Source** link downloads
+the exact patched source, including its AGPL license and dependency lockfile.
+
+Build from this component directory, with Node/npm on PATH:
+
+```sh
+python3 scripts/build-dave.py \
+  --checkout /path/to/dedicated/dave-checkout \
+  --source-archive /path/to/private/dave-source.tar.gz
+```
+
+The builder clones the pinned revision if the checkout is absent and applies
+the tracked patch. It refuses unrelated edits; keep an experimental checkout
+and regenerate `integrations/dave/st.patch` with `git diff --binary HEAD` when
+updating the integration. New patch files must be in Git's index (intent-to-add
+is sufficient). Dependencies, builds, configuration and runtime data are not
+vendored into ST.
+
+For an independent branch preview, supply an existing CalDAV account using a
+private JSON file with `username` and `password` fields:
+
+```sh
+python3 scripts/preview-dave.py start \
+  --checkout /path/to/dedicated/dave-checkout \
+  --source-archive /path/to/private/dave-source.tar.gz \
+  --credentials /path/to/private/login.json \
+  --dav-url http://127.0.0.1:18644
+python3 scripts/preview-dave.py status
+python3 scripts/preview-dave.py restart
+python3 scripts/preview-dave.py stop
+```
+
+The preview prints a private Tailscale URL, uses distinct ports (override
+`--port` and `--dave-port` if needed), and owns two separate user services. Its
+configuration and data live in `~/.config/st-dave-preview` and
+`~/.local/share/st-dave-preview`. Stop it before removing its source worktree.
+The installed system console and its updater are unaffected.
+
+The gateway is covered by the component's Python tests. To exercise a running
+preview in a fresh browser (Playwright and Chromium required), run:
+
+```sh
+DAVE_CHECKOUT=/path/to/dedicated/dave-checkout \
+ST_PREVIEW_URL=https://your-private-preview \
+node tests/test_dave_browser.mjs
+```
+
+This creates and removes uniquely named test tasks/events and checks desktop and
+mobile navigation, automatic access, editing, reload and return to ST.
+
+To enable the integration on an installed console after deploying its source,
+set `dave_port`, `dave_credentials_path`, and `dave_source_archive` in its private
+configuration and run DAVe's ST build on that loopback port. The launcher shows
+the required backend environment; restart the console with its usual manager.
+An unconfigured console hides the two planner links.
+
+Use a standard CalDAV collection or the separate DAVe evaluation account.
+**STapp's existing faceplate planner collection has authoritative custom metadata
+and must not be edited through DAVe.** This change integrates navigation and
+access; it does not migrate that collection or synchronize it with the faceplate.
 
 ## Workmode
 

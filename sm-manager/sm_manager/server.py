@@ -15,6 +15,7 @@ from .dbs import read_db_catalog
 from .history import RETENTION_HOURS
 from .zed import read_catalog
 from .night_mode import request as night_request
+from .dave import DaveBridge, DaveUnavailable, MAX_BODY, MAX_RESPONSE, PREFIX, upstream_path
 
 STATIC = Path(__file__).parent / "static"
 
@@ -45,6 +46,7 @@ def read_faceplate_frame(path):
 
 def handler_for(collector, config, air_quality=None, night_control=night_request):
     token = secrets.token_urlsafe(32)
+    dave = DaveBridge(config["dave_port"], config["dave_credentials_path"]) if config.get("dave_port") else None
     class Handler(BaseHTTPRequestHandler):
         server_version = "SMManager"
 
@@ -52,14 +54,18 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
             logging.getLogger("http").debug(format, *args)
 
         def respond(self, status, payload, content_type="application/json", icon=False):
-            body = json.dumps(payload, separators=(",", ":")).encode() if content_type == "application/json" else payload
+            body = json.dumps(payload, separators=(",", ":")).encode() if content_type == "application/json" and not isinstance(payload, bytes) else payload
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "private, max-age=3600" if icon else "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Referrer-Policy", "no-referrer")
-            self.send_header("Content-Security-Policy", "sandbox; default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'" if icon else "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
+            policy = "sandbox; default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'" if icon else "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+            if not icon and urlsplit(self.path).path.startswith(PREFIX + "/"):
+                # FullCalendar bundles its navigation icon font as a data URL.
+                policy += "; font-src 'self' data:"
+            self.send_header("Content-Security-Policy", policy)
             self.end_headers()
             try:
                 self.wfile.write(body)
@@ -80,9 +86,70 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
                 return "Origin not allowed"
             return None
 
+        def dave_request(self):
+            if dave is None:
+                return self.respond(503, {"error": "Tasks and Calendar are not configured on this ST instance."})
+            path = urlsplit(self.path).path
+            if path == PREFIX:
+                self.send_response(302)
+                self.send_header("Location", PREFIX + "/tasks")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            if path == PREFIX + "/source.tar.gz" and self.command == "GET":
+                try:
+                    with Path(config["dave_source_archive"]).expanduser().open("rb") as source:
+                        body = source.read(MAX_RESPONSE + 1)
+                    if len(body) > MAX_RESPONSE:
+                        raise ValueError()
+                except (OSError, ValueError):
+                    return self.respond(503, {"error": "Planner source archive unavailable."})
+                return self.respond(200, body, "application/gzip")
+            if path == PREFIX + "/api/st-session" and self.command == "GET":
+                return self.respond(200, {"token": token})
+            target = upstream_path(self.path)
+            if target is None or (self.command != "GET" and not target.startswith("/api/")):
+                return self.respond(404, {"error": "Not found"})
+            body = None
+            if self.command != "GET":
+                if not secrets.compare_digest(self.headers.get("X-ST-Planner-Token", "").encode(), token.encode()):
+                    return self.respond(403, {"error": "Refresh the planner session.", "code": "ST_SESSION_EXPIRED"})
+                if self.headers.get("Transfer-Encoding"):
+                    return self.respond(400, {"error": "Unsupported transfer encoding"})
+                try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                    if not 0 <= length <= MAX_BODY:
+                        raise ValueError()
+                    self.connection.settimeout(15)
+                    body = self.rfile.read(length)
+                    if len(body) != length:
+                        raise ValueError()
+                except (ValueError, OSError):
+                    return self.respond(400, {"error": "Invalid planner request body"})
+            try:
+                status, headers, data = dave.request(self.command, target, body, self.headers.get("Content-Type"))
+            except DaveUnavailable:
+                return self.respond(503, {"error": "Planner temporarily unavailable. Try again shortly."})
+            # Do not forward upstream cookies, redirects or authentication headers.
+            if 300 <= status < 400:
+                return self.respond(502, {"error": "Unexpected planner redirect"})
+            content_type = next((v for k, v in headers.items() if k.lower() == "content-type"), "application/octet-stream")
+            return self.respond(status, data, content_type)
+
+        def do_PUT(self):
+            if error := self.access_error():
+                return self.respond(403, {"error": error})
+            if urlsplit(self.path).path.startswith(PREFIX + "/"):
+                return self.dave_request()
+            return self.respond(501, {"error": "Unsupported action"})
+
+        do_DELETE = do_PATCH = do_PUT
+
         def do_POST(self):
             if error := self.access_error():
                 return self.respond(403, {"error": error})
+            if urlsplit(self.path).path.startswith(PREFIX + "/"):
+                return self.dave_request()
             if urlsplit(self.path).path != "/api/night-mode":
                 return self.respond(501, {"error": "Unsupported action"})
             if not secrets.compare_digest(self.headers.get("X-SM-Token", "").encode(), token.encode()):
@@ -106,6 +173,8 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
             if error := self.access_error():
                 return self.respond(403, {"error": error})
             url = urlsplit(self.path)
+            if url.path == PREFIX or url.path.startswith(PREFIX + "/"):
+                return self.dave_request()
             if url.path == "/api/night-mode":
                 return self.respond(200, {**night_control("status"), "token": token})
             if url.path.startswith("/api/"):
@@ -198,6 +267,7 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
             mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
             body = (STATIC / name).read_bytes()
             if name == "index.html":
+                body = body.replace(b"data-planner-link", b"" if dave else b"hidden")
                 printer = config.get("printer_url", "")
                 link = 'href="' + escape(printer, quote=True) + '"' if printer.startswith("https://") else "hidden"
                 body = body.replace(b"data-printer-link", link.encode())

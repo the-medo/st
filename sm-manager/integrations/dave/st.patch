@@ -1,0 +1,318 @@
+diff --git a/packages/frontend/src/App.tsx b/packages/frontend/src/App.tsx
+index ce6b05e..a896241 100755
+--- a/packages/frontend/src/App.tsx
++++ b/packages/frontend/src/App.tsx
+@@ -1,5 +1,6 @@
+-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
++import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
+ import LoginPage from './pages/LoginPage';
++import { APP_BASE, ST_MODE } from './lib/st';
+ import AppLayout from './pages/AppLayout';
+ import ContactsPage from './pages/ContactsPage';
+ import CalendarPage from './pages/CalendarPage';
+@@ -11,7 +12,7 @@ import HomeRedirect from './components/HomeRedirect';
+ const router = createBrowserRouter([
+   {
+     path: '/login',
+-    element: <LoginPage />,
++    element: ST_MODE ? <Navigate to="/tasks" replace /> : <LoginPage />,
+   },
+   {
+     path: '/',
+@@ -25,7 +26,7 @@ const router = createBrowserRouter([
+       { path: 'journals', element: <JournalsPage /> },
+     ],
+   },
+-]);
++], { basename: APP_BASE });
+ 
+ export default function App() {
+   return <RouterProvider router={router} />;
+diff --git a/packages/frontend/src/__tests__/lib.st.test.ts b/packages/frontend/src/__tests__/lib.st.test.ts
+new file mode 100644
+index 0000000..64ca3b9
+--- /dev/null
++++ b/packages/frontend/src/__tests__/lib.st.test.ts
+@@ -0,0 +1,50 @@
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++
++describe('ST subapp transport', () => {
++  beforeEach(() => { vi.resetModules(); vi.stubEnv('VITE_ST_INTEGRATION', '1'); });
++  afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
++
++  it('prefixes reads without opening a DAVe login or sending a token', async () => {
++    const fetcher = vi.fn().mockResolvedValue(new Response('{}'));
++    vi.stubGlobal('fetch', fetcher);
++    const { plannerFetch } = await import('../lib/st');
++    await plannerFetch('/api/tasks?q=abc', {});
++    expect(fetcher).toHaveBeenCalledOnce();
++    expect(fetcher.mock.calls[0]![0]).toBe('/planner/api/tasks?q=abc');
++    expect(fetcher.mock.calls[0]![1].headers.has('X-ST-Planner-Token')).toBe(false);
++  });
++
++  it('refreshes only explicit pre-dispatch token rejections and preserves the write', async () => {
++    const fetcher = vi.fn()
++      .mockResolvedValueOnce(Response.json({ token: 'old' }))
++      .mockResolvedValueOnce(Response.json({ code: 'ST_SESSION_EXPIRED' }, { status: 403 }))
++      .mockResolvedValueOnce(Response.json({ token: 'new' }))
++      .mockResolvedValueOnce(Response.json({ ok: true }));
++    vi.stubGlobal('fetch', fetcher);
++    const { plannerFetch } = await import('../lib/st');
++    await plannerFetch('/api/tasks', { method: 'POST', body: '{"task":"x"}' });
++    expect(fetcher).toHaveBeenCalledTimes(4);
++    expect(fetcher.mock.calls[3]![0]).toBe('/planner/api/tasks');
++    expect(fetcher.mock.calls[3]![1].body).toBe('{"task":"x"}');
++    expect(fetcher.mock.calls[3]![1].headers.get('X-ST-Planner-Token')).toBe('new');
++  });
++
++  it('never retries a failed or ambiguous task write', async () => {
++    const fetcher = vi.fn()
++      .mockResolvedValueOnce(Response.json({ token: 'token' }))
++      .mockResolvedValueOnce(Response.json({ error: 'backend failed' }, { status: 503 }));
++    vi.stubGlobal('fetch', fetcher);
++    const { plannerFetch } = await import('../lib/st');
++    expect((await plannerFetch('/api/tasks', { method: 'POST', body: '{}' })).status).toBe(503);
++    expect(fetcher).toHaveBeenCalledTimes(2);
++  });
++
++  it('keeps standalone DAVe requests unchanged', async () => {
++    vi.stubEnv('VITE_ST_INTEGRATION', '');
++    const fetcher = vi.fn().mockResolvedValue(Response.json({}));
++    vi.stubGlobal('fetch', fetcher);
++    const { plannerFetch } = await import('../lib/st');
++    await plannerFetch('/api/auth/login', { method: 'POST' });
++    expect(fetcher).toHaveBeenCalledExactlyOnceWith('/api/auth/login', { method: 'POST' });
++  });
++});
+diff --git a/packages/frontend/src/api/client.ts b/packages/frontend/src/api/client.ts
+index e49dda7..5276249 100644
+--- a/packages/frontend/src/api/client.ts
++++ b/packages/frontend/src/api/client.ts
+@@ -1,3 +1,5 @@
++import { plannerFetch } from '../lib/st';
++
+ export class ApiError extends Error {
+   constructor(
+     public readonly statusCode: number,
+@@ -13,7 +15,7 @@ export async function apiFetch<T>(
+   options?: RequestInit,
+ ): Promise<T> {
+   const hasBody = options?.body != null;
+-  const res = await fetch(url, {
++  const res = await plannerFetch(url, {
+     ...options,
+     credentials: 'include', // always send the session cookie
+     headers: {
+diff --git a/packages/frontend/src/components/Sidebar.tsx b/packages/frontend/src/components/Sidebar.tsx
+index e9d145c..685fb42 100644
+--- a/packages/frontend/src/components/Sidebar.tsx
++++ b/packages/frontend/src/components/Sidebar.tsx
+@@ -5,6 +5,8 @@ import { useQuery } from '@tanstack/react-query';
+ import { useMutation, useQueryClient } from '@tanstack/react-query';
+ import { Check, ChevronDown, ChevronRight, LogOut, Pencil, Plus, RefreshCw, Search, Settings } from 'lucide-react';
+ import SettingsModal from './SettingsModal';
++import StHome from './StHome';
++import { ST_MODE } from '../lib/st';
+ import AddressBookModal from './AddressBookModal';
+ import CalendarModal from './CalendarModal';
+ import { cn, lightenHex, darkenHex } from '../lib/utils';
+@@ -82,7 +84,7 @@ export default function Sidebar({ me, isOpen, onClose, onOpenSearch }: SidebarPr
+       )}>
+       {/* App name + search + sync indicator */}
+       <div className="flex items-center gap-1 px-4 py-3 border-b border-border">
+-        <span className="font-semibold text-foreground flex-1">DAVe</span>
++        <div className="flex-1">{ST_MODE ? <StHome /> : <span className="font-semibold text-foreground">DAVe</span>}</div>
+         {/* Desktop only — on mobile the app header carries the search button. */}
+         <button
+           onClick={onOpenSearch}
+@@ -99,7 +101,7 @@ export default function Sidebar({ me, isOpen, onClose, onOpenSearch }: SidebarPr
+ 
+       {/* Navigation — desktop only; on mobile the bottom nav owns view switching
+           and this drawer is just the collections list. */}
+-      <nav className="hidden md:block px-2 py-2 space-y-0.5">
++      <nav aria-label="Planner navigation" className="hidden md:block px-2 py-2 space-y-0.5">
+         {viewNavItems.map(({ to, label, Icon }) => (
+           <SidebarNavLink key={to} to={to} icon={<Icon className="h-4 w-4" />}>
+             {label}
+@@ -160,7 +162,7 @@ export default function Sidebar({ me, isOpen, onClose, onOpenSearch }: SidebarPr
+ 
+         <div className="border-t border-border px-4 py-3">
+           <div className="flex items-center justify-between gap-2">
+-            <span className="text-xs text-muted-foreground truncate">{me.displayName || me.username}</span>
++            <span className="text-xs text-muted-foreground truncate">{ST_MODE ? <a href="/planner/source.tar.gz" className="hover:text-foreground">DAVe · Source</a> : me.displayName || me.username}</span>
+             <div className="flex items-center gap-1.5">
+               <button
+                 onClick={() => setShowSettings(true)}
+@@ -169,14 +171,14 @@ export default function Sidebar({ me, isOpen, onClose, onOpenSearch }: SidebarPr
+               >
+                 <Settings className="h-4 w-4" />
+               </button>
+-              <button
++              {!ST_MODE && <button
+                 onClick={() => logoutMutation.mutate()}
+                 disabled={logoutMutation.isPending}
+                 title="Sign out"
+                 className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+               >
+                 <LogOut className="h-4 w-4" />
+-              </button>
++              </button>}
+             </div>
+           </div>
+         </div>
+diff --git a/packages/frontend/src/components/StHome.tsx b/packages/frontend/src/components/StHome.tsx
+new file mode 100644
+index 0000000..d634942
+--- /dev/null
++++ b/packages/frontend/src/components/StHome.tsx
+@@ -0,0 +1,8 @@
++export default function StHome({ compact = false }: { compact?: boolean }) {
++  return (
++    <a href="/" aria-label="ST home" title="Return to ST" className="inline-flex items-center gap-3 rounded-md bg-[#10151c] px-3 py-2 text-[#e6edf3] hover:bg-[#192330] transition-colors">
++      <img src="/st-logo.svg" alt="" width={compact ? 32 : 52} height={compact ? 20 : 30} />
++      {!compact && <span className="text-[10px] tracking-[0.16em] uppercase leading-4">Tasks<br />& Calendar</span>}
++    </a>
++  );
++}
+diff --git a/packages/frontend/src/contexts/Settings.tsx b/packages/frontend/src/contexts/Settings.tsx
+index 78218fd..8257732 100755
+--- a/packages/frontend/src/contexts/Settings.tsx
++++ b/packages/frontend/src/contexts/Settings.tsx
+@@ -4,6 +4,7 @@ import {
+   DARK_MODES, TASK_LAYOUTS, NOTES_VIEWS, JOURNALS_VIEWS, CALENDAR_TASK_DATES,
+   CALENDAR_LAYER_TOGGLE, CALENDAR_DEFAULT_VIEWS, HOME_VIEWS,
+ } from '@dave/shared';
++import { ST_MODE } from '../lib/st';
+ import { fetchServerSettings, pushServerSettings } from '../api/settings.js';
+ import type { ServerSettings } from '../api/settings.js';
+ 
+@@ -93,7 +94,7 @@ function loadDarkMode(): DarkMode {
+     const raw = localStorage.getItem(DARK_MODE_KEY);
+     if (raw !== null && VALID_DARK_MODES.includes(raw as DarkMode)) return raw as DarkMode;
+   } catch { /* ignore corrupt storage */ }
+-  return 'system';
++  return ST_MODE ? 'dark' : 'system';
+ }
+ 
+ function loadMapService(): MapService {
+diff --git a/packages/frontend/src/lib/st.ts b/packages/frontend/src/lib/st.ts
+new file mode 100644
+index 0000000..98efcc6
+--- /dev/null
++++ b/packages/frontend/src/lib/st.ts
+@@ -0,0 +1,42 @@
++/// <reference types="vite/client" />
++
++/** ST is an optional build target. Ordinary DAVe builds retain their own login. */
++export const ST_MODE = import.meta.env.VITE_ST_INTEGRATION === '1';
++export const APP_BASE = ST_MODE ? '/planner' : '/';
++
++let session: Promise<string> | null = null;
++
++async function token(): Promise<string> {
++  if (!session) {
++    session = fetch('/planner/api/st-session', { credentials: 'same-origin' })
++      .then(async (response) => {
++        if (!response.ok) throw new Error('Planner session unavailable');
++        const value = await response.json() as { token?: string };
++        if (!value.token) throw new Error('Planner session unavailable');
++        return value.token;
++      }).catch((error: unknown) => {
++        session = null;
++        throw error;
++      });
++  }
++  return session;
++}
++
++export async function plannerFetch(url: string, options: RequestInit): Promise<Response> {
++  if (!ST_MODE) return fetch(url, options);
++  const path = url.startsWith('/api/') ? APP_BASE + url : url;
++  const write = !['GET', 'HEAD'].includes((options.method ?? 'GET').toUpperCase());
++  const headers = new Headers(options.headers);
++  if (write) headers.set('X-ST-Planner-Token', await token());
++  let response = await fetch(path, { ...options, headers });
++  if (write && response.status === 403) {
++    const body = await response.clone().json().catch(() => null) as { code?: string } | null;
++    if (body?.code === 'ST_SESSION_EXPIRED') {
++      // Only this pre-dispatch rejection is safe to replay after an ST restart.
++      session = null;
++      headers.set('X-ST-Planner-Token', await token());
++      response = await fetch(path, { ...options, headers });
++    }
++  }
++  return response;
++}
+diff --git a/packages/frontend/src/pages/AppLayout.tsx b/packages/frontend/src/pages/AppLayout.tsx
+index 6e876c8..a51b2ea 100644
+--- a/packages/frontend/src/pages/AppLayout.tsx
++++ b/packages/frontend/src/pages/AppLayout.tsx
+@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
+ import { Navigate, Outlet, useLocation } from 'react-router-dom';
+ import { useQuery } from '@tanstack/react-query';
+ import { Menu, Search } from 'lucide-react';
++import { ST_MODE } from '../lib/st';
++import StHome from '../components/StHome';
+ import { getMe } from '../api/auth';
+ import { ApiError } from '../api/client';
+ import Sidebar from '../components/Sidebar';
+@@ -60,6 +62,10 @@ export default function AppLayout() {
+   const pageTitle =
+     VIEW_NAV_ITEMS.find((item) => pathname.startsWith(item.to))?.label ?? 'Calendar';
+ 
++  useEffect(() => {
++    if (ST_MODE) document.title = `ST · ${pageTitle}`;
++  }, [pageTitle]);
++
+   if (meQuery.isLoading) {
+     return (
+       <div className="min-h-screen bg-background flex items-center justify-center">
+@@ -68,6 +74,17 @@ export default function AppLayout() {
+     );
+   }
+ 
++  if (meQuery.isError && ST_MODE) {
++    return (
++      <main className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center gap-4 p-6">
++        <StHome />
++        <h1 className="text-lg font-semibold">Planner temporarily unavailable</h1>
++        <p className="text-sm text-muted-foreground">Your tasks are still saved. Try connecting again.</p>
++        <button className="rounded-md bg-primary text-primary-foreground px-4 py-2" onClick={() => void meQuery.refetch()}>Try again</button>
++      </main>
++    );
++  }
++
+   if (meQuery.isError) {
+     return <Navigate to="/login" replace />;
+   }
+@@ -90,6 +107,7 @@ export default function AppLayout() {
+             <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+               {/* Mobile-only header */}
+               <header className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-border bg-card shrink-0">
++                {ST_MODE && <StHome compact />}
+                 <button
+                   onClick={() => setSidebarOpen(true)}
+                   className="text-muted-foreground hover:text-foreground"
+diff --git a/packages/frontend/vite.config.ts b/packages/frontend/vite.config.ts
+index 315ad47..c020f09 100644
+--- a/packages/frontend/vite.config.ts
++++ b/packages/frontend/vite.config.ts
+@@ -3,7 +3,17 @@ import react from '@vitejs/plugin-react';
+ import tailwindcss from '@tailwindcss/vite';
+ 
+ export default defineConfig({
+-  plugins: [react(), tailwindcss()],
++  plugins: [react(), tailwindcss(), {
++    name: 'st-shell',
++    transformIndexHtml: {
++      order: 'post',
++      handler: (html) => process.env.VITE_ST_INTEGRATION === '1'
++        ? html.replace('<title>DAVe</title>', '<title>ST · Planner</title>')
++          .replace(/href="[^"]*favicon.svg"/, 'href="/favicon.svg"')
++        : html,
++    },
++  }],
++  base: process.env.VITE_ST_INTEGRATION === '1' ? '/planner/' : '/',
+   server: {
+     host: '0.0.0.0',
+     port: 5173,

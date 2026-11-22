@@ -27,6 +27,9 @@ def load_config(path=None):
         "air_quality_device": "",
         "cloudbeaver_host": "",
         "printer_url": "",
+        "dave_port": None,
+        "dave_credentials_path": "",
+        "dave_source_archive": "",
         "container_overrides": {},
     }
     config.update(custom)
@@ -39,4 +42,9 @@ def load_config(path=None):
     config["discovery_interval"] = max(30, int(config["discovery_interval"]))
     if not 1024 <= int(config["port"]) <= 65535:
         raise ValueError("Choose a port between 1024 and 65535")
+    if config["dave_port"] is not None:
+        if not 1024 <= int(config["dave_port"]) <= 65535 or int(config["dave_port"]) == int(config["port"]):
+            raise ValueError("Choose a separate loopback port for DAVe")
+        if not config["dave_credentials_path"] or not config["dave_source_archive"]:
+            raise ValueError("DAVe requires a private credentials file and its source archive")
     return config
