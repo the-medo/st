@@ -5,13 +5,17 @@ The NAS stores the media library; the Steam Machine SSD stores PostgreSQL and
 the model cache. Tailscale Serve provides private HTTPS on a dedicated port.
 Both the Steam Machine and NAS must be awake for normal operation.
 
+Immich manages photos and videos, including albums, faces, locations and search.
+It is not general document storage or a replacement for an SMB file share.
+
 ## First connection from a PC
 
 1. Install/connect Tailscale on the PC using an account with access to the
    Steam Machine. No exit node or router port forwarding is needed.
-2. On the Steam Machine, run `stctl photos status`. Open its `url` in your
-   PC browser. Use the full HTTPS URL, including `:2283` when using the default
-   installation. Bookmark it.
+2. On the Steam Machine, run `st photos status`. Open its `url` in your
+   PC browser. Use the full HTTPS URL. With a custom photos hostname there is
+   no port suffix; the default Tailscale-hostname installation uses `:2283`.
+   Bookmark the configured address.
 3. Sign in with the initial admin account. The installer stores its email and
    generated password only in `~/.config/stapp/immich-initial-login.json` on
    the Steam Machine. Retrieve it over your existing owner SSH connection or
@@ -35,7 +39,7 @@ dragging an entire archive into the browser is not that workflow.
    phone browser, first verify the same private Immich URL opens.
 2. Install the official [Immich Android app](https://get.immich.app/android).
    Use a version compatible with the server; this deployment pins **v3.4.2**.
-3. Enter the same HTTPS server URL, including the port. Do not append `/api`
+3. Enter the same HTTPS server URL (including a port only if the URL has one). Do not append `/api`
    in the mobile app. Sign in to your own Immich account.
 4. Grant access to the photos/videos you want backed up. Open backup settings,
    select **Camera** (and any other desired albums), and enable automatic and
@@ -82,20 +86,93 @@ blocked. S.T. does not alter tailnet ACLs or send invitations. See
 [Immich partner sharing](https://docs.immich.app/features/partner-sharing/).
 Private album links also require access to this server through Tailscale.
 
+## Google sign-in restricted to specific users
+
+Immich supports Google OpenID Connect. Pre-create only the allowed users with
+their Google email addresses, and keep **OAuth → Auto Register disabled**.
+Immich links a first Google login to the existing matching account; an unknown
+email cannot create a user. Existing linked identities keep their account.
+The allowed set is the provisioned Immich user list: adding another account
+in Administration also permits that account. Google consent-screen test-user
+settings are not the application's access control.
+
+In Google Auth Platform, choose an **External** audience for personal Gmail
+accounts, configure branding/support details, and create a **Web application**
+OAuth client. Use these redirect URIs, replacing the origin with your actual
+private photos URL:
+
+```text
+https://photos.example.com/auth/login
+https://photos.example.com/user-settings
+https://photos.example.com/api/oauth/mobile-redirect
+```
+
+Only `openid email profile` scopes are needed. Google performs login; it does
+not receive the photo library. The mobile redirect endpoint returns to the
+Immich app. Native apps still need Tailscale to reach the private server.
+
+Download the client JSON outside Git and protect it with mode 0600. From
+`stapp/`, run:
+
+```sh
+python3 deploy/immich/configure-access.py \
+  --url https://photos.example.com \
+  --allow-email owner@example.com \
+  --allow-email partner@example.com \
+  --google-client /private/path/client.json
+```
+
+The script uses the private initial admin login file by default. If its password
+has changed, provide `--admin-login /private/path/current-admin.json` containing
+`email` and `password`, with mode 0600. Never put either password or the OAuth
+secret in shell arguments. The helper backs up settings privately, refuses
+unexpected existing users, creates missing allowed users without sending mail,
+keeps auto-registration off, enables Google only with a valid client, and
+updates Immich/S.T.'s canonical browser URL. Random recovery passwords for
+new users are stored in `~/.config/stapp/immich-created-users.json`.
+
+Omit `--google-client` to prepare users, the URL and closed registration before
+Google credentials are available. This leaves Google disabled on an instance
+that did not already have it enabled. Password login stays available for admin
+recovery; no existing password or session is reset.
+
+After enabling Google, test both allowed accounts in a private browser window,
+then verify an unlisted account is rejected. Test the mobile sign-in return
+path too. These live checks require the account holders and their Google
+sessions. See [Immich OAuth](https://docs.immich.app/administration/oauth/)
+and [Google web client setup](https://developers.google.com/identity/protocols/oauth2/web-server#creatingcred).
+
+## Custom private photos hostname
+
+Point a DNS-only A/AAAA record at the host's Tailscale address. A reverse proxy
+bound to loopback can terminate a normal HTTPS certificate obtained with a
+DNS challenge, using the host's existing private Tailscale TCP 443 forwarding.
+Add a dedicated virtual host that proxies to `127.0.0.1:2283`. Preserve the
+other proxy routes and never replace an existing TCP 443 route blindly.
+This keeps the custom hostname private; DNS alone does not make it reachable
+from the public Internet.
+
+Validate the proxy configuration, obtain/verify its certificate, and test both
+`/` and `/api/server/ping` through the new hostname. Run `configure-access.py`
+with the canonical origin afterward. Existing direct Tailscale URLs can stay
+as a fallback, but register Google redirects for the canonical hostname and
+update phone server settings to that address. Caddy supports the uploads and
+WebSocket proxying Immich needs without a small request-body limit.
+
 ## S.T. CLI and assistant
 
 Run these as the Steam Machine owner, locally or through a normal owner SSH
 session. They return JSON with browser links and asset IDs:
 
 ```sh
-stctl photos status
-stctl photos albums
-stctl photos recent --limit 10
-stctl photos recent --page 2
-stctl photos search "IMG_1234"
-stctl photos search "a dog on the beach" --semantic --limit 10
-stctl photos show ASSET_UUID
-stctl show home
+st photos status
+st photos albums
+st photos recent --limit 10
+st photos recent --page 2
+st photos search "IMG_1234"
+st photos search "a dog on the beach" --semantic --limit 10
+st photos show ASSET_UUID
+st show home
 ```
 
 Filename search works after upload; semantic search needs completed machine
@@ -108,8 +185,8 @@ The assistant exposes `photos_status`, `photos_albums`, `photos_recent`,
 `photos_search` and `photos_show`. Ask “Find my beach photos” or “Show that
 photo on the living-room screen.” Paired PC/room bridges may invoke these via
 an active assistant request; they cannot run unbound raw photo-tool calls.
-Keep using `stctl ask` over a paired bridge, or use an owner SSH session for
-direct `stctl photos` commands. Device identity remains enforced by the bridge.
+Keep using `st ask` over a paired bridge, or use an owner SSH session for
+direct `st photos` commands. Device identity remains enforced by the bridge.
 
 S.T. uses **one explicitly configured Immich account**. It can see that
 account's photos and accessible shared content, not another user's private
@@ -137,7 +214,7 @@ scripts/cargo build --release --locked
 python3 tests/photos.py
 python3 tests/integration.py
 scripts/install-host
-stctl photos status
+st photos status
 ```
 
 `install` creates a new `immich` directory under the selected NAS mount and

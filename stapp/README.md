@@ -15,7 +15,7 @@ Choose **Projects** to create or rename task projects, choose a color and toggle
 connected screen; tasks without a project stay visible. Tap a task's title to
 assign its project. Each assigned task shows its project's name and color.
 Empty projects can be deleted from their editor. These task projects are separate
-from the coding workspaces registered with `stctl`.
+from the coding workspaces registered with `st`.
 
 Calendar events and tasks use the **Radicale-backed ST planner** when installed
 and configured as described below. Its shared
@@ -25,15 +25,25 @@ clients use the same rules. [Planner setup, API and limitations](docs/planner.md
 cover installation, migration, backups and the planned Android app/widgets.
 
 ```sh
-~/.local/bin/stctl projects
-~/.local/bin/stctl ask --project stapp "Summarize this repository in one sentence."
-~/.local/bin/stctl status REQUEST_ID
-~/.local/bin/stctl ask --parent REQUEST_ID "What runs on Windows?"
-~/.local/bin/stctl ask "Save a task to buy oatmeal."
-~/.local/bin/stctl answer REQUEST_ID "Saturday"
+~/.local/bin/st projects
+~/.local/bin/st ask --project stapp "Summarize this repository in one sentence."
+~/.local/bin/st status REQUEST_ID
+~/.local/bin/st ask --parent REQUEST_ID "What runs on Windows?"
+~/.local/bin/st ask "Save a task to buy oatmeal."
+~/.local/bin/st answer REQUEST_ID "Saturday"
 ```
 
 The owner shell has a separate inbox. Add `--device pc` or `--device room` when testing those deliveries locally. A remote key always has the device identity assigned during pairing. Use `ask --id UUID` to retry a submission with the same text. A disconnected client reads outstanding results on reconnect. If a worker disappears during a job, the daemon marks it interrupted after its lease expires. Check the effects of an interrupted task before starting another one.
+
+`st` is the shared command for the assistant, photos and system console.
+With SM Manager installed, `st status` reads system status, `st night
+on|off|toggle|status` controls the faceplate, and `st cleanup-plan WORKTREE_ID`
+prints a read-only cleanup inventory. `st status REQUEST_ID` continues to
+read an assistant request. `st monitor ...` forwards other monitor commands
+to its installed `sm` backend. `stctl` remains a compatibility executable for
+existing devices/scripts. Both executables are included in Windows packages.
+Run system-monitor commands on the host or through a normal owner SSH session;
+paired `--ssh` assistant bridges do not execute host monitor commands.
 
 ## Install or update the host
 
@@ -55,14 +65,14 @@ On a new host, enable user lingering for boot-time operation. Run the build and 
 ### Projects
 
 ```sh
-stctl register my-existing-project /absolute/path/to/checkout
-stctl create-project garden
-stctl ask --project garden "Create a README documenting the idea for a garden planner."
+st register my-existing-project /absolute/path/to/checkout
+st create-project garden
+st ask --project garden "Create a README documenting the idea for a garden planner."
 ```
 
 New Steam Machine projects are folders under `~/dev`. Creating one does not publish it to GitHub. Conversations use the registered folder as their working directory and retain the Codex thread ID. Desktop project registration uses the Codex desktop app’s folder picker. A prompt sent to the assistant can also request a new project or dispatch work to an existing one.
 
-For a Windows-owned checkout, register its name on the Steam Machine with `stctl register NAME PATH --host pc`. Run the worker in the checkout’s native environment or WSL with its own signed-in Codex CLI. Set `STAPP_DEVICE=pc`, `STAPP_SSH=stapp-pc` and `STAPP_PC_PROJECT_MAP` to the path to a JSON file such as `{"garden":"C:/dev/garden"}` or `{"garden":"/home/me/dev/garden"}`. Run `python runtime/worker.py` there. Use a key/alias available inside that environment. When the worker is offline its new jobs stay queued.
+For a Windows-owned checkout, register its name on the Steam Machine with `st register NAME PATH --host pc`. Run the worker in the checkout’s native environment or WSL with its own signed-in Codex CLI. Set `STAPP_DEVICE=pc`, `STAPP_SSH=stapp-pc` and `STAPP_PC_PROJECT_MAP` to the path to a JSON file such as `{"garden":"C:/dev/garden"}` or `{"garden":"/home/me/dev/garden"}`. Run `python runtime/worker.py` there. Use a key/alias available inside that environment. When the worker is offline its new jobs stay queued.
 
 ## Pair the Windows microphone
 
@@ -83,11 +93,11 @@ Host stapp-pc
 ```
 
 ```powershell
-'{"op":"projects"}' | ssh -T stapp-pc stctl bridge
+'{"op":"projects"}' | ssh -T stapp-pc st bridge
 .\install.ps1 -SshAlias stapp-pc
 ```
 
-An optional `-Microphone "exact device name"` pins MIC-PC. List inputs with `.\bin\st-voice.exe --list | Out-String`. The per-user **STapp Voice** scheduled task starts at interactive logon. Right-click the S.T. tray icon to mute, answer a question, or quit. The two clients use identical pinned keyword and multilingual Whisper base model files. English transcription is the default. Each endpoint stores its own delivery cursor. On either microphone, “Hey S.T., answer Saturday” answers a single waiting question. With multiple questions, select the request in the tray or use its ID with `stctl answer`.
+An optional `-Microphone "exact device name"` pins MIC-PC. List inputs with `.\bin\st-voice.exe --list | Out-String`. The per-user **STapp Voice** scheduled task starts at interactive logon. Right-click the S.T. tray icon to mute, answer a question, or quit. The two clients use identical pinned keyword and multilingual Whisper base model files. English transcription is the default. Each endpoint stores its own delivery cursor. On either microphone, “Hey S.T., answer Saturday” answers a single waiting question. With multiple questions, select the request in the tray or use its ID with `st answer`.
 
 ## Connect the room microphone and speaker
 
@@ -116,10 +126,10 @@ python3 ~/.local/lib/stapp-panel/session.py
 The next graphical login starts the shell automatically. Chromium displays the locally installed shell on loopback. A local relay authenticates to STapp. The home dashboard retains the last state during a backend outage. Photos and custom HTML require the backend to serve their assets. The capture process sends frames of the selected output every two seconds. SM Manager reads the most recent frame and timestamp. Select only the faceplate output.
 
 ```sh
-stctl import-photo holiday /path/to/holiday.jpg
-stctl import-app orbit /path/to/self-contained.html
-stctl show holiday
-stctl show home
+st import-photo holiday /path/to/holiday.jpg
+st import-app orbit /path/to/self-contained.html
+st show holiday
+st show home
 ```
 
 Generated dashboards can contain tasks, events, notes and a clock. Generated apps can use inline CSS, JavaScript, Canvas or WebGL inside a sandboxed iframe. Keep assets self-contained. Codex can publish an app or save a dashboard through the local tools and show it on request.
@@ -136,12 +146,12 @@ tutorial](docs/immich.md) for private Tailscale access, separate accounts,
 backups and service management.
 
 ```sh
-stctl photos status
-stctl photos albums
-stctl photos recent --limit 10
-stctl photos search "beach" --semantic
-stctl photos show ASSET_UUID
-stctl show home
+st photos status
+st photos albums
+st photos recent --limit 10
+st photos search "beach" --semantic
+st photos show ASSET_UUID
+st show home
 ```
 
 The assistant also supports these actions: “Find my beach photos” and
