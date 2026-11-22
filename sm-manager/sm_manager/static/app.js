@@ -496,7 +496,7 @@ function setView() {
   const requested = location.hash.substring(1);
   state.view = views[requested] ? requested : "overview";
   $("breadcrumb-current").textContent = views[state.view];
-  document.title = `SM Manager · ${views[state.view]}`;
+  document.title = `ST · ${views[state.view]}`;
   $("dashboard").dataset.view = state.view;
   document.querySelectorAll("[data-view]").forEach((el) => {
     el.classList.toggle("active", el.dataset.view === state.view);
@@ -1123,7 +1123,7 @@ $("copy-report").addEventListener("click", async () => {
   }
   const s = state.snapshot;
   const lines = [
-    `SM Manager · ${s.system.hostname} · ${new Date(s.timestamp * 1000).toISOString()}`,
+    `ST · ${s.system.hostname} · ${new Date(s.timestamp * 1000).toISOString()}`,
     `Monitor: ${location.origin}`,
     `CPU ${percent(s.system.cpu_percent)} | RAM ${bytes(s.system.memory_used)} / ${bytes(s.system.memory_total)}`,
     "",

@@ -1,10 +1,15 @@
-# sm-manager
+# ST · System console
 
 A quiet, local dashboard for the projects running on your machine. See which app,
 branch, worktree, or Docker container is using memory and CPU without asking an
 agent to inspect the host every time.
 
 **Linux · Python 3.11+ · no runtime dependencies · no frontend build**
+
+The dashboard is branded **ST**. Its editable vector mark lives in
+`sm_manager/static/favicon.svg` and is used in the sidebar and browser tab.
+The Python package, service names, configuration paths, and `sm` CLI retain
+their existing names for compatibility.
 
 ## What it does
 

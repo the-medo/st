@@ -68,15 +68,26 @@ button:disabled {
 .brand {
   display: flex;
   align-items: center;
-  gap: 7px;
-  font: 600 13px var(--mono);
-  padding: 0 3px;
+  gap: 10px;
+  padding: 1px 3px;
   white-space: nowrap;
 }
-.brand-light {
-  color: var(--muted);
-  font-weight: 400;
-  font-size: 11px;
+.brand img {
+  flex-shrink: 0;
+}
+.brand-name {
+  color: #edfff7;
+  font-size: 23px;
+  font-weight: 750;
+  letter-spacing: -1px;
+  line-height: 1;
+}
+.brand-caption {
+  display: block;
+  margin-top: 6px;
+  color: #91b5a8;
+  font: 8px var(--mono);
+  letter-spacing: 1px;
 }
 nav {
   margin-top: 25px;
@@ -1753,14 +1764,14 @@ dialog::backdrop {
   }
   .brand > span {
     display: inline;
-    font-size: 11px;
+    font-size: 18px;
   }
-  .brand-light {
+  .brand-caption {
     display: none;
   }
   .brand img {
-    width: 21px;
-    height: 21px;
+    width: 28px;
+    height: 28px;
   }
   nav {
     display: flex;

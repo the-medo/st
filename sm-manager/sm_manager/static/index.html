@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#0d1117" />
     <meta name="color-scheme" content="dark" />
-    <title>SM Manager · Overview</title>
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta name="application-name" content="ST" />
+    <title>ST · Overview</title>
+    <link rel="icon" href="/favicon.svg?v=st-1" type="image/svg+xml" />
     <link rel="stylesheet" href="/style.css" />
     <script src="/dbs.js" defer></script>
     <script src="/air-quality.js" defer></script>
@@ -15,11 +16,10 @@
   </head>
   <body>
     <aside class="sidebar">
-      <a href="#overview" class="brand"
-        ><img src="/favicon.svg" width="25" height="25" alt="" /><span
-          >sm<span class="brand-light"> / manager</span></span
-        ></a
-      >
+      <a href="#overview" class="brand" aria-label="ST home" title="ST · System console">
+        <img src="/favicon.svg?v=st-1" width="36" height="36" alt="" />
+        <span class="brand-name">ST<span class="brand-caption">SYSTEM CONSOLE</span></span>
+      </a>
       <nav aria-label="Main navigation">
         <a href="#overview" data-view="overview" class="nav-link active"
           ><span class="nav-icon" aria-hidden="true">◫</span> Overview</a
@@ -67,13 +67,13 @@
             ><span id="machine-platform">Linux · local monitor</span>
           </div>
         </div>
-        <div class="sidebar-version">LOCAL MONITOR <span>v0.1</span></div>
+        <div class="sidebar-version">ST · LOCAL <span>v0.1</span></div>
       </div>
     </aside>
     <main>
       <header class="topbar">
         <h1>
-          <span class="breadcrumb">Monitor</span><span class="slash">/</span
+          <span class="breadcrumb">ST</span><span class="slash">/</span
           ><span id="breadcrumb-current">Overview</span>
         </h1>
         <div class="topbar-actions">
