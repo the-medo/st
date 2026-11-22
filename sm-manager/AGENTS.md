@@ -2,7 +2,7 @@
 
 ## Scope and architecture
 
-This is a local, read-only Linux resource monitor. Keep it lightweight: Python
+This is a local Linux resource monitor with optional faceplate power control. Keep it lightweight: Python
 standard library backend, SQLite 30-day history, buildless browser UI.
 
 - `sm_manager/discovery.py`: Git/Codex discovery and container ownership.
@@ -10,6 +10,7 @@ standard library backend, SQLite 30-day history, buildless browser UI.
 - `sm_manager/collector.py`: resource attribution and cleanup briefs.
 - `sm_manager/history.py`: bounded persistent samples.
 - `sm_manager/server.py`: loopback API and explicit static asset allowlist.
+- `sm_manager/night_mode.py`: paired faceplate control through a private session helper.
 - `scripts/manage.py`: owned systemd service and optional Tailscale Serve route.
 - `scripts/updater.py`: installed main-branch updater and isolated runtime clone.
 

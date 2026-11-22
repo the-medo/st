@@ -1,4 +1,4 @@
-/* All data stays on this host. The monitor API is deliberately read only. */
+/* All data stays on this host. Faceplate power is an explicit, separate action. */
 const $ = (id) => document.getElementById(id);
 const escapeHTML = (value) =>
   String(value ?? "").replace(
@@ -462,9 +462,11 @@ function renderCodex() {
   $("codex-section").innerHTML =
     `<div class="codex-grid">${metric("Threads updated · 24h", c.available ? c.recent_threads : "—", "", `${c.thread_count} stored threads`)}${metric("Codex worktrees", c.managed_worktrees, "", "Existing Git checkouts")}${metric("Codex memory", (c.memory_bytes / 1024 ** 2).toFixed(0), "MiB", `${percent(c.cpu_percent)} CPU · ${plural(c.processes.length, "process")}`)}</div><article class="panel info-panel"><p>${e(c.status)} · refreshed every minute. Thread recency indicates metadata updates, not active agents. Conversation text and token costs are not collected.</p></article><div class="section-heading"><h2>Codex processes</h2></div><div class="panel">${processTable(c.processes)}</div>`;
 }
+const nightMode = createNightMode($("night-toggle"), $("night-status"));
 let faceplateLoading = false;
 async function refreshFaceplate() {
   if (state.view !== "faceplate" || document.hidden || faceplateLoading) return;
+  void nightMode.refresh();
   faceplateLoading = true;
   const image = $("faceplate-image");
   const status = $("faceplate-status");
@@ -910,7 +912,7 @@ function render() {
     .map((w) => `<div class="warning">${e(w)}</div>`)
     .join("");
   $("footer-meta").textContent =
-    `Read only · every ${s.interval}s · ${s.collection_ms}ms to collect`;
+    `Metrics · every ${s.interval}s · ${s.collection_ms}ms to collect`;
   [...s.projects]
     .sort((a, b) => a.name.localeCompare(b.name))
     .forEach((project) => projectColor(project.id));

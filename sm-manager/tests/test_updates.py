@@ -181,7 +181,7 @@ class ManageTests(unittest.TestCase):
         self.config = {"roots": [], "port": 8790, "data_dir": str(self.root / "data"),
                        "public_url": "https://private.example.invalid",
                        "https_mapping": {"service": "existing-proxy.service"}}
-        for name, value in (("UNIT", self.unit), ("config_path", lambda: self.root / "config.json"),
+        for name, value in (("UNIT", self.unit), ("CLI", self.root / "bin/sm"), ("config_path", lambda: self.root / "config.json"),
                             ("load_config", lambda: self.config.copy())):
             patcher = patch.object(manage, name, value)
             patcher.start()
@@ -198,6 +198,13 @@ class ManageTests(unittest.TestCase):
         self.assertIn(f'WorkingDirectory={self.root}/runtime', written)
         self.assertIn("updater.py\" prepare", written)
         self.assertIn("--config", written)
+        self.assertIn("NoNewPrivileges=true", written)
+        self.assertIn("Wants=sm-manager-faceplate.service", written)
+        helper = self.unit.with_name(manage.FACEPLATE_SERVICE).read_text()
+        self.assertIn("PartOf=sm-manager.service", helper)
+        self.assertIn("After=sm-manager.service", helper)
+        self.assertIn("faceplate-service", helper)
+        self.assertIn(str(self.root / "runtime"), manage.CLI.read_text())
         self.assertIn("OnUnitInactiveSec=5min", self.unit.with_name(manage.UPDATE_TIMER).read_text())
         self.assertIn("updater.py\" update", self.unit.with_name(manage.UPDATE_SERVICE).read_text())
         saved = json.loads((self.root / "config.json").read_text())
@@ -211,6 +218,16 @@ class ManageTests(unittest.TestCase):
                                      str(self.unit.with_name(manage.UPDATE_TIMER))],
                                     capture_output=True, text=True, timeout=10)
             self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_install_refuses_unrelated_cli_or_helper(self):
+        for path in (manage.CLI, self.unit.with_name(manage.FACEPLATE_SERVICE)):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("unrelated")
+            with patch.object(manage, "run") as commands, self.assertRaisesRegex(RuntimeError, "unrelated"):
+                manage.install(False)
+            commands.assert_not_called()
+            self.assertEqual(path.read_text(), "unrelated")
+            path.unlink()
 
     def test_install_refuses_to_overwrite_unrelated_timer(self):
         timer = self.unit.with_name(manage.UPDATE_TIMER)
@@ -226,12 +243,13 @@ class ManageTests(unittest.TestCase):
         deployment.mkdir()
         (deployment / "keep").write_text("runtime")
         self.config["deployment_dir"] = str(deployment)
-        for name in (manage.SERVICE, manage.UPDATE_SERVICE, manage.UPDATE_TIMER):
+        for name in (manage.SERVICE, manage.UPDATE_SERVICE, manage.UPDATE_TIMER, manage.FACEPLATE_SERVICE):
             self.unit.with_name(name).write_text(manage.MARKER)
         with patch.object(manage, "run") as commands:
             manage.uninstall()
         self.assertEqual((deployment / "keep").read_text(), "runtime")
         self.assertFalse(self.unit.with_name(manage.UPDATE_TIMER).exists())
+        self.assertFalse(self.unit.with_name(manage.FACEPLATE_SERVICE).exists())
         self.assertNotIn("deployment_dir", json.loads((self.root / "config.json").read_text()))
         commands.assert_any_call(["systemctl", "--user", "disable", "--now", manage.UPDATE_TIMER])
 

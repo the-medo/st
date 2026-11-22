@@ -3,6 +3,7 @@ import json
 from html import escape
 import logging
 import mimetypes
+import secrets
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -13,6 +14,7 @@ from .air_quality import AirQuality
 from .dbs import read_db_catalog
 from .history import RETENTION_HOURS
 from .zed import read_catalog
+from .night_mode import request as night_request
 
 STATIC = Path(__file__).parent / "static"
 
@@ -41,7 +43,8 @@ def read_faceplate_frame(path):
     return {"display": "SCR-SM1", "timestamp": timestamp, "image": image}
 
 
-def handler_for(collector, config, air_quality=None):
+def handler_for(collector, config, air_quality=None, night_control=night_request):
+    token = secrets.token_urlsafe(32)
     class Handler(BaseHTTPRequestHandler):
         server_version = "SMManager"
 
@@ -63,19 +66,48 @@ def handler_for(collector, config, air_quality=None):
             except (BrokenPipeError, ConnectionResetError):
                 pass
 
-        def do_GET(self):
+        def access_error(self):
             # Host validation blocks DNS rebinding. Never enable wildcard hosts or CORS.
             host = self.headers.get("Host", "").lower()
             allowed = {str(h).lower() for h in config["allowed_hosts"]}
             allowed |= {f"{h}:{config['port']}" for h in list(allowed)}
             if host not in allowed:
-                return self.respond(403, {"error": "Host not allowed"})
+                return "Host not allowed"
             if self.headers.get("Sec-Fetch-Site") == "cross-site":
-                return self.respond(403, {"error": "Cross-site access denied"})
+                return "Cross-site access denied"
             origin = self.headers.get("Origin")
             if origin and origin not in {f"http://{host}", f"https://{host}"}:
-                return self.respond(403, {"error": "Origin not allowed"})
+                return "Origin not allowed"
+            return None
+
+        def do_POST(self):
+            if error := self.access_error():
+                return self.respond(403, {"error": error})
+            if urlsplit(self.path).path != "/api/night-mode":
+                return self.respond(501, {"error": "Unsupported action"})
+            if not secrets.compare_digest(self.headers.get("X-SM-Token", "").encode(), token.encode()):
+                return self.respond(403, {"error": "Refresh the page before changing night mode."})
+            if self.headers.get("Content-Type") != "application/json" or self.headers.get("Transfer-Encoding"):
+                return self.respond(400, {"error": "Expected a small JSON action"})
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 < length <= 128:
+                    raise ValueError()
+                self.connection.settimeout(3)
+                payload = json.loads(self.rfile.read(length))
+                if not isinstance(payload, dict) or set(payload) != {"action"} or payload["action"] not in ("on", "off", "toggle"):
+                    raise ValueError()
+            except (ValueError, OSError):
+                return self.respond(400, {"error": "Use action on, off, or toggle"})
+            result = night_control(payload["action"])
+            return self.respond(200 if result.get("available") and not result.get("error") else 409, {**result, "token": token})
+
+        def do_GET(self):
+            if error := self.access_error():
+                return self.respond(403, {"error": error})
             url = urlsplit(self.path)
+            if url.path == "/api/night-mode":
+                return self.respond(200, {**night_control("status"), "token": token})
             if url.path.startswith("/api/"):
                 if url.path == "/api/air-quality":
                     if air_quality is None:
@@ -158,7 +190,7 @@ def handler_for(collector, config, air_quality=None):
             name = {"/": "index.html", "/app.js": "app.js", "/style.css": "style.css",
                     "/favicon.svg": "favicon.svg", "/zed.svg": "zed.svg", "/db.svg": "db.svg",
                     "/prusa-connect.svg": "prusa-connect.svg",
-                    "/dbs.js": "dbs.js", "/air-quality.js": "air-quality.js"}.get(url.path)
+                    "/night-mode.js": "night-mode.js", "/dbs.js": "dbs.js", "/air-quality.js": "air-quality.js"}.get(url.path)
             if not name:
                 return self.respond(404, {"error": "Not found"})
             mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
