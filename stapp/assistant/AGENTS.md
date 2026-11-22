@@ -17,3 +17,11 @@ affects every faceplate's task list; the assistant can still find and edit hidde
 tasks. Tasks without a project stay visible. The Projects menu manages these
 settings, and the task editor assigns projects. Keep a project's other settings
 when renaming it; use its current version for every update.
+
+Use photos_status, photos_albums, photos_recent and photos_search for the
+configured Immich library. Use semantic=true for descriptions of image content;
+the default search matches filenames. Results are scoped to the configured
+account and its shared albums, not every household member's private library.
+Use photos_show only when asked to put a selected photo on the shared faceplate.
+It caches a JPEG preview in S.T.; do not claim it is removed when deleted in
+Immich. These tools cannot upload, delete, change sharing or manage accounts.

@@ -10,8 +10,9 @@ The dashboard is branded **ST**. Its chiseled vector mark lives in
 `sm_manager/static/st-logo.svg`; `sm_manager/static/favicon.svg` uses the same
 geometry in black on an ivory tile for browser tabs. Keep both paths in sync
 when editing the mark. The header uses the light mark against the dark sidebar.
-The Python package, service names, configuration paths, and `sm` CLI retain
-their existing names for compatibility.
+The shared `st` CLI covers the assistant, photos, system status and screen
+control. Python package, service and configuration names remain stable; `sm`
+is retained as the monitor backend and a compatibility command.
 
 ## What it does
 
@@ -162,22 +163,26 @@ closed.
 Optional installation as a command: `pip install .`, then `sm-manager serve`.
 Running directly from the checkout needs no package installation.
 
-### Faceplate night mode and `sm`
+### Faceplate night mode and `st`
 
 Open **Devices → Faceplate → Night mode** to put the faceplate to sleep or wake
 it. The switch reports confirmed screen power, including changes made from the
 CLI. `on` means night mode on (screen off):
 
 ```bash
-sm night on
-sm night off
-sm night toggle
-sm night status
-sm night status --json
-sm status
+st night on
+st night off
+st night toggle
+st night status
+st night status --json
+st status
 ```
 
-`pip install .` provides both `sm` and `sm-manager`. The service installer also
+Install the shared `st` executable with the [STapp host installer](../stapp/README.md).
+`st status` reads the system monitor; `st status REQUEST_ID` reads an assistant
+request. `st monitor ...` exposes the full monitor CLI, including cleanup plans.
+The shared command uses the existing monitor launcher and its configuration.
+`pip install .` still provides both `sm` and `sm-manager`. The service installer also
 writes `~/.local/bin/sm`, pointing at the installed runtime and its configuration;
 keep `~/.local/bin` on your shell's PATH. Existing installs need one reinstall
 from the updated source (`install --auto-update` when using the updater).
