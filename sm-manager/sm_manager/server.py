@@ -188,7 +188,8 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
                     return self.respond(200 if plan else 404, plan or {"error": "Worktree not found"})
                 return self.respond(404, {"error": "Not found"})
             name = {"/": "index.html", "/app.js": "app.js", "/style.css": "style.css",
-                    "/favicon.svg": "favicon.svg", "/zed.svg": "zed.svg", "/db.svg": "db.svg",
+                    "/favicon.svg": "favicon.svg", "/st-logo.svg": "st-logo.svg",
+                    "/zed.svg": "zed.svg", "/db.svg": "db.svg",
                     "/prusa-connect.svg": "prusa-connect.svg",
                     "/night-mode.js": "night-mode.js", "/dbs.js": "dbs.js", "/air-quality.js": "air-quality.js"}.get(url.path)
             if not name:

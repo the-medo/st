@@ -6,8 +6,10 @@ agent to inspect the host every time.
 
 **Linux · Python 3.11+ · no runtime dependencies · no frontend build**
 
-The dashboard is branded **ST**. Its editable vector mark lives in
-`sm_manager/static/favicon.svg` and is used in the sidebar and browser tab.
+The dashboard is branded **ST**. Its chiseled vector mark lives in
+`sm_manager/static/st-logo.svg`; `sm_manager/static/favicon.svg` uses the same
+geometry in black on an ivory tile for browser tabs. Keep both paths in sync
+when editing the mark. The header uses the light mark against the dark sidebar.
 The Python package, service names, configuration paths, and `sm` CLI retain
 their existing names for compatibility.
 

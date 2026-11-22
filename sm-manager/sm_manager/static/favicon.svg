@@ -1,9 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <title>ST</title>
-  <rect width="64" height="64" rx="18" fill="#102923"/>
-  <rect x=".5" y=".5" width="63" height="63" rx="17.5" fill="none" stroke="#77f2c5" stroke-opacity=".18"/>
-  <g fill="none" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M29 19h-5a6.5 6.5 0 0 0 0 13h3a6.5 6.5 0 0 1 0 13H16" stroke="#edfff7"/>
-    <path d="M37 19h12m-7 0v26" stroke="#77f2c5"/>
-  </g>
+  <rect width="64" height="64" rx="10" fill="#f6f2ea"/>
+  <svg x="4" y="16.52" width="56" height="30.96" viewBox="0 0 662 366">
+    <path fill="#111111" d="M95 0h522l45 42v41H557v246l-33 37h-44l-25-27V83H141l-46 57h253l45 43v106l-76 77H0v-84h251l49-58H43L0 184V95Z"/>
+  </svg>
 </svg>
