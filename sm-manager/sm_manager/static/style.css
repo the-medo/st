@@ -2107,3 +2107,11 @@ body:has(.air-fullscreen-dialog[open]) { overflow: hidden; }
 @media (max-width: 1100px) { .air-history[data-air-group] { grid-column: 1 / -1; } .air-guide-grid { grid-template-columns: 1fr; gap: 12px; } }
 @media (max-width: 640px) { .air-history .panel-heading { flex-wrap: wrap; } .air-chart { height: 280px; } .device-nav-row { flex-shrink: 0; } }
 @media (min-width: 701px) and (max-width: 1000px) { .device-nav-row { flex-direction: column; gap: 0; } .device-source { padding: 2px 8px; } }
+
+.faceplate-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.night-toggle { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; }
+.night-switch { width: 32px; height: 18px; border-radius: 12px; background: #65717c; padding: 3px; transition: background .15s; }
+.night-switch::after { content: ""; display: block; width: 12px; height: 12px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.night-toggle[aria-checked="true"] .night-switch { background: #617de8; }
+.night-toggle[aria-checked="true"] .night-switch::after { transform: translateX(14px); }
+.night-toggle:disabled { opacity: .55; cursor: wait; }

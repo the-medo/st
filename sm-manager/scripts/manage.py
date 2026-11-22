@@ -2,8 +2,11 @@
 """Own only the SM Manager service, config, and optional private Serve route."""
 
 import argparse
+import hashlib
 import json
 import os
+import re
+import shlex
 import shutil
 import socket
 import subprocess
@@ -19,6 +22,8 @@ SERVICE = "sm-manager.service"
 UNIT = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "systemd/user" / SERVICE
 UPDATE_SERVICE = "sm-manager-update.service"
 UPDATE_TIMER = "sm-manager-update.timer"
+FACEPLATE_SERVICE = "sm-manager-faceplate.service"
+CLI = Path.home() / ".local/bin/sm"
 MARKER = "# Managed by sm-manager/scripts/manage.py"
 
 
@@ -51,13 +56,41 @@ def unit_quote(value):
 
 
 def check_units():
-    for path in (UNIT, UNIT.with_name(UPDATE_SERVICE), UNIT.with_name(UPDATE_TIMER)):
+    for path in (UNIT, UNIT.with_name(UPDATE_SERVICE), UNIT.with_name(UPDATE_TIMER), UNIT.with_name(FACEPLATE_SERVICE)):
         if path.exists() and MARKER not in path.read_text():
             raise RuntimeError(f"Refusing to overwrite an unrelated unit: {path}")
 
 
+def install_cli(runtime):
+    if CLI.exists() and MARKER not in CLI.read_text():
+        raise RuntimeError(f"Refusing to overwrite an unrelated command: {CLI}")
+    CLI.parent.mkdir(parents=True, exist_ok=True)
+    CLI.write_text("#!/bin/sh\n" + MARKER + "\n" +
+                   "cd " + shlex.quote(str(runtime)) + " || exit 1\nexec " +
+                   shlex.quote(sys.executable) + " -m sm_manager --config " +
+                   shlex.quote(str(config_path().resolve())) + ' "$@"\n')
+    CLI.chmod(0o755)
+
+
+def pair_faceplate(connector):
+    if not connector or not re.fullmatch(r"card[0-9]+-[A-Za-z0-9-]+", connector):
+        raise RuntimeError("Use --connector cardN-HDMI-A-N (a connected /sys/class/drm entry).")
+    path = Path('/sys/class/drm') / connector
+    if (path / 'status').read_text().strip() != 'connected':
+        raise RuntimeError("Connect the faceplate before pairing it.")
+    edid = (path / 'edid').read_bytes()
+    if len(edid) < 128 or edid[:8] != b'\x00\xff\xff\xff\xff\xff\xff\x00':
+        raise RuntimeError("The screen has no valid display identity.")
+    config = load_config()
+    config['faceplate_edid_sha256'] = hashlib.sha256(edid).hexdigest()
+    save(config)
+    print(f"Paired {connector}. Restart SM Manager to reload its display helper.")
+
+
 def install(private, auto_update=False):
     check_units()
+    if CLI.exists() and MARKER not in CLI.read_text():
+        raise RuntimeError(f"Refusing to overwrite an unrelated command: {CLI}")
     config = load_config()
     config["roots"] = list(dict.fromkeys([*config["roots"], str(ROOT)]))
     port = config["port"]
@@ -107,6 +140,7 @@ def install(private, auto_update=False):
     unit = f'''{MARKER}
 [Unit]
 Description=SM Manager local project resource dashboard
+Wants={FACEPLATE_SERVICE}
 
 [Service]
 Type=simple
@@ -124,6 +158,28 @@ TimeoutStartSec=5min
 WantedBy=default.target
 '''
     UNIT.write_text(unit)
+    # Keep sudo/session access out of the web server. This helper has only a
+    # mode-0600 Unix socket and a fixed vocabulary of power-control actions.
+    UNIT.with_name(FACEPLATE_SERVICE).write_text(f'''{MARKER}
+[Unit]
+Description=SM Manager faceplate power control
+PartOf={SERVICE}
+After={SERVICE}
+
+[Service]
+Type=simple
+WorkingDirectory={str(runtime).replace('%', '%%')}
+ExecStart={unit_quote(sys.executable)} -m sm_manager --config {unit_quote(config_path().resolve())} faceplate-service
+Restart=on-failure
+RestartSec=2
+UMask=0077
+Environment={unit_quote('PATH=' + service_path)}
+RuntimeDirectory=sm-manager
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+TimeoutStopSec=5
+''')
+    install_cli(runtime)
     if deployment:
         UNIT.with_name(UPDATE_SERVICE).write_text(f'''{MARKER}
 [Unit]
@@ -150,7 +206,7 @@ Unit={UPDATE_SERVICE}
 [Install]
 WantedBy=timers.target
 ''')
-    units = [UNIT]
+    units = [UNIT, UNIT.with_name(FACEPLATE_SERVICE)]
     if deployment:
         units += [UNIT.with_name(UPDATE_SERVICE), UNIT.with_name(UPDATE_TIMER)]
     run(["systemd-analyze", "--user", "verify", *(str(path) for path in units)])
@@ -185,6 +241,11 @@ def uninstall():
     if UNIT.with_name(UPDATE_SERVICE).exists():
         run(["systemctl", "--user", "stop", UPDATE_SERVICE])
     run(["systemctl", "--user", "disable", "--now", SERVICE])
+    if UNIT.with_name(FACEPLATE_SERVICE).exists():
+        run(["systemctl", "--user", "stop", FACEPLATE_SERVICE])
+        UNIT.with_name(FACEPLATE_SERVICE).unlink()
+    if CLI.is_file() and MARKER in CLI.read_text():
+        CLI.unlink()
     UNIT.unlink()
     UNIT.with_name(UPDATE_TIMER).unlink(missing_ok=True)
     UNIT.with_name(UPDATE_SERVICE).unlink(missing_ok=True)
@@ -198,13 +259,21 @@ def uninstall():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["install", "start", "stop", "restart", "status", "logs", "update", "uninstall"])
+    parser.add_argument("command", choices=["install", "start", "stop", "restart", "status", "logs", "update", "uninstall", "pair-faceplate", "install-cli"])
     parser.add_argument("--tailscale", action="store_true", help="Install a private Tailscale Serve route")
     parser.add_argument("--auto-update", action="store_true", help="Run main from a separate clone; update at boot and every five minutes")
+    parser.add_argument("--connector", help="DRM connector to pair, e.g. card0-HDMI-A-1")
     args = parser.parse_args()
     os.umask(0o077)
     try:
-        if args.command == "install":
+        if args.command == "pair-faceplate":
+            pair_faceplate(args.connector)
+        elif args.command == "install-cli":
+            config = load_config()
+            runtime = Path(config["deployment_dir"]) / "checkout/sm-manager" if config.get("deployment_dir") else ROOT
+            install_cli(runtime)
+            print(f"Installed {CLI}")
+        elif args.command == "install":
             install(args.tailscale, args.auto_update)
         elif args.command == "uninstall":
             uninstall()

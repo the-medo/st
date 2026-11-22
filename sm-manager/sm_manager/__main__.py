@@ -9,6 +9,7 @@ import urllib.request
 
 from .config import load_config
 from .server import serve
+from . import night_mode
 
 
 def main():
@@ -16,12 +17,48 @@ def main():
     parser.add_argument("--config", help="Path to local JSON configuration")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("serve", help="Run the local dashboard and collector")
+    sub.add_parser("faceplate-service", help="Run the local display helper (normally managed by systemd)")
+    night = sub.add_parser("night", help="Turn faceplate night mode on/off in Desktop or Gaming Mode")
+    night.add_argument("action", choices=["on", "off", "toggle", "status"], nargs="?", default="status")
+    night.add_argument("--json", action="store_true")
     status = sub.add_parser("status", help="Read the running monitor")
     status.add_argument("--json", action="store_true")
     plan = sub.add_parser("cleanup-plan", help="Print a read-only resource inventory for a worktree")
     plan.add_argument("worktree_id")
     args = parser.parse_args()
     config = load_config(args.config)
+    if args.command == "faceplate-service":
+        os.umask(0o077)
+        night_mode.serve(config)
+        return
+    if args.command == "night":
+        url = f"http://127.0.0.1:{config['port']}/api/night-mode"
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        try:
+            with opener.open(url, timeout=35) as response:
+                data = json.load(response)
+            if args.action != "status":
+                request = urllib.request.Request(url, json.dumps({"action": args.action}).encode(),
+                    headers={"Content-Type": "application/json", "X-SM-Token": data["token"]})
+                with opener.open(request, timeout=35) as response:
+                    data = json.load(response)
+        except urllib.error.HTTPError as error:
+            try:
+                data = json.load(error)
+            except ValueError:
+                parser.exit(1, f"Night mode request failed: HTTP {error.code}\n")
+        except (OSError, ValueError, KeyError) as error:
+            parser.exit(1, f"Night mode unavailable: {error}\n")
+        data.pop("token", None)
+        if args.json:
+            print(json.dumps(data, indent=2))
+        elif data.get("error"):
+            print(data["error"], file=sys.stderr)
+        else:
+            print(f"Night mode {'on · faceplate off' if data['night_mode'] else 'off · faceplate on'} ({data['mode'].title()} Mode)")
+        if data.get("error") or not data.get("available"):
+            raise SystemExit(1)
+        return
     if args.command == "serve":
         os.umask(0o077)
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")

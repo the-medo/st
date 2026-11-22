@@ -27,8 +27,9 @@ agent to inspect the host every time.
 - Scans project disk usage on demand, including dependencies, build caches,
   Git metadata, and associated Docker storage, including stopped containers.
 
-The dashboard is read only. It doesn't stop processes, remove worktrees, delete
-volumes, or run repository scripts. Cleanup briefs are a handoff to your agent.
+Resource monitoring and cleanup briefs remain read only. The optional Faceplate
+night-mode switch controls the paired screen's power; it does not suspend the
+computer or stop applications.
 
 The Projects page shows a project info panel beside each worktree table: a local
 favicon (or initials), description, package version, checkout path, repository
@@ -53,6 +54,59 @@ closed.
 
 Optional installation as a command: `pip install .`, then `sm-manager serve`.
 Running directly from the checkout needs no package installation.
+
+### Faceplate night mode and `sm`
+
+Open **Devices → Faceplate → Night mode** to put the faceplate to sleep or wake
+it. The switch reports confirmed screen power, including changes made from the
+CLI. `on` means night mode on (screen off):
+
+```bash
+sm night on
+sm night off
+sm night toggle
+sm night status
+sm night status --json
+sm status
+```
+
+`pip install .` provides both `sm` and `sm-manager`. The service installer also
+writes `~/.local/bin/sm`, pointing at the installed runtime and its configuration;
+keep `~/.local/bin` on your shell's PATH. Existing installs need one reinstall
+from the updated source (`install --auto-update` when using the updater).
+
+Pair the **faceplate's** connected DRM entry once, then install/restart:
+
+```bash
+ls /sys/class/drm/
+python3 scripts/manage.py pair-faceplate --connector card0-HDMI-A-1
+python3 scripts/manage.py install --auto-update
+```
+
+Pairing saves an EDID SHA-256 in the local `faceplate_edid_sha256` setting. It
+identifies the screen even if connector numbering changes, and refuses an
+unplugged, replaced, or ambiguous screen. Do not pair the TV accidentally.
+
+The helper discovers the active seat0 Wayland session for every action. Plasma
+Desktop uses `kscreen-doctor` DPMS with other outputs excluded (requires working
+`--dpms-excluded`, as in libkscreen 6.7.3). Gaming Mode uses `gamescopectl` and the
+current Gamescope socket. **Gamescope cannot independently sleep two external
+screens**: with another external display connected, the control is unavailable
+and explains why. While the helper runs, it releases its own global sleep flag
+within a few seconds if a TV is connected afterward. This is not support for a
+second independent Gaming Mode output. Desktop DPMS can wake on local input;
+there is no persistent night schedule, input suppression, or automatic reapply
+after changing desktop/gaming sessions.
+
+The web service retains `NoNewPrivileges=true`. A separate user service,
+`sm-manager-faceplate.service`, accepts only status/on/off/toggle through a private
+mode-0600 Unix socket. It needs existing noninteractive permission to run the
+fixed display commands as the graphical session user when that user differs
+from the monitor's account (`sudo -n -u`). Installation does not grant sudo
+permissions. API writes require the same Host/Origin checks as reads, JSON, and
+a process-specific request token. No username, command, or connector comes from
+the browser. The helper restarts with SM Manager and its independent runtime
+updates; `manage.py uninstall` removes the helper and the owned CLI launcher.
 
 ### Air quality
 

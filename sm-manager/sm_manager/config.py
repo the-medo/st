@@ -23,6 +23,7 @@ def load_config(path=None):
         "zed_catalog_path": "~/zed-projects/projects.json",
         "db_catalog_path": "~/db-projects/connections.json",
         "faceplate_frame_path": "~/.local/share/stapp/frame.json",
+        "faceplate_edid_sha256": "",
         "air_quality_device": "",
         "cloudbeaver_host": "",
         "printer_url": "",

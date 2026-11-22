@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="/style.css" />
     <script src="/dbs.js" defer></script>
     <script src="/air-quality.js" defer></script>
+    <script src="/night-mode.js" defer></script>
     <script src="/app.js" defer></script>
   </head>
   <body>
@@ -66,7 +67,7 @@
             ><span id="machine-platform">Linux · local monitor</span>
           </div>
         </div>
-        <div class="sidebar-version">READ ONLY <span>v0.1</span></div>
+        <div class="sidebar-version">LOCAL MONITOR <span>v0.1</span></div>
       </div>
     </aside>
     <main>
@@ -228,7 +229,13 @@
           <p class="section-note">Loading Zed catalog…</p>
         </section>
         <section id="faceplate-section" aria-label="Steam Machine faceplate" hidden>
-          <h2>Faceplate</h2>
+          <div class="faceplate-heading">
+            <h2>Faceplate</h2>
+            <button id="night-toggle" class="button night-toggle" type="button" role="switch" aria-checked="false" aria-describedby="night-status" disabled>
+              <span class="night-switch" aria-hidden="true"></span>Night mode
+            </button>
+          </div>
+          <p id="night-status" class="section-note" role="status">Checking screen power…</p>
           <p id="faceplate-status" class="section-note" role="status">Waiting for SCR-SM1.</p>
           <img id="faceplate-image" alt="Most recent frame from the front touchscreen" hidden>
         </section>
@@ -379,7 +386,7 @@
           <div class="panel" id="host-processes"></div>
         </section>
         <footer>
-          <span id="footer-meta">Read only · samples every 10s</span>
+          <span id="footer-meta">Metrics · samples every 10s</span>
         </footer>
       </div>
     </main>
