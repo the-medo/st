@@ -2,7 +2,8 @@ const dbIcon = '<img src="/db.svg" alt="" width="16" height="16">';
 
 function dbMatches(path, ownerKey) {
   if (!path || !state.dbCatalog || state.dbCatalog.stale) return [];
-  return state.dbCatalog.connections.filter((db) =>
+  const connections = state.workmode && state.view !== "overview" ? workScope().connections : state.dbCatalog.connections;
+  return connections.filter((db) =>
     db.owner?.[ownerKey] === path && db.status === "available" && db.cloudbeaver_url
   );
 }
@@ -93,13 +94,14 @@ function renderDbsPage() {
     const checked = new Date(catalog.checked_at).toLocaleString();
     status.textContent = `${catalog.stale ? "Stale catalog · " : ""}Last checked ${checked}${catalog.stale ? " · Waiting for a fresh catalog to enable CloudBeaver links." : ""}`;
   } else {
-    status.textContent = `${state.dbError} Retrying in one minute.`;
+    status.textContent = state.dbError ? `${state.dbError} Retrying in one minute.` : "Loading database catalog…";
   }
   let html = "";
   if (catalog) {
-    html = dbGroups(catalog.connections);
-    if (!html && !catalog.stale) html = '<div class="empty">No databases in the catalog.</div>';
-    if (catalog.connections.some((db) => db.status === "configured"))
+    const connections = state.workmode ? workScope().connections : catalog.connections;
+    html = dbGroups(connections);
+    if (!html && !catalog.stale) html = `<div class="empty">${state.workmode ? "No Ydistri databases in the catalog." : "No databases in the catalog."}</div>`;
+    if (connections.some((db) => db.status === "configured"))
       html += '<p class="section-note">Configured databases are listed by their source. The last check could not verify them.</p>';
   }
   if (html !== renderDbsPage.html) {

@@ -287,6 +287,9 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(headers["Cache-Control"], "no-store")
         self.assertNotIn("Access-Control-Allow-Origin", headers)
         self.assertEqual(self.request("/")[0], 200)
+        self.assertEqual(self.request("/?workmode=1")[0], 200)
+        self.assertEqual(self.request("/workmode.js")[0], 200)
+        self.assertEqual(self.request("/ydistri.svg")[0], 200)
         self.assertEqual(self.request("/api/snapshot", method="POST")[0], 501)
 
     def test_host_origin_and_static_path_boundaries(self):

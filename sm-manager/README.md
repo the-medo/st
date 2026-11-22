@@ -46,6 +46,27 @@ preferring the primary checkout. Bounded scans read `package.json`,
 build output, hidden files, and symlinks are skipped. Icons are served locally
 with the same access checks as the API. No external favicon service is used.
 
+## Workmode
+
+The **Workmode** switch below the logical-core count at the bottom of the sidebar focuses Projects, Containers,
+Codex, Storage, Zed, and DBs on Ydistri. Bookmark `/?workmode=1#projects` (or any
+other page) to open directly in Workmode. The URL is the source of truth, including
+browser Back/Forward; turning it off removes the parameter.
+
+Workmode uses an orange theme and a small Ydistri mark beneath ST in place of
+“System console”, and hides Devices.
+Opening a device bookmark with Workmode enabled returns to Overview. **Overview
+keeps all projects, machine totals, history, cleanup candidates, and checkout
+actions**, even in Workmode. The sidebar counts still describe the work pages.
+
+Work membership comes from Ydistri catalog groups, a `ydistri` directory segment,
+or the `ydistri` / `ydistri-customers` GitHub organization. Linked worktrees inherit
+their project's membership. External DB groups such as **Ydistri DEV** and
+**Ydistri PROD** are included; unassigned containers and databases are excluded.
+Codex shows metadata and processes attributable to work checkouts, excluding
+shared host processes. This is a display filter; collection and history are unchanged.
+The bundled Ydistri SVG uses the existing app wordmark with light lettering.
+
 ## Run
 
 ```bash
@@ -456,7 +477,7 @@ bundled assets. It has no mutation or shell-execution endpoint.
 ```bash
 python3 -m unittest discover -s tests -v
 python3 -m compileall -q sm_manager scripts
-node --test tests/test_dbs_ui.js
+node --test tests/test_*_ui.js
 ```
 
 The backend is Python's standard library. The UI is plain HTML, CSS, and

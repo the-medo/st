@@ -7,6 +7,29 @@
   --muted: #91a0b2;
   --line: #293340;
   --accent: #58a6ff;
+  --sidebar-bg: #10151c;
+  --selected-bg: #17283a;
+  --selected-line: #254362;
+  --selected-ink: #8dc2ff;
+  --hover-bg: #263447;
+  --hover-line: #56728d;
+  --primary-bg: #163d65;
+  --primary-line: #32699d;
+  --primary-ink: #cbe4ff;
+  --link-ink: #9dceff;
+  --link-muted: #86b5e6;
+  --row-bg: #171f29;
+  --row-hover: #202c3a;
+  --table-bg: #141c26;
+  --tab-bg: #1a2b40;
+  --tab-line: #2f4663;
+  --highlight-bg: #223448;
+  --icon-hover-bg: #354e69;
+  --cleanup-bg: #142333;
+  --cleanup-line: #294866;
+  --toast-bg: #183048;
+  --toast-line: #365b7b;
+  --toast-ink: #d0e5ff;
   --green: #63cf8c;
   --radius: 4px;
   --mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
@@ -61,7 +84,7 @@ button:disabled {
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--line);
-  background: #10151c;
+  background: var(--sidebar-bg);
   padding: 16px 10px 12px;
   overflow-y: auto;
 }
@@ -104,9 +127,9 @@ nav {
   color: var(--ink);
 }
 .nav-link.active {
-  background: #17283a;
-  border-color: #254362;
-  color: #8dc2ff;
+  background: var(--selected-bg);
+  border-color: var(--selected-line);
+  color: var(--selected-ink);
 }
 .nav-icon {
   font-size: 16px;
@@ -241,13 +264,13 @@ h1 {
 }
 .button:hover,
 .icon-button:hover {
-  background: #263447;
-  border-color: #56728d;
+  background: var(--hover-bg);
+  border-color: var(--hover-line);
 }
 .button.primary {
-  background: #163d65;
-  border-color: #32699d;
-  color: #cbe4ff;
+  background: var(--primary-bg);
+  border-color: var(--primary-line);
+  color: var(--primary-ink);
 }
 #dashboard {
   display: grid;
@@ -374,9 +397,9 @@ p {
 }
 .segmented button.selected,
 .chart-tabs button.selected {
-  color: #9dceff;
-  background: #1a2b40;
-  border-color: #2f4663;
+  color: var(--link-ink);
+  background: var(--tab-bg);
+  border-color: var(--tab-line);
 }
 .chart-toolbar {
   display: flex;
@@ -460,7 +483,7 @@ p {
   .zed-repo li,
   .detail-service
 ):is(:hover, :has(:focus-visible)) {
-  background-color: #223448;
+  background-color: var(--highlight-bg);
 }
 .compact-table {
   border-collapse: collapse;
@@ -534,11 +557,11 @@ p {
 }
 .checkout-icon:hover,
 .checkout-icon:focus-visible {
-  background: #354e69;
+  background: var(--icon-hover-bg);
 }
 .db-choice:hover,
 .db-choice:focus-visible {
-  background: #263447;
+  background: var(--hover-bg);
 }
 #history-actions:empty {
   display: none;
@@ -554,7 +577,7 @@ p {
 }
 .zed-repo h3 {
   margin: 0 0 6px;
-  color: #9dceff;
+  color: var(--link-ink);
   font: 600 12px var(--mono);
   overflow-wrap: anywhere;
 }
@@ -984,7 +1007,7 @@ select {
   height: 24px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #202c3a;
+  background: var(--row-hover);
   color: var(--project-color);
   font: 600 10px var(--mono);
   overflow: hidden;
@@ -1008,7 +1031,7 @@ select {
   flex-direction: column;
   gap: 12px;
   padding: 16px;
-  background: #141c26;
+  background: var(--table-bg);
   border-right: 1px solid var(--line);
   min-width: 0;
 }
@@ -1082,7 +1105,7 @@ select {
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  color: #9dceff;
+  color: var(--link-ink);
   font-size: 10px;
   text-decoration: none;
 }
@@ -1103,7 +1126,7 @@ select {
   align-items: center;
   gap: 8px;
   padding: 7px 10px;
-  background: #171f29;
+  background: var(--row-bg);
   min-height: 36px;
 }
 .project-identity {
@@ -1152,7 +1175,7 @@ select {
   white-space: nowrap;
 }
 .project-memory {
-  color: #9dceff;
+  color: var(--link-ink);
   font-size: 20px;
   font-weight: 600;
   line-height: 1.15;
@@ -1240,7 +1263,7 @@ select {
   font-size: 9px;
 }
 .row-ports {
-  color: #86b5e6;
+  color: var(--link-muted);
   font-size: 9px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1256,13 +1279,13 @@ select {
   color: var(--muted);
 }
 .row-memory {
-  color: #cbe4ff;
+  color: var(--primary-ink);
   font-size: 16px;
   font-weight: 600;
   white-space: nowrap;
 }
 .tree-columns .memory-heading {
-  color: #9dceff;
+  color: var(--link-ink);
   font-size: 10px;
   font-weight: 600;
 }
@@ -1284,7 +1307,7 @@ select {
   color: var(--muted);
   text-transform: uppercase;
   font: 8px var(--mono);
-  background: #171f29;
+  background: var(--row-bg);
 }
 .host-table th,
 .host-table td {
@@ -1390,7 +1413,7 @@ footer {
   width: 90px;
 }
 .container-table th {
-  background: #171f29;
+  background: var(--row-bg);
   color: var(--muted);
   text-transform: uppercase;
   font: 9px var(--mono);
@@ -1434,11 +1457,11 @@ footer {
   white-space: nowrap;
 }
 .container-table th.container-memory {
-  color: #9dceff;
+  color: var(--link-ink);
   font-weight: 600;
 }
 .container-table td.container-memory {
-  color: #cbe4ff;
+  color: var(--primary-ink);
   font-size: 16px;
   font-weight: 600;
 }
@@ -1449,7 +1472,7 @@ footer {
   color: var(--muted);
 }
 .container-ports-cell {
-  color: #86b5e6;
+  color: var(--link-muted);
   overflow-wrap: anywhere;
 }
 .container-table .text-button {
@@ -1470,7 +1493,7 @@ footer {
   border: 0;
   padding: 0;
   background: none;
-  color: #8dc2ff;
+  color: var(--selected-ink);
   font: 10px var(--mono);
   text-align: left;
   overflow-wrap: anywhere;
@@ -1598,9 +1621,9 @@ dialog::backdrop {
   white-space: nowrap;
 }
 .cleanup-panel {
-  border: 1px solid #294866;
+  border: 1px solid var(--cleanup-line);
   border-radius: 3px;
-  background: #142333;
+  background: var(--cleanup-bg);
   padding: 12px;
 }
 .cleanup-panel h3 {
@@ -1629,9 +1652,9 @@ dialog::backdrop {
   bottom: 18px;
   left: 50%;
   transform: translateX(-50%);
-  border: 1px solid #365b7b;
-  background: #183048;
-  color: #d0e5ff;
+  border: 1px solid var(--toast-line);
+  background: var(--toast-bg);
+  color: var(--toast-ink);
   padding: 10px 15px;
   border-radius: 4px;
   box-shadow: 0 6px 24px #0008;
@@ -2119,3 +2142,85 @@ body:has(.air-fullscreen-dialog[open]) { overflow: hidden; }
 .night-toggle[aria-checked="true"] .night-switch { background: #617de8; }
 .night-toggle[aria-checked="true"] .night-switch::after { transform: translateX(14px); }
 .night-toggle:disabled { opacity: .55; cursor: wait; }
+
+/* Ydistri work context; status and chart series colors keep their meaning. */
+
+:root[data-workmode="true"] {
+  --bg: #19120e;
+  --paper: #211913;
+  --surface: #2b2119;
+  --ink: #f4e8de;
+  --muted: #b6a293;
+  --line: #493324;
+  --accent: #f49a00;
+  --tab-bg: #3b2615;
+  --tab-line: #80501f;
+  --highlight-bg: #3a2b1d;
+  --icon-hover-bg: #614324;
+  --cleanup-bg: #2b2119;
+  --cleanup-line: #674521;
+  --toast-bg: #3b2615;
+  --toast-line: #80501f;
+  --toast-ink: #ffe0b5;
+  --sidebar-bg: #1d150f;
+  --selected-bg: #3b2615;
+  --selected-line: #80501f;
+  --selected-ink: #ffc580;
+  --hover-bg: #3c2c20;
+  --hover-line: #92643b;
+  --primary-bg: #64380d;
+  --primary-line: #a5661e;
+  --primary-ink: #ffe0b5;
+  --link-ink: #ffc580;
+  --link-muted: #d6a266;
+  --row-bg: #251c15;
+  --row-hover: #302219;
+  --table-bg: #211913;
+}
+.workmode-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--muted);
+  font-size: 11px;
+}
+.workmode-toggle:hover { border-color: var(--accent); color: var(--ink); }
+.workmode-toggle[aria-checked="true"] {
+  color: var(--selected-ink);
+  background: var(--selected-bg);
+  border-color: var(--selected-line);
+}
+.workmode-switch {
+  width: 28px;
+  height: 16px;
+  padding: 3px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--muted);
+}
+.workmode-switch::after {
+  content: "";
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bg);
+}
+.workmode-toggle[aria-checked="true"] .workmode-switch { background: var(--accent); }
+.workmode-toggle[aria-checked="true"] .workmode-switch::after { transform: translateX(12px); }
+.brand .workmode-logo { width: 78px; height: auto; }
+@media (min-width: 701px) and (max-width: 1000px) {
+  .workmode-toggle { flex-direction: column; gap: 6px; padding: 7px 1px; font-size: 8px; }
+  .brand .workmode-logo { width: 42px; margin-top: 6px; }
+}
+@media (max-width: 700px) {
+  .workmode-toggle { width: auto; margin: 8px 0 0 auto; }
+  .brand .workmode-logo { width: 48px; margin-top: 5px; }
+}

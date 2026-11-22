@@ -36,6 +36,7 @@ const state = {
   scale: "usage",
   entity: "all",
   view: "overview",
+  workmode: false,
   collapsed: new Set(),
   selected: null,
   historyRequest: 0,
@@ -62,6 +63,19 @@ const views = {
   faceplate: "Faceplate",
   "air-quality": "Air quality",
 };
+
+function workScope() {
+  return Workmode.scope(state.snapshot, state.zedGroups, state.dbCatalog?.connections || []);
+}
+function visibleProjects() {
+  return state.workmode && state.view !== "overview" ? workScope().projects : state.snapshot.projects;
+}
+function renderNavigationCounts() {
+  if (!state.snapshot) return;
+  const projects = state.workmode ? workScope().projects : state.snapshot.projects;
+  $("nav-projects").textContent = projects.filter((project) => project.running_worktrees).length;
+  $("nav-containers").textContent = state.snapshot.docker.available ? allContainers().length : "—";
+}
 
 function projectColor(id) {
   if (!state.projectColors.has(id)) {
@@ -133,6 +147,18 @@ function metric(label, value, unit, caption, fill) {
   return `<article class="metric"><div class="metric-label">${label}</div><div class="metric-value numeric">${value}<small>${unit}</small></div><div class="metric-caption">${caption}</div>${fill !== undefined ? `<div class="mini-meter"><span style="width:${Math.max(0, Math.min(100, fill))}%"></span></div>` : ""}</article>`;
 }
 function renderMetrics() {
+  if (state.workmode && state.view !== "overview") {
+    const projects = workScope().projects;
+    const trees = projects.flatMap((project) => project.worktrees);
+    const memory = projects.reduce((sum, project) => sum + project.memory_bytes, 0);
+    const cpu = projects.reduce((sum, project) => sum + project.cpu_percent, 0);
+    $("metrics").innerHTML =
+      metric("Work memory", (memory / 1024 ** 3).toFixed(1), "GiB", "Project processes + container working set") +
+      metric("Work CPU", cpu.toFixed(1), "%", "Share of whole-machine CPU", cpu) +
+      metric("Running worktrees", trees.filter((tree) => tree.running).length, `<span class="muted">/ ${trees.length}</span>`, `${plural(projects.filter((project) => project.running_worktrees).length, "project")} active`) +
+      metric("Work containers", state.snapshot.docker.available ? allContainers().length : "—", "", "Mapped to Ydistri worktrees");
+    return;
+  }
   const { system, totals } = state.snapshot;
   const used = system.memory_used / 1024 ** 3;
   $("metrics").innerHTML =
@@ -251,7 +277,7 @@ function renderZed(groups) {
         <span class="zed-revision">${e(tree.revision)}</span><span class="checkout-actions">${worktreeActions(tree.path)}</span>
       </li>`).join("")}</ul>
     </section>`).join("")}
-  </article>`).join("") || '<div class="empty">The Zed catalog has no project families.</div>';
+  </article>`).join("") || `<div class="empty">${state.workmode ? "No Ydistri checkouts in the Zed catalog." : "The Zed catalog has no project families."}</div>`;
 }
 async function refreshZed() {
   try {
@@ -266,14 +292,18 @@ async function refreshZed() {
   }
 }
 function renderCatalogActions() {
-  const html = state.zedGroups ? renderZed(state.zedGroups) : state.zedError
+  const html = state.zedGroups ? renderZed(state.workmode ? workScope().groups : state.zedGroups) : state.zedError
     ? `<div class="warning">${e(state.zedError)} Retrying in one minute.</div>` : null;
   // Keep keyboard focus on a checkout across polls of an unchanged catalog.
   if (html !== null && renderZed.html !== html) {
     $("zed-section").innerHTML = html;
     renderZed.html = html;
   }
+  renderDbsPage();
   if (state.snapshot) {
+    renderNavigationCounts();
+    renderMetrics();
+    renderCodex();
     renderWorktreeViews();
     renderHistoryActions();
     if ($("detail-dialog").open) $("detail-actions").innerHTML = worktreeActions($("detail-actions").dataset.path);
@@ -305,7 +335,7 @@ function renderCandidates() {
 function renderStorage() {
   if (!state.snapshot) return;
   const cached = state.storage?.projects || {};
-  const projects = [...state.snapshot.projects].sort((a, b) => (cached[b.id]?.bytes || 0) - (cached[a.id]?.bytes || 0) || a.name.localeCompare(b.name));
+  const projects = [...visibleProjects()].sort((a, b) => (cached[b.id]?.bytes || 0) - (cached[a.id]?.bytes || 0) || a.name.localeCompare(b.name));
   $("storage-projects").innerHTML = `${state.storageError ? `<div class="warning">${e(state.storageError)}</div>` : ""}${projects.map((project) => {
     const usage = cached[project.id];
     const scanning = state.storage?.scanning === project.id;
@@ -333,7 +363,7 @@ async function loadStorage(projectId = null) {
 function matchingProjects() {
   const query = $("search").value.toLowerCase().trim();
   const running = $("running-only").checked;
-  const projects = state.snapshot.projects
+  const projects = visibleProjects()
     .map((p) => ({
       ...p,
       worktrees: p.worktrees.filter(
@@ -436,9 +466,9 @@ function renderHost() {
 }
 function allContainers() {
   const result = [
-    ...state.snapshot.unassigned_containers.map((c) => ({ ...c, owner: null })),
+    ...(state.workmode ? [] : state.snapshot.unassigned_containers.map((c) => ({ ...c, owner: null }))),
   ];
-  for (const p of state.snapshot.projects)
+  for (const p of state.workmode ? workScope().projects : state.snapshot.projects)
     for (const w of p.worktrees)
       for (const c of w.containers)
         result.push({ ...c, owner: `${p.name} / ${w.branch}`, path: w.path });
@@ -458,9 +488,11 @@ function renderContainers() {
       : `<div class="empty">${state.snapshot.docker.available ? "No containers are running." : "Docker is unavailable."}<p>${state.snapshot.docker.available ? "Containers will appear here when they start." : "The host monitor is still running. Check the configured Docker socket and permissions."}</p></div>`);
 }
 function renderCodex() {
-  const c = state.snapshot.codex;
+  const c = state.workmode ? Workmode.codex(state.snapshot, workScope()) : state.snapshot.codex;
+  const threadCaption = state.workmode ? "Ydistri checkout metadata" : `${c.thread_count} stored threads`;
+  const scopeNote = state.workmode ? " Only processes attributable to Ydistri checkouts are shown; shared Codex host processes are omitted." : "";
   $("codex-section").innerHTML =
-    `<div class="codex-grid">${metric("Threads updated · 24h", c.available ? c.recent_threads : "—", "", `${c.thread_count} stored threads`)}${metric("Codex worktrees", c.managed_worktrees, "", "Existing Git checkouts")}${metric("Codex memory", (c.memory_bytes / 1024 ** 2).toFixed(0), "MiB", `${percent(c.cpu_percent)} CPU · ${plural(c.processes.length, "process")}`)}</div><article class="panel info-panel"><p>${e(c.status)} · refreshed every minute. Thread recency indicates metadata updates, not active agents. Conversation text and token costs are not collected.</p></article><div class="section-heading"><h2>Codex processes</h2></div><div class="panel">${processTable(c.processes)}</div>`;
+    `<div class="codex-grid">${metric("Threads updated · 24h", c.available ? c.recent_threads : "—", "", threadCaption)}${metric("Codex worktrees", c.managed_worktrees, "", "Existing Git checkouts")}${metric("Codex memory", (c.memory_bytes / 1024 ** 2).toFixed(0), "MiB", `${percent(c.cpu_percent)} CPU · ${plural(c.processes.length, "process")}`)}</div><article class="panel info-panel"><p>${e(c.status)} · refreshed every minute. Thread recency indicates metadata updates, not active agents. Conversation text and token costs are not collected.${scopeNote}</p></article><div class="section-heading"><h2>Codex processes</h2></div><div class="panel">${processTable(c.processes)}</div>`;
 }
 const nightMode = createNightMode($("night-toggle"), $("night-status"));
 let faceplateLoading = false;
@@ -494,9 +526,25 @@ setInterval(refreshFaceplate, 2000);
 
 function setView() {
   const requested = location.hash.substring(1);
+  state.workmode = Workmode.enabled(location.href);
   state.view = views[requested] ? requested : "overview";
+  if (state.workmode && ["faceplate", "air-quality"].includes(state.view)) {
+    state.view = "overview";
+    const url = new URL(location.href);
+    url.hash = "overview";
+    history.replaceState(null, "", url);
+  }
+  document.documentElement.dataset.workmode = String(state.workmode);
+  $("workmode-toggle").setAttribute("aria-checked", String(state.workmode));
+  document.querySelector(".workmode-logo").hidden = !state.workmode;
+  document.querySelector(".brand-caption").hidden = state.workmode;
+  document.querySelector(".sidebar-devices").hidden = state.workmode;
+  document.querySelector('meta[name="theme-color"]').content = state.workmode ? "#19120e" : "#0d1117";
+  $("copy-report").hidden = state.workmode && state.view !== "overview";
+  if ($("detail-dialog").open) $("detail-dialog").close();
+  if ($("db-chooser").open) $("db-chooser").close();
   $("breadcrumb-current").textContent = views[state.view];
-  document.title = `ST · ${views[state.view]}`;
+  document.title = `ST · ${state.workmode ? "Workmode · " : ""}${views[state.view]}`;
   $("dashboard").dataset.view = state.view;
   document.querySelectorAll("[data-view]").forEach((el) => {
     el.classList.toggle("active", el.dataset.view === state.view);
@@ -519,6 +567,7 @@ function setView() {
   $("host-section").hidden = state.view !== "overview";
   $("metrics").hidden = ["codex", "zed", "dbs", "faceplate", "air-quality"].includes(state.view);
   if (state.view === "storage" && state.snapshot) loadStorage();
+  renderCatalogActions();
 }
 function historySources() {
   const projects = [...(state.snapshot?.projects || [])].sort((a, b) =>
@@ -904,10 +953,6 @@ function render() {
   $("dashboard").hidden = false;
   $("machine-name").textContent = s.system.hostname;
   $("machine-platform").textContent = `Linux · ${s.system.cores} logical cores`;
-  $("nav-projects").textContent = s.totals.running_projects;
-  $("nav-containers").textContent = s.docker.available
-    ? s.totals.container_count
-    : "—";
   $("warnings").innerHTML = s.warnings
     .map((w) => `<div class="warning">${e(w)}</div>`)
     .join("");
@@ -916,12 +961,11 @@ function render() {
   [...s.projects]
     .sort((a, b) => a.name.localeCompare(b.name))
     .forEach((project) => projectColor(project.id));
-  renderMetrics();
   renderHealth();
   renderAllocation();
-  renderWorktreeViews();
   renderHost();
-  renderCodex();
+  // Snapshot discovery can classify repositories before either catalog refreshes.
+  renderCatalogActions();
   if (!state.storage) loadStorage();
   const options =
     '<option value="all">All — resource comparison</option><option value="host">Whole machine</option><option value="projects">All projects · total</option><option value="codex">Codex processes</option><option value="other">System &amp; other</option>' +
@@ -1157,7 +1201,12 @@ for (const type of ["click", "auxclick"]) {
     if (!state.dbCatalog || state.dbCatalog.stale) event.preventDefault();
   }, true);
 }
+$("workmode-toggle").addEventListener("click", () => {
+  history.pushState(null, "", Workmode.urlFor(location.href, !state.workmode));
+  setView();
+});
 window.addEventListener("hashchange", setView);
+window.addEventListener("popstate", setView);
 new ResizeObserver(() => {
   if (!$("overview-content").hidden) renderChart();
 }).observe($("chart"));
