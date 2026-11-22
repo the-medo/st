@@ -482,7 +482,12 @@ def main():
     parser.add_argument("--socket", required=True)
     args = parser.parse_args()
     os.umask(0o077)
-    planner = Planner(json.loads(Path(args.config).read_text()), args.data)
+    config = json.loads(Path(args.config).read_text())
+    if config.get("backend") == "dave":
+        from planner_dave import DavePlanner
+        planner = DavePlanner(config, args.data, Planner, PlannerError)
+    else:
+        planner = Planner(config, args.data)
     planner.dav.ensure_collection()
     socket_path = Path(args.socket)
     if socket_path.exists():

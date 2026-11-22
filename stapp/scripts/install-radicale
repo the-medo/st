@@ -65,6 +65,7 @@ type = none
 level = warning
 """)
 shutil.copy2(root / "runtime/planner.py", install / "planner.py")
+shutil.copy2(root / "runtime/planner_dave.py", install / "planner_dave.py")
 
 
 def unit(name, description, command, after, requires=""):

@@ -17,12 +17,12 @@ assign its project. Each assigned task shows its project's name and color.
 Empty projects can be deleted from their editor. These task projects are separate
 from the coding workspaces registered with `st`.
 
-Calendar events and tasks use the **Radicale-backed ST planner** when installed
-and configured as described below. Its shared
-backend supports task projects, labels, priorities, subtasks, and recurrence from
-either the due date or completion date. MCP, the faceplate and future ST mobile
-clients use the same rules. [Planner setup, API and limitations](docs/planner.md)
-cover installation, migration, backups and the planned Android app/widgets.
+Calendar events and tasks use **Radicale**, with the shared DAVe backend available
+to both the ST console and faceplate. In shared mode, faceplate/MCP edits use the
+same DAVe API and scheduled recurrence rules as the web planner. DAVe task-list
+collections appear as faceplate projects. The legacy ST rules backend remains
+available for installations that have not switched. [Planner setup and limits](docs/planner.md)
+cover the shared backend, migration, backups and rollback.
 
 ```sh
 ~/.local/bin/st projects

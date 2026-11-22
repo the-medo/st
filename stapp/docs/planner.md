@@ -1,5 +1,63 @@
 # Radicale-backed ST planner
 
+## Shared DAVe planner
+
+Set `backend: "dave"`, `dave_url: "http://127.0.0.1:18647"`, and
+`default_calendar_id: "planner"` in the private planner configuration to use
+`runtime/planner_dave.py`. Keep the existing Radicale `url`, `username`,
+`password` and `zone`. The ST Unix socket/HTTP/MCP contract stays the same.
+The web planner and faceplate then use the **same DAVe API and Radicale data**:
+creating, editing, completing or deleting in either interface affects the same
+resources. DAVe's session and cache databases are not an alternative content
+store. Radicale and DAVe's backend stay upstream.
+
+Standard VTODO/VEVENT properties are authoritative in this mode; old
+`X-STAPP-DATA` properties are retained where supported but are no longer read.
+The default collection contains unassigned tasks and the existing calendar.
+Other VTODO-capable collections appear as projects with stable IDs, names and
+colors. The faceplate's visibility preferences and durable operation receipts
+live in `planner-operations.sqlite`. Task/list names and content stay in Radicale.
+
+Completions use DAVe's scheduled recurrence and completed occurrence records.
+The older completion-relative recurrence mode is rejected explicitly by this
+adapter. The faceplate projection excludes recurring history copies and follows
+DAVe's completed-task cache retention (90 days in the production installer).
+Event reads expand occurrences from one year ago through two years ahead, subject
+to DAVe's expansion limit; use DAVe's calendar/archive for older or later items.
+Renaming a task preserves alarms, dates, relations and recurrence settings.
+ETags reject stale edits. Repeating a successful operation key returns its saved
+result. If a write response was lost, the adapter refuses to replay it; reload
+before intentionally making another change, especially a recurring completion.
+
+Switch an existing legacy installation only after backing up its configuration,
+Radicale data, operation journal and installed planner modules while the planner,
+DAVe and Radicale services are stopped. Prepare the production DAVe backend with
+`../sm-manager/scripts/install-dave.py --prepare-only`, using the existing
+Radicale account. Move legacy deleted-resource tombstones out of the live
+collection after backing them up; otherwise DAVe would show them as live items.
+Existing legacy projects and completion-relative recurrence need an explicit
+conversion before switching. Plain existing tasks/events keep their IDs and data.
+Copy both `runtime/planner.py` and `runtime/planner_dave.py` to the installed
+planner directory, update the configuration, and restart `stapp-planner.service`.
+Check its socket listing against the pre-switch IDs/titles/dates before enabling
+the console's DAVe links. Verify a disposable task in both directions, then
+remove it. Keep all backups outside Git with owner-only permissions.
+
+For rollback, stop writes and restore the saved configuration, content and
+operation journal together. Merely selecting the old backend after DAVe edits
+would read stale `X-STAPP-DATA`; never use that as a rollback. Preserve/export
+changes made after the backup before restoring it.
+
+Run `DAVE_CHECKOUT=/path/to/built/dave python tests/planner_dave.py -v` with Node
+on PATH and the planner venv's Python. This starts real, isolated Radicale and
+DAVe servers and checks edits in both directions, recurrence, stale ETags,
+ambiguous-write protection, projects/visibility and event preservation.
+
+## Legacy ST rules backend
+
+The remaining sections describe `backend` unset (the original ST rules engine),
+including its metadata format and completion-relative recurrence behavior.
+
 The selected calendar/task backend is Radicale. ST supplies every user interface:
 the faceplate, desktop views and a future Android app with widgets. No Vikunja,
 Tasks.org, DAVx5 or other client is required. Radicale stays upstream; ST-specific

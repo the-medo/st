@@ -115,16 +115,25 @@ node tests/test_dave_browser.mjs
 This creates and removes uniquely named test tasks/events and checks desktop and
 mobile navigation, automatic access, editing, reload and return to ST.
 
-To enable the integration on an installed console after deploying its source,
-set `dave_port`, `dave_credentials_path`, and `dave_source_archive` in its private
-configuration and run DAVe's ST build on that loopback port. The launcher shows
-the required backend environment; restart the console with its usual manager.
-An unconfigured console hides the two planner links.
+For production, `scripts/install-dave.py --credentials /path/to/login.json
+--dav-url http://127.0.0.1:RADICALE_PORT` builds a pinned release outside all
+worktrees and installs `sm-manager-dave.service` on loopback (default port 18647).
+It enables the three `dave_*` console settings and restarts the console. Use
+`--prepare-only` to start the backend before switching the console. Re-run the
+installer after changing the pinned DAVe version/patch. Runtime releases, source
+archives, cache and session databases live below the console data directory's
+`dave/` folder; the private environment lives next to its configuration. Use
+`systemctl --user status|restart|stop sm-manager-dave.service` for its lifecycle.
+An unconfigured console hides the Planner section.
 
-Use a standard CalDAV collection or the separate DAVe evaluation account.
-**STapp's existing faceplate planner collection has authoritative custom metadata
-and must not be edited through DAVe.** This change integrates navigation and
-access; it does not migrate that collection or synchronize it with the faceplate.
+The faceplate can use **this same DAVe backend and Radicale collection** through
+STapp's shared planner adapter. Its task edits, completions and calendar changes
+then use DAVe's API and recurrence rules. Standard CalDAV fields are authoritative;
+there is no second task store or synchronization copy. Task-list collections map
+to faceplate projects; screen visibility remains a local faceplate preference.
+See [the shared planner switch](../stapp/docs/planner.md#shared-dave-planner) for
+backup, migration, verification and rollback instructions. Do not expose the
+legacy metadata-based collection to DAVe until that switch is complete.
 
 ## Workmode
 
