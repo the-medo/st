@@ -9,6 +9,7 @@
     <title>ST · Overview</title>
     <link rel="icon" href="/favicon.svg?v=st-chiseled-1" type="image/svg+xml" sizes="any" />
     <link rel="stylesheet" href="/style.css" />
+    <script src="/workmode.js" defer></script>
     <script src="/dbs.js" defer></script>
     <script src="/air-quality.js" defer></script>
     <script src="/night-mode.js" defer></script>
@@ -19,6 +20,7 @@
       <a href="#overview" class="brand" aria-label="ST home" title="ST · System console">
         <img src="/st-logo.svg?v=st-chiseled-1" width="86" height="48" alt="" />
         <span class="brand-caption">SYSTEM CONSOLE</span>
+        <img class="workmode-logo" src="/ydistri.svg" width="78" height="15" alt="Ydistri" hidden />
       </a>
       <nav aria-label="Main navigation">
         <a href="#overview" data-view="overview" class="nav-link active"
@@ -67,6 +69,9 @@
             ><span id="machine-platform">Linux · local monitor</span>
           </div>
         </div>
+        <button id="workmode-toggle" class="workmode-toggle" type="button" role="switch" aria-checked="false" aria-label="Workmode" title="Show Ydistri work. Overview always includes everything.">
+          <span class="workmode-label">Workmode</span><span class="workmode-switch" aria-hidden="true"></span>
+        </button>
         <div class="sidebar-version">ST · LOCAL <span>v0.1</span></div>
       </div>
     </aside>

@@ -21,6 +21,7 @@ function catalog(connections) {
     "db-chooser": { dataset: {}, showModal() { this.open = true; }, close() { this.open = false; } },
   };
   const ui = { state, e: String, $: (id) => elements[id], renderCatalogActions() {} };
+  vm.runInNewContext(readFileSync(join(__dirname, "../sm_manager/static/workmode.js"), "utf8") + "\nthis.workScope = () => Workmode.scope(state.snapshot, state.zedGroups, state.dbCatalog.connections);", ui);
   vm.runInNewContext(script, ui);
   return ui;
 }
@@ -83,4 +84,23 @@ test("external environments have independent named profiles and never match a ch
   assert.match(cards[1], /<h2>PROD<\/h2>[\s\S]*prod-example[\s\S]*shared-db/);
   assert.match(cards[2], /Unassigned[\s\S]*local/);
   assert.equal(ui.dbAction("/repo", "primary_path"), "");
+});
+
+test("Workmode filters database pages and chooser links while overview retains every checkout action", () => {
+  const work = db("work", "/work", "/repo");
+  work.owner.group = "Ydistri";
+  const ui = catalog([work, db("personal", "/personal", "/personal-repo"),
+    { ...db("prod", null), group: "Ydistri PROD", name: "production" }]);
+  ui.state.workmode = true;
+  ui.state.view = "dbs";
+  ui.renderDbsPage();
+  assert.match(ui.$("dbs-groups").innerHTML, /Ydistri PROD/);
+  assert.doesNotMatch(ui.$("dbs-groups").innerHTML, /personal/);
+  assert.equal(ui.dbMatches("/personal", "worktree_path").length, 0);
+  assert.equal(ui.dbMatches("/work", "worktree_path").length, 1);
+  ui.state.view = "overview";
+  assert.equal(ui.dbMatches("/personal", "worktree_path").length, 1);
+  ui.state.workmode = false;
+  ui.renderDbsPage();
+  assert.match(ui.$("dbs-groups").innerHTML, /personal/);
 });
