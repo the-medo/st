@@ -282,7 +282,7 @@ function inspectAirPoint(group, index) {
   cursor.setAttribute("visibility", "visible");
 }
 async function refreshAirQuality(force = false, onlyGroup = null) {
-  if (document.hidden) return;
+  if (document.hidden || document.body.dataset.stView === "planner") return;
   const requests = new Map();
   await Promise.all((onlyGroup ? [onlyGroup] : Object.keys(airGroups)).map(async group => {
     const history = airState.history[group];

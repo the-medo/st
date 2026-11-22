@@ -1,30 +1,96 @@
 diff --git a/packages/frontend/src/App.tsx b/packages/frontend/src/App.tsx
-index ce6b05e..a896241 100755
+index ce6b05e..1d9778c 100755
 --- a/packages/frontend/src/App.tsx
 +++ b/packages/frontend/src/App.tsx
-@@ -1,5 +1,6 @@
+@@ -1,31 +1,71 @@
 -import { createBrowserRouter, RouterProvider } from 'react-router-dom';
-+import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
- import LoginPage from './pages/LoginPage';
-+import { APP_BASE, ST_MODE } from './lib/st';
+-import LoginPage from './pages/LoginPage';
++import { lazy, Suspense, type ReactNode } from 'react';
++import { createBrowserRouter, createMemoryRouter, Navigate, RouterProvider } from 'react-router-dom';
++import { focusManager } from '@tanstack/react-query';
++import { APP_BASE, ST_MODE, ST_EMBEDDED, setPlannerActive } from './lib/st';
  import AppLayout from './pages/AppLayout';
- import ContactsPage from './pages/ContactsPage';
- import CalendarPage from './pages/CalendarPage';
-@@ -11,7 +12,7 @@ import HomeRedirect from './components/HomeRedirect';
- const router = createBrowserRouter([
+-import ContactsPage from './pages/ContactsPage';
+-import CalendarPage from './pages/CalendarPage';
+-import TasksPage from './pages/TasksPage';
+-import NotesPage from './pages/NotesPage';
+-import JournalsPage from './pages/JournalsPage';
++import StHome from './components/StHome';
+ import HomeRedirect from './components/HomeRedirect';
+ 
+-const router = createBrowserRouter([
++const LoginPage = lazy(() => import('./pages/LoginPage'));
++const ContactsPage = lazy(() => import('./pages/ContactsPage'));
++const CalendarPage = lazy(() => import('./pages/CalendarPage'));
++const TasksPage = lazy(() => import('./pages/TasksPage'));
++const NotesPage = lazy(() => import('./pages/NotesPage'));
++const JournalsPage = lazy(() => import('./pages/JournalsPage'));
++const loading = <div role="status" className="p-6 text-muted-foreground">Opening view…</div>;
++const page = (element: ReactNode) => <Suspense fallback={loading}>{element}</Suspense>;
++const routes = [
++  { path: '/login', element: ST_MODE ? <Navigate to="/tasks" replace /> : page(<LoginPage />) },
    {
-     path: '/login',
+-    path: '/login',
 -    element: <LoginPage />,
-+    element: ST_MODE ? <Navigate to="/tasks" replace /> : <LoginPage />,
-   },
-   {
-     path: '/',
-@@ -25,7 +26,7 @@ const router = createBrowserRouter([
-       { path: 'journals', element: <JournalsPage /> },
+-  },
+-  {
+-    path: '/',
+-    element: <AppLayout />,
++    path: '/', element: <AppLayout />,
++    errorElement: <main className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center gap-4">
++      {ST_MODE && <StHome />}
++      <h1>This planner view could not load</h1>
++      <p>Your saved tasks are still on the server.</p>
++      <button onClick={() => window.location.reload()}>Reload planner</button>
++    </main>,
+     children: [
+       { index: true, element: <HomeRedirect /> },
+-      { path: 'contacts', element: <ContactsPage /> },
+-      { path: 'calendar', element: <CalendarPage /> },
+-      { path: 'tasks', element: <TasksPage /> },
+-      { path: 'notes', element: <NotesPage /> },
+-      { path: 'journals', element: <JournalsPage /> },
++      { path: 'contacts', element: page(<ContactsPage />) },
++      { path: 'calendar', element: page(<CalendarPage />) },
++      { path: 'tasks', element: page(<TasksPage />) },
++      { path: 'notes', element: page(<NotesPage />) },
++      { path: 'journals', element: page(<JournalsPage />) },
      ],
    },
 -]);
-+], { basename: APP_BASE });
++];
++const initialUrl = new URL(window.location.href);
++initialUrl.searchParams.delete('st-embedded');
++const router = ST_EMBEDDED
++  ? createMemoryRouter(routes, { basename: APP_BASE, initialEntries: [initialUrl.pathname + initialUrl.search + initialUrl.hash] })
++  : createBrowserRouter(routes, { basename: APP_BASE });
++
++if (ST_EMBEDDED) {
++  let incoming: string | null = null;
++  const path = () => router.state.location.pathname + router.state.location.search + router.state.location.hash;
++  let lastPath = path();
++  const post = (type: string, replace = false) => window.parent.postMessage({ type, path: path(), replace }, window.location.origin);
++  router.subscribe((state) => {
++    if (state.navigation.state !== 'idle' || path() === lastPath) return;
++    lastPath = path();
++    post(incoming === lastPath ? 'st:navigated' : 'st:route', state.historyAction === 'REPLACE');
++    incoming = null;
++  });
++  window.addEventListener('message', (event: MessageEvent<unknown>) => {
++    if (event.origin !== window.location.origin || event.source !== window.parent || !event.data || typeof event.data !== 'object') return;
++    const data = event.data as { type?: string; path?: unknown; active?: unknown };
++    if (data.type === 'st:active' && typeof data.active === 'boolean') {
++      focusManager.setFocused(data.active);
++      setPlannerActive(data.active);
++    }
++    if (data.type === 'st:navigate' && typeof data.path === 'string' && /^\/planner\/(tasks|calendar|contacts|notes|journals)([?#]|$)/.test(data.path)) {
++      incoming = data.path;
++      // Memory history has no browser entries; the ST shell owns Back/Forward.
++      void router.navigate(data.path.slice(APP_BASE.length), { replace: true });
++    }
++  });
++  post('st:ready');
++}
  
  export default function App() {
    return <RouterProvider router={router} />;
@@ -104,13 +170,19 @@ index e49dda7..5276249 100644
      credentials: 'include', // always send the session cookie
      headers: {
 diff --git a/packages/frontend/src/components/Sidebar.tsx b/packages/frontend/src/components/Sidebar.tsx
-index e9d145c..685fb42 100644
+index e9d145c..3181feb 100644
 --- a/packages/frontend/src/components/Sidebar.tsx
 +++ b/packages/frontend/src/components/Sidebar.tsx
-@@ -5,6 +5,8 @@ import { useQuery } from '@tanstack/react-query';
+@@ -1,10 +1,12 @@
+-import { Fragment, useState } from 'react';
++import { Fragment, lazy, Suspense, useState } from 'react';
+ import { createPortal } from 'react-dom';
+ import { NavLink, useLocation } from 'react-router-dom';
+ import { useQuery } from '@tanstack/react-query';
  import { useMutation, useQueryClient } from '@tanstack/react-query';
  import { Check, ChevronDown, ChevronRight, LogOut, Pencil, Plus, RefreshCw, Search, Settings } from 'lucide-react';
- import SettingsModal from './SettingsModal';
+-import SettingsModal from './SettingsModal';
++const SettingsModal = lazy(() => import('./SettingsModal'));
 +import StHome from './StHome';
 +import { ST_MODE } from '../lib/st';
  import AddressBookModal from './AddressBookModal';
@@ -160,15 +232,26 @@ index e9d145c..685fb42 100644
              </div>
            </div>
          </div>
+@@ -185,7 +187,7 @@ export default function Sidebar({ me, isOpen, onClose, onOpenSearch }: SidebarPr
+     </aside>
+     {/* Rendered outside <aside> so the slide transform doesn't create a new
+         containing block for these fixed-position modals. */}
+-    {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
++    {showSettings && <Suspense fallback={null}><SettingsModal onClose={() => setShowSettings(false)} /></Suspense>}
+     {showCreate && inContacts && (
+       <AddressBookModal mode="create" onClose={() => setShowCreate(false)} />
+     )}
 diff --git a/packages/frontend/src/components/StHome.tsx b/packages/frontend/src/components/StHome.tsx
 new file mode 100644
-index 0000000..d634942
+index 0000000..d59f60d
 --- /dev/null
 +++ b/packages/frontend/src/components/StHome.tsx
-@@ -0,0 +1,8 @@
+@@ -0,0 +1,10 @@
++import { goHome } from '../lib/st';
++
 +export default function StHome({ compact = false }: { compact?: boolean }) {
 +  return (
-+    <a href="/" aria-label="ST home" title="Return to ST" className="inline-flex items-center gap-3 rounded-md bg-[#10151c] px-3 py-2 text-[#e6edf3] hover:bg-[#192330] transition-colors">
++    <a href="/" target="_top" onClick={goHome} aria-label="ST home" title="Return to ST" className="inline-flex items-center gap-3 rounded-md bg-[#10151c] px-3 py-2 text-[#e6edf3] hover:bg-[#192330] transition-colors">
 +      <img src="/st-logo.svg" alt="" width={compact ? 32 : 52} height={compact ? 20 : 30} />
 +      {!compact && <span className="text-[10px] tracking-[0.16em] uppercase leading-4">Tasks<br />& Calendar</span>}
 +    </a>
@@ -195,17 +278,74 @@ index 78218fd..8257732 100755
  }
  
  function loadMapService(): MapService {
+diff --git a/packages/frontend/src/hooks/useSyncCollections.ts b/packages/frontend/src/hooks/useSyncCollections.ts
+index 7e6d6fc..845e8fb 100644
+--- a/packages/frontend/src/hooks/useSyncCollections.ts
++++ b/packages/frontend/src/hooks/useSyncCollections.ts
+@@ -1,6 +1,7 @@
+ import { useEffect, useCallback } from 'react';
+ import { useQueryClient } from '@tanstack/react-query';
+ import type { AddressBook, Calendar, Contact } from '@dave/shared';
++import { plannerActive } from '../lib/st';
+ import { syncCollections } from '../api/sync';
+ 
+ const POLL_INTERVAL_MS = 30_000;
+@@ -9,6 +10,7 @@ export function useSyncCollections() {
+   const queryClient = useQueryClient();
+ 
+   const runSync = useCallback(async () => {
++    if (!plannerActive()) return;
+     const addressbooks = queryClient.getQueryData<AddressBook[]>(['addressbooks']);
+     const calendars = queryClient.getQueryData<Calendar[]>(['calendars']);
+ 
+@@ -59,6 +61,7 @@ export function useSyncCollections() {
+       for (const calSync of result.calendars) {
+         if (calSync.dirty) {
+           void queryClient.invalidateQueries({ queryKey: ['events', calSync.id] });
++          void queryClient.invalidateQueries({ queryKey: ['tasks'] });
+         }
+         // Update the stored syncToken.
+         queryClient.setQueryData<Calendar[]>(['calendars'], (old) =>
+@@ -83,10 +86,12 @@ export function useSyncCollections() {
+       }
+     };
+     document.addEventListener('visibilitychange', onVisibilityChange);
++    window.addEventListener('st:activated', onVisibilityChange);
+ 
+     return () => {
+       clearInterval(intervalId);
+       document.removeEventListener('visibilitychange', onVisibilityChange);
++      window.removeEventListener('st:activated', onVisibilityChange);
+     };
+   }, [runSync]);
+ }
 diff --git a/packages/frontend/src/lib/st.ts b/packages/frontend/src/lib/st.ts
 new file mode 100644
-index 0000000..98efcc6
+index 0000000..1905839
 --- /dev/null
 +++ b/packages/frontend/src/lib/st.ts
-@@ -0,0 +1,42 @@
+@@ -0,0 +1,58 @@
 +/// <reference types="vite/client" />
 +
 +/** ST is an optional build target. Ordinary DAVe builds retain their own login. */
 +export const ST_MODE = import.meta.env.VITE_ST_INTEGRATION === '1';
 +export const APP_BASE = ST_MODE ? '/planner' : '/';
++export const ST_EMBEDDED = ST_MODE && window.parent !== window &&
++  new URLSearchParams(window.location.search).get('st-embedded') === '1';
++
++let active = true;
++export function plannerActive() { return active && !document.hidden; }
++export function setPlannerActive(value: boolean) {
++  const changed = active !== value;
++  active = value;
++  if (changed && value) window.dispatchEvent(new Event('st:activated'));
++}
++
++export function goHome(event: React.MouseEvent<HTMLAnchorElement>) {
++  if (!ST_EMBEDDED || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
++  event.preventDefault();
++  window.parent.postMessage({ type: 'st:home' }, window.location.origin);
++}
 +
 +let session: Promise<string> | null = null;
 +
@@ -244,10 +384,12 @@ index 0000000..98efcc6
 +  return response;
 +}
 diff --git a/packages/frontend/src/pages/AppLayout.tsx b/packages/frontend/src/pages/AppLayout.tsx
-index 6e876c8..a51b2ea 100644
+index 6e876c8..7907bfd 100644
 --- a/packages/frontend/src/pages/AppLayout.tsx
 +++ b/packages/frontend/src/pages/AppLayout.tsx
-@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
+@@ -1,12 +1,14 @@
+-import { useState, useEffect, useCallback } from 'react';
++import { lazy, Suspense, useState, useEffect, useCallback } from 'react';
  import { Navigate, Outlet, useLocation } from 'react-router-dom';
  import { useQuery } from '@tanstack/react-query';
  import { Menu, Search } from 'lucide-react';
@@ -256,6 +398,12 @@ index 6e876c8..a51b2ea 100644
  import { getMe } from '../api/auth';
  import { ApiError } from '../api/client';
  import Sidebar from '../components/Sidebar';
+ import BottomNav from '../components/BottomNav';
+-import GlobalSearchModal from '../components/GlobalSearchModal';
++const GlobalSearchModal = lazy(() => import('../components/GlobalSearchModal'));
+ import { VIEW_NAV_ITEMS } from '../hooks/useViewNavItems';
+ import { CollectionVisibilityProvider } from '../contexts/CollectionVisibility';
+ import { ContactDragProvider } from '../contexts/ContactDrag';
 @@ -60,6 +62,10 @@ export default function AppLayout() {
    const pageTitle =
      VIEW_NAV_ITEMS.find((item) => pathname.startsWith(item.to))?.label ?? 'Calendar';
@@ -285,7 +433,12 @@ index 6e876c8..a51b2ea 100644
    if (meQuery.isError) {
      return <Navigate to="/login" replace />;
    }
-@@ -90,6 +107,7 @@ export default function AppLayout() {
+@@ -86,10 +103,11 @@ export default function AppLayout() {
+               onClose={() => setSidebarOpen(false)}
+               onOpenSearch={() => setSearchOpen(true)}
+             />
+-            <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
++            {searchOpen && <Suspense fallback={null}><GlobalSearchModal open onClose={() => setSearchOpen(false)} /></Suspense>}
              <div className="flex-1 flex flex-col overflow-hidden min-w-0">
                {/* Mobile-only header */}
                <header className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-border bg-card shrink-0">
@@ -293,6 +446,36 @@ index 6e876c8..a51b2ea 100644
                  <button
                    onClick={() => setSidebarOpen(true)}
                    className="text-muted-foreground hover:text-foreground"
+diff --git a/packages/frontend/src/pages/TasksPage.tsx b/packages/frontend/src/pages/TasksPage.tsx
+index 4dd1682..012ccae 100644
+--- a/packages/frontend/src/pages/TasksPage.tsx
++++ b/packages/frontend/src/pages/TasksPage.tsx
+@@ -1905,11 +1905,20 @@ export default function TasksPage() {
+   // resolves ensures the UI reflects tasks that were already on the server before
+   // the cache was seeded (e.g., after a cache clear or first login).
+   useEffect(() => {
+-    triggerTasksSync()
+-      .then(() => invalidateTasks())
+-      .catch(() => {
+-        /* errors logged server-side */
+-      });
++    let syncing = false;
++    const refresh = () => {
++      if (syncing) return;
++      syncing = true;
++      // Keep cached rows and editor state visible while picking up edits made
++      // on the faceplate or another DAV client while this view was hidden.
++      triggerTasksSync()
++        .then(() => invalidateTasks())
++        .catch(() => { /* the next sync will retry */ })
++        .finally(() => { syncing = false; });
++    };
++    refresh();
++    window.addEventListener('st:activated', refresh);
++    return () => window.removeEventListener('st:activated', refresh);
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, []);
+ 
 diff --git a/packages/frontend/vite.config.ts b/packages/frontend/vite.config.ts
 index 315ad47..c020f09 100644
 --- a/packages/frontend/vite.config.ts

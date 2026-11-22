@@ -497,7 +497,7 @@ function renderCodex() {
 const nightMode = createNightMode($("night-toggle"), $("night-status"));
 let faceplateLoading = false;
 async function refreshFaceplate() {
-  if (state.view !== "faceplate" || document.hidden || faceplateLoading) return;
+  if (state.view !== "faceplate" || document.hidden || document.body.dataset.stView === "planner" || faceplateLoading) return;
   void nightMode.refresh();
   faceplateLoading = true;
   const image = $("faceplate-image");
@@ -525,6 +525,7 @@ async function refreshFaceplate() {
 setInterval(refreshFaceplate, 2000);
 
 function setView() {
+  if (document.body.dataset.stView === "planner") return;
   const requested = location.hash.substring(1);
   state.workmode = Workmode.enabled(location.href);
   state.view = views[requested] ? requested : "overview";
@@ -1001,8 +1002,14 @@ function updateConnection() {
   $("connection").innerHTML =
     `<span class="status-dot"></span><span>${stale ? (s ? `Connection interrupted · last sample ${e(ago(s.timestamp))}` : "Connecting to monitor…") : `Live · updated ${e(ago(s.timestamp))}`}</span>`;
 }
+let refreshTimer;
+let refreshing = false;
 async function refresh() {
+  if (refreshing) return;
+  clearTimeout(refreshTimer);
+  refreshing = true;
   try {
+    if (document.body.dataset.stView === "planner" || document.hidden) return;
     state.snapshot = await api("/api/snapshot");
     state.online = true;
     render();
@@ -1014,7 +1021,8 @@ async function refresh() {
       $("loading").querySelector("p").textContent =
         `${error.message} Retrying shortly…`;
   } finally {
-    setTimeout(refresh, (state.snapshot?.interval || 5) * 1000);
+    refreshing = false;
+    refreshTimer = setTimeout(refresh, (state.snapshot?.interval || 5) * 1000);
   }
 }
 $("projects").addEventListener("error", (event) => {
@@ -1207,6 +1215,7 @@ $("workmode-toggle").addEventListener("click", () => {
 });
 window.addEventListener("hashchange", setView);
 window.addEventListener("popstate", setView);
+window.addEventListener("st:console", () => { setView(); void refresh(); });
 new ResizeObserver(() => {
   if (!$("overview-content").hidden) renderChart();
 }).observe($("chart"));

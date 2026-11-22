@@ -13,9 +13,11 @@
     <script src="/dbs.js" defer></script>
     <script src="/air-quality.js" defer></script>
     <script src="/night-mode.js" defer></script>
+    <script src="/planner-shell.js" defer></script>
     <script src="/app.js" defer></script>
   </head>
-  <body>
+  <body data-st-view="console">
+    <div id="st-console">
     <aside class="sidebar">
       <a href="#overview" class="brand" aria-label="ST home" title="ST · System console">
         <img src="/st-logo.svg?v=st-chiseled-1" width="86" height="48" alt="" />
@@ -429,5 +431,13 @@
       <div id="db-choices"></div>
     </dialog>
     <div id="toast" class="toast" role="status" hidden></div>
+    </div>
+    <section id="st-planner" aria-label="Planner" hidden>
+      <div id="planner-loading" role="status">
+        <p id="planner-loading-message">Opening planner…</p>
+        <button id="planner-retry" class="button" hidden>Try again</button>
+        <a href="/" class="button">Return to ST</a>
+      </div>
+    </section>
   </body>
 </html>

@@ -68,6 +68,22 @@ The system console keeps its Python standard-library backend; Node.js 22+ and
 DAVe dependencies run separately. The sidebar's **DAVe · Source** link downloads
 the exact patched source, including its AGPL license and dependency lockfile.
 
+ST loads the planner on its first visit in a persistent same-origin frame. This
+isolates DAVe's styles and portals while keeping both interfaces, cached queries,
+scroll positions and unfinished planner drafts in memory during a round trip.
+The outer shell owns browser history; DAVe uses a memory router and validated
+same-origin messages. Direct `/planner/tasks` and `/planner/calendar` links,
+reload, Back/Forward and modified-click/new-tab navigation still work. Only the
+explicit embedded planner document permits same-origin framing; the console
+remains unframeable. Neither app's state survives a full browser reload.
+
+Planner pages, search and settings load as separate JavaScript chunks. Hashed
+JS/CSS assets use private immutable caching; console assets revalidate with
+ETags. The Python gateway gzips static text when supported, so this also works
+in branch previews without reverse-proxy configuration. HTML, API data, session
+tokens and source archives remain `no-store`. Hidden planner polling pauses;
+returning displays the cached view immediately and refreshes in the background.
+
 Build from this component directory, with Node/npm on PATH:
 
 ```sh
@@ -113,7 +129,8 @@ node tests/test_dave_browser.mjs
 ```
 
 This creates and removes uniquely named test tasks/events and checks desktop and
-mobile navigation, automatic access, editing, reload and return to ST.
+mobile navigation, automatic access, editing, reload, history, draft preservation
+and a round trip to ST without document/script downloads.
 
 For production, `scripts/install-dave.py --credentials /path/to/login.json
 --dav-url http://127.0.0.1:RADICALE_PORT` builds a pinned release outside all

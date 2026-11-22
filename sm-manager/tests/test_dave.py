@@ -1,4 +1,5 @@
 import concurrent.futures
+import gzip
 import http.client
 import json
 import tempfile
@@ -142,8 +143,11 @@ class DaveTests(unittest.TestCase):
         self.assertEqual(len(self.calls), before + 1)
 
     def test_static_source_and_navigation_need_no_dav_session(self):
-        status, headers, _ = self.request("/planner/tasks")
+        status, headers, body = self.request("/planner/tasks")
         self.assertEqual(status, 200)
+        self.assertIn(b'data-st-view="planner"', body)
+        self.assertIn(b'/planner-shell.js', body)
+        self.assertIn("frame-ancestors 'none'", headers["Content-Security-Policy"])
         self.assertIn("font-src 'self' data:", headers["Content-Security-Policy"])
         self.assertNotIn("font-src", self.request("/")[1]["Content-Security-Policy"])
         self.assertEqual(self.request("/planner/assets/app.js")[0], 200)
@@ -153,6 +157,42 @@ class DaveTests(unittest.TestCase):
         self.assertIn(b'href="/planner/tasks"  class="nav-link"', body)
         self.assertIn(b'href="/planner/calendar"  class="nav-link"', body)
         self.assertEqual(self.request("/planner")[1]["Location"], "/planner/tasks")
+        self.assertEqual(self.request("/planner/")[1]["Location"], "/planner/tasks")
+
+    def test_static_compression_and_validators_never_cache_account_data(self):
+        status, headers, body = self.request("/app.js", headers={"Accept-Encoding": "gzip"})
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["Content-Encoding"], "gzip")
+        self.assertEqual(headers["Vary"], "Accept-Encoding")
+        self.assertEqual(headers["Cache-Control"], "private, no-cache")
+        self.assertEqual(gzip.decompress(body), self.request("/app.js")[2])
+        status, cached, body = self.request("/app.js", headers={
+            "Accept-Encoding": "gzip", "If-None-Match": headers["ETag"]})
+        self.assertEqual(status, 304)
+        self.assertEqual(body, b"")
+        self.assertEqual(cached["ETag"], headers["ETag"])
+        self.assertNotIn("Content-Encoding", self.request("/app.js", headers={"Accept-Encoding": "gzip;q=0"})[1])
+        for path in ("/planner/api/me", "/planner/api/st-session", "/planner/tasks", "/planner/source.tar.gz"):
+            status, headers, _ = self.request(path, headers={"Accept-Encoding": "gzip"})
+            self.assertEqual(status, 200)
+            self.assertEqual(headers["Cache-Control"], "no-store")
+            self.assertNotIn("ETag", headers)
+
+    def test_hashed_assets_are_immutable_and_only_embedded_html_can_be_framed(self):
+        with patch.object(DaveBridge, "request", return_value=(200, {"Content-Type": "text/javascript"}, b"/* asset */" * 200)):
+            status, headers, body = self.request("/planner/assets/TasksPage-AbCd1234.js", headers={"Accept-Encoding": "gzip"})
+            self.assertEqual(status, 200)
+            self.assertEqual(headers["Cache-Control"], "private, max-age=31536000, immutable")
+            self.assertEqual(headers["Content-Encoding"], "gzip")
+            self.assertEqual(self.request("/planner/assets/unhashed.js")[1]["Cache-Control"], "private, no-cache")
+        with patch.object(DaveBridge, "request", return_value=(200, {"Content-Type": "text/html"}, b"<div>Planner</div>")):
+            status, headers, body = self.request("/planner/tasks?st-embedded=1")
+            self.assertEqual(body, b"<div>Planner</div>")
+            self.assertIn("frame-ancestors 'self'", headers["Content-Security-Policy"])
+            self.assertEqual(headers["X-Frame-Options"], "SAMEORIGIN")
+            self.assertEqual(headers["Cache-Control"], "no-store")
+        self.assertIn("frame-ancestors 'none'", self.request("/?st-embedded=1")[1]["Content-Security-Policy"])
+        self.assertEqual(self.request("/planner/api/auth/login?st-embedded=1")[0], 404)
 
     def test_errors_hide_upstream_authentication_and_redirects(self):
         self.assertEqual(self.request("/planner/api/redirect")[0], 502)

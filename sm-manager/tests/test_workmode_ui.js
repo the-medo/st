@@ -119,7 +119,7 @@ function dashboard() {
     fetch: () => new Promise(() => {}),
     location: new URL("https://monitor.example/"),
     document: { getElementById: element, querySelector: element, querySelectorAll: () => [],
-      documentElement: { dataset: {} }, addEventListener() {} },
+      documentElement: { dataset: {} }, body: { dataset: {} }, addEventListener() {} },
     window: { addEventListener() {} },
     ResizeObserver: class { observe() {} },
     createNightMode: () => ({ refresh() {} }), initAirQuality() {},

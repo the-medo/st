@@ -13,7 +13,7 @@ function setup() {
     });
     return elements.get(id);
   };
-  const context = vm.createContext({ $, document: { hidden: false }, console,
+  const context = vm.createContext({ $, document: { hidden: false, body: { dataset: {} } }, console,
     e: value => String(value), ago: () => '1m ago', api: async () => data(),
   });
   vm.runInContext(fs.readFileSync('sm_manager/static/air-quality.js', 'utf8') + '\nthis.airState = airState;', context);

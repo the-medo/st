@@ -1,5 +1,9 @@
 import base64
+import gzip
+import hashlib
 import json
+import re
+from functools import lru_cache
 from html import escape
 import logging
 import mimetypes
@@ -15,9 +19,26 @@ from .dbs import read_db_catalog
 from .history import RETENTION_HOURS
 from .zed import read_catalog
 from .night_mode import request as night_request
-from .dave import DaveBridge, DaveUnavailable, MAX_BODY, MAX_RESPONSE, PREFIX, upstream_path
+from .dave import DaveBridge, DaveUnavailable, MAX_BODY, MAX_RESPONSE, PAGES, PREFIX, upstream_path
 
 STATIC = Path(__file__).parent / "static"
+
+
+@lru_cache(maxsize=32)
+def compressed_asset(body):
+    return gzip.compress(body, compresslevel=6, mtime=0)
+
+
+def accepts_gzip(value):
+    for encoding in value.lower().split(","):
+        name, *parameters = encoding.strip().split(";")
+        if name != "gzip":
+            continue
+        try:
+            return all(float(p.strip()[2:]) > 0 for p in parameters if p.strip().startswith("q="))
+        except ValueError:
+            return False
+    return False
 
 
 def read_faceplate_frame(path):
@@ -53,22 +74,45 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
         def log_message(self, format, *args):
             logging.getLogger("http").debug(format, *args)
 
-        def respond(self, status, payload, content_type="application/json", icon=False):
+        def respond(self, status, payload, content_type="application/json", icon=False, cache=None):
             body = json.dumps(payload, separators=(",", ":")).encode() if content_type == "application/json" and not isinstance(payload, bytes) else payload
+            # Only static code/styles/HTML are compressed or given validators.
+            # Account data and mutation/session responses always remain no-store.
+            compressible = status == 200 and cache is not None and len(body) >= 1024 and (
+                content_type.startswith("text/") or "javascript" in content_type or "svg" in content_type)
+            encoded = compressible and accepts_gzip(self.headers.get("Accept-Encoding", ""))
+            if encoded:
+                body = compressed_asset(body)
+            etag = '"' + hashlib.sha256(body).hexdigest() + '"' if status == 200 and cache and cache != "no-store" else None
+            if etag and etag in self.headers.get("If-None-Match", "").split(", "):
+                status = 304
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "private, max-age=3600" if icon else "no-store")
+            self.send_header("Cache-Control", "private, max-age=3600" if icon else cache or "no-store")
+            if etag:
+                self.send_header("ETag", etag)
+            if compressible:
+                self.send_header("Vary", "Accept-Encoding")
+            if encoded:
+                self.send_header("Content-Encoding", "gzip")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Referrer-Policy", "no-referrer")
             policy = "sandbox; default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'" if icon else "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+            url = urlsplit(self.path)
+            if (not icon and status == 200 and content_type.startswith("text/html") and
+                    url.path.removeprefix(PREFIX) in PAGES and url.path.startswith(PREFIX + "/") and
+                    parse_qs(url.query).get("st-embedded") == ["1"]):
+                policy = policy.replace("frame-ancestors 'none'", "frame-ancestors 'self'")
+                self.send_header("X-Frame-Options", "SAMEORIGIN")
             if not icon and urlsplit(self.path).path.startswith(PREFIX + "/"):
                 # FullCalendar bundles its navigation icon font as a data URL.
                 policy += "; font-src 'self' data:"
             self.send_header("Content-Security-Policy", policy)
             self.end_headers()
             try:
-                self.wfile.write(body)
+                if status != 304:
+                    self.wfile.write(body)
             except (BrokenPipeError, ConnectionResetError):
                 pass
 
@@ -90,7 +134,7 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
             if dave is None:
                 return self.respond(503, {"error": "Tasks and Calendar are not configured on this ST instance."})
             path = urlsplit(self.path).path
-            if path == PREFIX:
+            if path in (PREFIX, PREFIX + "/"):
                 self.send_response(302)
                 self.send_header("Location", PREFIX + "/tasks")
                 self.send_header("Content-Length", "0")
@@ -134,7 +178,14 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
             if 300 <= status < 400:
                 return self.respond(502, {"error": "Unexpected planner redirect"})
             content_type = next((v for k, v in headers.items() if k.lower() == "content-type"), "application/octet-stream")
-            return self.respond(status, data, content_type)
+            cache = None
+            if status == 200 and path.startswith(PREFIX + "/assets/") and (
+                    "javascript" in content_type or content_type.startswith("text/css")):
+                cache = "private, max-age=31536000, immutable" if re.fullmatch(
+                    r"/planner/assets/[\w.-]+-[\w-]{8,}\.(js|css)", path) else "private, no-cache"
+            elif status == 200 and path.removeprefix(PREFIX) in PAGES:
+                cache = "no-store"
+            return self.respond(status, data, content_type, cache=cache)
 
         def do_PUT(self):
             if error := self.access_error():
@@ -173,7 +224,10 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
             if error := self.access_error():
                 return self.respond(403, {"error": error})
             url = urlsplit(self.path)
-            if url.path == PREFIX or url.path.startswith(PREFIX + "/"):
+            planner_shell = (dave is not None and url.path.startswith(PREFIX + "/") and
+                             url.path.removeprefix(PREFIX) in PAGES - {"/"} and
+                             parse_qs(url.query).get("st-embedded") != ["1"])
+            if (url.path == PREFIX or url.path.startswith(PREFIX + "/")) and not planner_shell:
                 return self.dave_request()
             if url.path == "/api/night-mode":
                 return self.respond(200, {**night_control("status"), "token": token})
@@ -262,16 +316,22 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
                     "/zed.svg": "zed.svg", "/db.svg": "db.svg",
                     "/prusa-connect.svg": "prusa-connect.svg",
                     "/night-mode.js": "night-mode.js", "/dbs.js": "dbs.js", "/air-quality.js": "air-quality.js"}.get(url.path)
+            if planner_shell:
+                name = "index.html"
+            elif url.path == "/planner-shell.js":
+                name = "planner-shell.js"
             if not name:
                 return self.respond(404, {"error": "Not found"})
             mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
             body = (STATIC / name).read_bytes()
             if name == "index.html":
                 body = body.replace(b"data-planner-link", b"" if dave else b"hidden")
+                body = body.replace(b'data-st-view="console"', b'data-st-view="planner"' if planner_shell else b'data-st-view="console"')
                 printer = config.get("printer_url", "")
                 link = 'href="' + escape(printer, quote=True) + '"' if printer.startswith("https://") else "hidden"
                 body = body.replace(b"data-printer-link", link.encode())
-            return self.respond(200, body, mime + ("; charset=utf-8" if mime.startswith("text/") else ""))
+            return self.respond(200, body, mime + ("; charset=utf-8" if mime.startswith("text/") else ""),
+                                cache="no-store" if name == "index.html" else "private, no-cache")
 
     return Handler
 

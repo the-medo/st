@@ -12,6 +12,7 @@ const { chromium, expect } = await import(pathToFileURL(path.join(checkout, 'nod
 const browser = await chromium.launch();
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, timezoneId: 'Europe/Budapest' });
 const page = await context.newPage();
+const planner = page.frameLocator('#planner-frame');
 const errors = [];
 const loginRequests = [];
 page.on('pageerror', (error) => errors.push(error.message));
@@ -20,7 +21,7 @@ page.on('console', (message) => {
 });
 page.on('request', (request) => { if (request.url().includes('/auth/login')) loginRequests.push(request.url()); });
 const name = `ST browser check ${Date.now()}`;
-const row = (title) => page.locator('[data-uid]').filter({ has: page.getByText(title, { exact: true }) }).first();
+const row = (title) => planner.locator('[data-uid]').filter({ has: planner.getByText(title, { exact: true }) }).first();
 let taskUid;
 let eventId;
 async function cleanup() {
@@ -45,87 +46,117 @@ try {
   await page.goto(base + '/');
   await page.getByRole('link', { name: 'Tasks', exact: true }).click();
   await expect(page).toHaveURL(base + '/planner/tasks');
-  await expect(page.getByRole('button', { name: 'New task', exact: true })).toBeVisible();
-  await expect(page.getByRole('navigation', { name: 'Planner navigation' })).toBeVisible();
-  await expect(page.locator('nav a[data-view="projects"]')).toHaveCount(0);
-  await expect(page.getByTitle('Sign out')).toHaveCount(0);
-  await expect(page.getByLabel('Username', { exact: true })).toHaveCount(0);
+  await expect(planner.getByRole('button', { name: 'New task', exact: true })).toBeVisible();
+  await expect(planner.getByRole('navigation', { name: 'Planner navigation' })).toBeVisible();
+  await expect(page.locator('nav a[data-view="projects"]')).toBeHidden();
+  await expect(planner.getByTitle('Sign out')).toHaveCount(0);
+  await expect(planner.getByLabel('Username', { exact: true })).toHaveCount(0);
+  // A draft survives a round trip through the console without either document
+  // reloading. No new document or script should be requested on a warm switch.
+  const mainOrigin = await page.evaluate(() => performance.timeOrigin);
+  const frameOrigin = await planner.locator('body').evaluate(() => performance.timeOrigin);
+  const scripts = [];
+  page.on('request', (r) => { if (['document', 'script'].includes(r.resourceType())) scripts.push(r.url()); });
+  await planner.getByRole('button', { name: 'New task', exact: true }).click();
+  await planner.getByPlaceholder('Task title').fill('Unsaved draft survives navigation');
+  await page.goBack();
+  await expect(page.locator('nav a[data-view="projects"]')).toBeVisible();
+  await page.getByRole('link', { name: 'Tasks', exact: true }).click();
+  await expect(planner.getByPlaceholder('Task title')).toHaveValue('Unsaved draft survives navigation');
+  assert.equal(await page.evaluate(() => performance.timeOrigin), mainOrigin);
+  assert.equal(await planner.locator('body').evaluate(() => performance.timeOrigin), frameOrigin);
+  assert.deepEqual(scripts, []);
+  await planner.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.reload();
-  await expect(page.getByRole('button', { name: 'New task', exact: true })).toBeVisible();
+  await expect(planner.getByRole('button', { name: 'New task', exact: true })).toBeVisible();
 
-  await page.getByRole('button', { name: 'New task', exact: true }).click();
-  await page.getByPlaceholder('Task title').fill(name);
+  await planner.getByRole('button', { name: 'New task', exact: true }).click();
+  await planner.getByPlaceholder('Task title').fill(name);
   const created = page.waitForResponse((r) => r.url().endsWith('/planner/api/tasks') && r.request().method() === 'POST');
-  await page.getByRole('button', { name: 'Create task', exact: true }).click();
+  await planner.getByRole('button', { name: 'Create task', exact: true }).click();
   const taskResponse = await created;
   assert.equal(taskResponse.status(), 201);
   taskUid = (await taskResponse.json()).uid;
   await expect(row(name)).toBeVisible();
+  // An edit through the shared API while ST is visible must appear on resume,
+  // even though the planner's normal query stale time has not elapsed.
+  await planner.getByRole('link', { name: 'ST home', exact: true }).click();
+  const { token: updateToken } = await (await context.request.get(base + '/planner/api/st-session')).json();
+  const taskUrl = base + '/planner/api/tasks/' + encodeURIComponent(taskUid);
+  const task = await (await context.request.get(taskUrl)).json();
+  const updated = await context.request.put(taskUrl, {
+    headers: { 'X-ST-Planner-Token': updateToken },
+    data: { etag: task.etag, data: { ...task.data, summary: name + ' external' } },
+  });
+  assert.equal(updated.status(), 200);
+  await page.getByRole('link', { name: 'Tasks', exact: true }).click();
+  await expect(row(name + ' external')).toBeVisible();
   await page.reload();
-  await expect(row(name)).toBeVisible();
-  await row(name).click();
-  await page.getByLabel('Edit task', { exact: true }).click();
-  await page.getByPlaceholder('Task title').fill(name + ' edited');
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(row(name + ' external')).toBeVisible();
+  await row(name + ' external').click();
+  await planner.getByLabel('Edit task', { exact: true }).click();
+  await planner.getByPlaceholder('Task title').fill(name + ' edited');
+  await planner.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(row(name + ' edited')).toBeVisible();
   await row(name + ' edited').getByLabel('Mark complete', { exact: true }).click();
   await expect(row(name + ' edited')).not.toBeVisible();
   await page.reload();
-  await page.getByRole('button', { name: /Show \d+ completed/ }).click();
+  await planner.getByRole('button', { name: /Show \d+ completed/ }).click();
   await row(name + ' edited').click();
-  await page.getByLabel('Delete task', { exact: true }).click();
-  await page.getByRole('button', { name: 'Delete', exact: true }).last().click();
+  await planner.getByLabel('Delete task', { exact: true }).click();
+  await planner.getByRole('button', { name: 'Delete', exact: true }).last().click();
   await expect(row(name + ' edited')).not.toBeVisible();
   taskUid = null;
 
   const eventsLoaded = page.waitForResponse((r) => /\/planner\/api\/calendars\/[^/]+\/events\?/.test(r.url()) && r.status() === 200);
-  await page.getByRole('link', { name: 'Calendar', exact: true }).click();
+  await planner.getByRole('link', { name: 'Calendar', exact: true }).click();
   await expect(page).toHaveURL(base + '/planner/calendar');
-  await expect(page.locator('.fc-view-harness')).toBeVisible();
+  await expect(planner.locator('.fc-view-harness')).toBeVisible();
   await eventsLoaded;
-  await expect(page.getByRole('button', { name: 'New calendar', exact: true })).toBeVisible();
-  await expect(page.getByRole('checkbox').first()).toBeVisible();
+  await expect(planner.getByRole('button', { name: 'New calendar', exact: true })).toBeVisible();
+  await expect(planner.getByRole('checkbox').first()).toBeVisible();
   await page.keyboard.press('n');
-  await page.getByPlaceholder('Event title').fill(name);
+  await planner.getByPlaceholder('Event title').fill(name);
   const eventCreated = page.waitForResponse((r) => /\/planner\/api\/calendars\/[^/]+\/events$/.test(r.url()) && r.request().method() === 'POST');
-  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await planner.getByRole('button', { name: 'Create', exact: true }).click();
   const eventResponse = await eventCreated;
   assert.equal(eventResponse.status(), 201);
   eventId = await eventResponse.json();
-  await expect(page.locator('.fc-event-title').filter({ hasText: name }).first()).toBeVisible();
-  await page.locator('.fc-event-title').filter({ hasText: name }).first().click();
-  await page.getByTitle('Delete event', { exact: true }).click();
-  await page.getByRole('button', { name: 'Delete', exact: true }).click();
-  await expect(page.locator('.fc-event-title').filter({ hasText: name })).toHaveCount(0);
+  await expect(planner.locator('.fc-event-title').filter({ hasText: name }).first()).toBeVisible();
+  await planner.locator('.fc-event-title').filter({ hasText: name }).first().click();
+  await planner.getByTitle('Delete event', { exact: true }).click();
+  await planner.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(planner.locator('.fc-event-title').filter({ hasText: name })).toHaveCount(0);
   eventId = null;
 
-  await page.getByRole('link', { name: 'ST home', exact: true }).click();
+  await planner.getByRole('link', { name: 'ST home', exact: true }).click();
   await expect(page).toHaveURL(base + '/');
   await expect(page.locator('nav a[data-view="projects"]')).toBeVisible();
   await page.goBack();
   await expect(page).toHaveURL(base + '/planner/calendar');
-  await expect(page.locator('.fc-view-harness')).toBeVisible();
+  await expect(planner.locator('.fc-view-harness')).toBeVisible();
   await page.reload();
-  await expect(page.locator('.fc-view-harness')).toBeVisible();
+  await expect(planner.locator('.fc-view-harness')).toBeVisible();
 
   const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const phone = await mobile.newPage();
+  const mobilePlanner = phone.frameLocator('#planner-frame');
   await phone.goto(base + '/planner/tasks');
-  await expect(phone.getByRole('button', { name: 'New task', exact: true })).toBeVisible();
-  await expect(phone.getByRole('banner').getByRole('link', { name: 'ST home', exact: true })).toBeInViewport();
-  await phone.getByRole('button', { name: 'Open menu', exact: true }).click();
-  await expect(phone.getByRole('link', { name: 'ST home', exact: true }).first()).toBeInViewport();
-  await phone.getByRole('link', { name: 'ST home', exact: true }).first().click();
+  await expect(mobilePlanner.getByRole('button', { name: 'New task', exact: true })).toBeVisible();
+  await expect(mobilePlanner.getByRole('banner').getByRole('link', { name: 'ST home', exact: true })).toBeInViewport();
+  await mobilePlanner.getByRole('button', { name: 'Open menu', exact: true }).click();
+  await expect(mobilePlanner.getByRole('link', { name: 'ST home', exact: true }).first()).toBeInViewport();
+  await mobilePlanner.getByRole('link', { name: 'ST home', exact: true }).first().click();
   await expect(phone).toHaveURL(base + '/');
   await phone.getByRole('link', { name: 'Calendar', exact: true }).click();
   await expect(phone).toHaveURL(base + '/planner/calendar');
-  await expect(phone.locator('.fc-view-harness')).toBeVisible();
+  await expect(mobilePlanner.locator('.fc-view-harness')).toBeVisible();
   if (process.env.ST_SCREENSHOTS) {
     await mkdir(process.env.ST_SCREENSHOTS, { recursive: true });
     await phone.waitForLoadState('networkidle');
     await phone.screenshot({ path: path.join(process.env.ST_SCREENSHOTS, 'st-mobile-calendar.png'), fullPage: true });
   }
-  await phone.getByRole('banner').getByRole('link', { name: 'ST home', exact: true }).click();
+  await mobilePlanner.getByRole('banner').getByRole('link', { name: 'ST home', exact: true }).click();
   await expect(phone).toHaveURL(base + '/');
   await mobile.close();
 
@@ -138,15 +169,15 @@ try {
   if (process.env.ST_SCREENSHOTS) {
     await mkdir(process.env.ST_SCREENSHOTS, { recursive: true });
     await page.goto(base + '/planner/tasks');
-    await expect(page.getByRole('button', { name: 'New task', exact: true })).toBeVisible();
+    await expect(planner.getByRole('button', { name: 'New task', exact: true })).toBeVisible();
     await page.waitForLoadState('networkidle');
     await page.screenshot({ path: path.join(process.env.ST_SCREENSHOTS, 'st-tasks.png'), fullPage: true });
     await page.goto(base + '/planner/calendar');
-    await expect(page.locator('.fc-view-harness')).toBeVisible();
+    await expect(planner.locator('.fc-view-harness')).toBeVisible();
     await page.waitForLoadState('networkidle');
     await page.screenshot({ path: path.join(process.env.ST_SCREENSHOTS, 'st-calendar.png'), fullPage: true });
   }
-  console.log('PASS: no-login Tasks/Calendar, task CRUD, event CRUD, reload/history, ST home, mobile and source download');
+  console.log('PASS: no-login Tasks/Calendar, task CRUD, event CRUD, shared edits on resume, persistent drafts/no warm downloads, reload/history, ST home, mobile and source download');
 } catch (error) {
   if (process.env.ST_SCREENSHOTS) {
     await mkdir(process.env.ST_SCREENSHOTS, { recursive: true });
