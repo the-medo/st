@@ -15,6 +15,7 @@
 .home-system > .home-section-label { margin: 0 0 18px; }
 .home-stat {
   --stat-color: #a99cf6;
+  display: block;
   padding: 16px 15px 12px;
   margin-bottom: 14px;
   background: linear-gradient(145deg, #1b1d2c, #141923 80%);
@@ -23,6 +24,8 @@
   overflow: hidden;
 }
 .home-cpu { --stat-color: #78b5ef; background: linear-gradient(145deg, #182331, #141923 80%); border-color: #29384b; }
+.home-stat:hover { border-color: var(--stat-color); }
+.home-stat:focus-visible { outline: 2px solid var(--stat-color); outline-offset: 4px; }
 .home-stat-heading { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
 .home-stat-heading h3 { margin: 0; color: var(--stat-color); font-size: 1.167rem; font-weight: 600; }
 .home-stat-heading > span { font-size: 1rem; color: var(--home-muted); }

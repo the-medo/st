@@ -44,10 +44,10 @@ const HomeDashboard = (() => {
     const system = snapshot?.system;
     const ram = valid(system?.memory_used) && valid(system?.memory_total) && system.memory_total > 0
       ? system.memory_used / system.memory_total * 100 : null;
-    get("home-ram-value").textContent = valid(ram) ? ram.toFixed(1) : "—";
+    get("home-ram-value").textContent = valid(ram) ? (system.memory_used / 1e9).toFixed(1) : "—";
     get("home-cpu-value").textContent = valid(system?.cpu_percent) ? system.cpu_percent.toFixed(1) : "—";
     get("home-ram-detail").textContent = valid(ram)
-      ? `${(system.memory_used / 1024 ** 3).toFixed(1)} / ${(system.memory_total / 1024 ** 3).toFixed(1)} GiB`
+      ? `of ${(system.memory_total / 1e9).toFixed(1)} GB · ${ram.toFixed(1)}%`
       : "Waiting for a sample";
     get("home-cpu-detail").textContent = valid(system?.cores) ? `${system.cores} logical cores` : "Waiting for a sample";
     const stale = !online || !snapshot || snapshot.stale || Date.now() / 1000 - snapshot.timestamp > Math.max(30, snapshot.interval * 3);

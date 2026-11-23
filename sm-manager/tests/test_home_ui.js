@@ -16,7 +16,7 @@ function dashboard(fetch) {
 }
 const snapshot = () => ({ timestamp: Date.now() / 1000, interval: 10, system: { memory_used: 8 * 1024 ** 3, memory_total: 32 * 1024 ** 3, cpu_percent: 12.5, cores: 12 } });
 
-test("missing metrics stay unknown; RAM percentage is whole-machine usage and stale readings are labelled", () => {
+test("missing metrics stay unknown; RAM leads with used GB and stale readings are labelled", () => {
   const { home, get } = dashboard();
   home.update(null, false);
   assert.equal(get("home-ram-value").textContent, "—");
@@ -24,7 +24,8 @@ test("missing metrics stay unknown; RAM percentage is whole-machine usage and st
   assert.match(get("home-metrics-status").textContent, /unavailable/);
   const data = snapshot();
   home.update(data);
-  assert.equal(get("home-ram-value").textContent, "25.0");
+  assert.equal(get("home-ram-value").textContent, "8.6");
+  assert.equal(get("home-ram-detail").textContent, "of 34.4 GB · 25.0%");
   assert.equal(get("home-cpu-value").textContent, "12.5");
   home.update({ ...data, timestamp: data.timestamp - 60 });
   assert.match(get("home-metrics-status").textContent, /Last known/);

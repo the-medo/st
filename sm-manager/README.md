@@ -17,8 +17,10 @@ is retained as the monitor backend and a compatibility command.
 ## Homepage
 
 The homepage keeps the sidebar and puts your services next to compact, live RAM
-and CPU charts. The charts show whole-machine percentages and 15 minutes of
-history. Links remain available if the monitor is still starting or offline.
+and CPU charts. RAM leads with used GB (decimal gigabytes), with total capacity
+and percentage below; CPU leads with its percentage. Both cards link to
+**Overview**. The charts show whole-machine percentages and 15 minutes of history.
+Links remain available if the monitor is still starting or offline.
 Click the **ST logo** to open this homepage (`#home`, also the default at `/`).
 **Overview** (`#overview`) opens the original dashboard with the full resource
 charts, machine health, allocation, cleanup candidates and process tables.
