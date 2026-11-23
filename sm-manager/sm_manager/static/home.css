@@ -85,7 +85,7 @@
 .service-open { flex-shrink: 0; color: var(--card-color); font-size: 1rem; opacity: .8; }
 .home-footnote { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--home-muted); font-size: 1.083rem; margin: 26px 0 0; line-height: 1.5; }
 .home-footnote svg { width: 18px; height: 18px; flex-shrink: 0; }
-#dashboard[data-view="overview"] > footer { display: none; }
+#dashboard[data-view="home"] > footer { display: none; }
 @media (min-width: 1800px) { .home { max-width: 1600px; margin-inline: auto; width: 100%; padding-top: 46px; } .service-card { min-height: 295px; } }
 @media (max-width: 1350px) { .home { padding-inline: 6px; } .home-layout { grid-template-columns: 172px minmax(0, 1fr); gap: 22px; } .service-grid { gap: 14px; } .service-card { padding: 20px 18px 0; } }
 @media (max-width: 1150px) { .service-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

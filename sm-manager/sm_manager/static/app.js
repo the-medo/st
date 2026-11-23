@@ -35,7 +35,7 @@ const state = {
   metric: "memory_bytes",
   scale: "usage",
   entity: "all",
-  view: "overview",
+  view: "home",
   workmode: false,
   collapsed: new Set(),
   selected: null,
@@ -53,8 +53,8 @@ const state = {
   storageError: null,
 };
 const views = {
+  home: "Home",
   overview: "Overview",
-  system: "System monitor",
   projects: "Projects",
   containers: "Containers",
   codex: "Codex",
@@ -69,7 +69,7 @@ function workScope() {
   return Workmode.scope(state.snapshot, state.zedGroups, state.dbCatalog?.connections || []);
 }
 function visibleProjects() {
-  return state.workmode && !["overview", "system"].includes(state.view) ? workScope().projects : state.snapshot.projects;
+  return state.workmode && !["home", "overview"].includes(state.view) ? workScope().projects : state.snapshot.projects;
 }
 function renderNavigationCounts() {
   if (!state.snapshot) return;
@@ -148,7 +148,7 @@ function metric(label, value, unit, caption, fill) {
   return `<article class="metric"><div class="metric-label">${label}</div><div class="metric-value numeric">${value}<small>${unit}</small></div><div class="metric-caption">${caption}</div>${fill !== undefined ? `<div class="mini-meter"><span style="width:${Math.max(0, Math.min(100, fill))}%"></span></div>` : ""}</article>`;
 }
 function renderMetrics() {
-  if (state.workmode && !["overview", "system"].includes(state.view)) {
+  if (state.workmode && !["home", "overview"].includes(state.view)) {
     const projects = workScope().projects;
     const trees = projects.flatMap((project) => project.worktrees);
     const memory = projects.reduce((sum, project) => sum + project.memory_bytes, 0);
@@ -529,7 +529,7 @@ function setView() {
   if (document.body.dataset.stView === "planner") return;
   const requested = location.hash.substring(1);
   state.workmode = Workmode.enabled(location.href);
-  state.view = views[requested] ? requested : "overview";
+  state.view = requested === "system" ? "overview" : (views[requested] ? requested : "home");
   if (state.workmode && ["faceplate", "air-quality"].includes(state.view)) {
     state.view = "overview";
     const url = new URL(location.href);
@@ -542,7 +542,7 @@ function setView() {
   document.querySelector(".brand-caption").hidden = state.workmode;
   document.querySelector(".sidebar-devices").hidden = state.workmode;
   document.querySelector('meta[name="theme-color"]').content = state.workmode ? "#19120e" : "#0d1117";
-  $("copy-report").hidden = state.view === "overview" || (state.workmode && state.view !== "system");
+  $("copy-report").hidden = state.view === "home" || (state.workmode && state.view !== "overview");
   if ($("detail-dialog").open) $("detail-dialog").close();
   if ($("db-chooser").open) $("db-chooser").close();
   $("breadcrumb-current").textContent = views[state.view];
@@ -553,9 +553,9 @@ function setView() {
     if (el.dataset.view === state.view) el.setAttribute("aria-current", "page");
     else el.removeAttribute("aria-current");
   });
-  $("home-section").hidden = state.view !== "overview";
-  $("overview-content").hidden = state.view !== "system";
-  $("project-section").hidden = !["system", "projects"].includes(state.view);
+  $("home-section").hidden = state.view !== "home";
+  $("overview-content").hidden = state.view !== "overview";
+  $("project-section").hidden = !["overview", "projects"].includes(state.view);
   $("containers-section").hidden = state.view !== "containers";
   $("codex-section").hidden = state.view !== "codex";
   $("storage-section").hidden = state.view !== "storage";
@@ -565,14 +565,14 @@ function setView() {
   $("air-quality-section").hidden = state.view !== "air-quality";
   if (state.view === "air-quality") refreshAirQuality();
   $("dbs-section").hidden = state.view !== "dbs";
-  $("dashboard").hidden = !state.snapshot && !["overview", "zed", "dbs", "faceplate", "air-quality"].includes(state.view);
+  $("dashboard").hidden = !state.snapshot && !["home", "zed", "dbs", "faceplate", "air-quality"].includes(state.view);
   $("loading").hidden = !$("dashboard").hidden;
-  $("host-section").hidden = state.view !== "system";
-  $("metrics").hidden = ["overview", "codex", "zed", "dbs", "faceplate", "air-quality"].includes(state.view);
+  $("host-section").hidden = state.view !== "overview";
+  $("metrics").hidden = ["home", "codex", "zed", "dbs", "faceplate", "air-quality"].includes(state.view);
   if (state.view === "storage" && state.snapshot) loadStorage();
   renderCatalogActions();
-  if (state.view === "system" && state.snapshot) void loadHistory();
-  if (state.view === "overview") void HomeDashboard.refresh(state.snapshot);
+  if (state.view === "overview" && state.snapshot) void loadHistory();
+  if (state.view === "home") void HomeDashboard.refresh(state.snapshot);
 }
 function historySources() {
   const projects = [...(state.snapshot?.projects || [])].sort((a, b) =>
@@ -878,7 +878,7 @@ function chartPointer(event) {
   showChartTooltip(chart.start + ratio * (chart.end - chart.start));
 }
 async function loadHistory() {
-  if (!state.snapshot || state.view !== "system") return;
+  if (!state.snapshot || state.view !== "overview") return;
   const request = ++state.historyRequest;
   const hours = state.hours,
     entity = state.entity;
@@ -1018,8 +1018,8 @@ async function refresh() {
     state.snapshot = await api("/api/snapshot");
     state.online = true;
     render();
-    if (state.view === "overview") await HomeDashboard.refresh(state.snapshot);
-    else if (state.view === "system") await loadHistory();
+    if (state.view === "home") await HomeDashboard.refresh(state.snapshot);
+    else if (state.view === "overview") await loadHistory();
   } catch (error) {
     state.online = false;
     updateConnection();

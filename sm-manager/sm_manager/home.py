@@ -38,7 +38,7 @@ def service_cards(config):
     services.extend([
         dict(name="Air quality", url="/#air-quality", description="CO₂, temperature and the air around you.", category="Breathe", icon="air", tone="mint", destination="Indoor environment"),
         dict(name="Faceplate", url="/#faceplate", description="Your room display, with night mode a tap away.", category="At home", icon="screen", tone="blue", destination="Room display"),
-        dict(name="System monitor", url="#system", description="Projects, containers and the machine behind it all.", category="Under the hood", icon="system", tone="slate", destination="Resources & activity"),
+        dict(name="System monitor", url="#overview", description="Projects, containers and the machine behind it all.", category="Under the hood", icon="system", tone="slate", destination="Resources & activity"),
     ])
     cards = []
     for service in services:

@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#0d1117" />
     <meta name="color-scheme" content="dark" />
     <meta name="application-name" content="ST" />
-    <title>ST · Overview</title>
+    <title>ST · Home</title>
     <link rel="icon" href="/favicon.svg?v=st-chiseled-1" type="image/svg+xml" sizes="any" />
     <link rel="stylesheet" href="/style.css" />
     <link rel="stylesheet" href="/home.css" />
@@ -21,13 +21,13 @@
   <body data-st-view="console">
     <div id="st-console">
     <aside class="sidebar">
-      <a href="#overview" class="brand" aria-label="ST home" title="ST · System console">
+      <a href="#home" data-view="home" class="brand" aria-label="ST home" title="ST · System console">
         <img src="/st-logo.svg?v=st-chiseled-1" width="86" height="48" alt="" />
         <span class="brand-caption">SYSTEM CONSOLE</span>
         <img class="workmode-logo" src="/ydistri.svg" width="78" height="15" alt="Ydistri" hidden />
       </a>
       <nav aria-label="Main navigation">
-        <a href="#overview" data-view="overview" class="nav-link active"
+        <a href="#overview" data-view="overview" class="nav-link"
           ><span class="nav-icon" aria-hidden="true">◫</span> Overview</a
         >
         <a href="#projects" data-view="projects" class="nav-link"
@@ -92,7 +92,7 @@
       <header class="topbar">
         <h1>
           <span class="breadcrumb">ST</span><span class="slash">/</span
-          ><span id="breadcrumb-current">Overview</span>
+          ><span id="breadcrumb-current">Home</span>
         </h1>
         <div class="topbar-actions">
           <div class="connection" id="connection" role="status">
@@ -106,7 +106,7 @@
         <span class="loader"></span>
         <p>Collecting resource metrics…</p>
       </div>
-      <div id="dashboard" data-view="overview">
+      <div id="dashboard" data-view="home">
         <section id="home-section" class="home" aria-label="Home dashboard">
           <div class="home-layout">
             <aside class="home-system" aria-labelledby="home-system-title">
@@ -126,7 +126,7 @@
                 <div class="home-stat-footer"><span>Last 15 min</span><span>0–100%</span></div>
               </article>
               <p id="home-metrics-status" class="home-metrics-status" role="status">Connecting to monitor…</p>
-              <a class="home-monitor-link" href="#system">View system monitor</a>
+              <a class="home-monitor-link" href="#overview">View system monitor</a>
             </aside>
             <section class="home-services" aria-labelledby="home-services-title">
               <div class="home-services-heading"><h2 id="home-services-title" class="home-section-label">Your services</h2><span>A place for everything.</span></div>

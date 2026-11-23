@@ -19,8 +19,11 @@ is retained as the monitor backend and a compatibility command.
 The homepage keeps the sidebar and puts your services next to compact, live RAM
 and CPU charts. The charts show whole-machine percentages and 15 minutes of
 history. Links remain available if the monitor is still starting or offline.
-The **System monitor** card (or `#system`) opens the full resource charts,
-machine health, allocation, cleanup candidates and process tables.
+Click the **ST logo** to open this homepage (`#home`, also the default at `/`).
+**Overview** (`#overview`) opens the original dashboard with the full resource
+charts, machine health, allocation, cleanup candidates and process tables.
+The **System monitor** card opens that same Overview; existing `#system` links
+remain an alias for it.
 
 Prusa Local uses `printer_url`; Planner appears when DAVe is configured.
 Air quality, Faceplate and System monitor are built in. Add other services to

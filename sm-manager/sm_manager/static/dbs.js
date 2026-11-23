@@ -2,7 +2,7 @@ const dbIcon = '<img src="/db.svg" alt="" width="16" height="16">';
 
 function dbMatches(path, ownerKey) {
   if (!path || !state.dbCatalog || state.dbCatalog.stale) return [];
-  const connections = state.workmode && !["overview", "system"].includes(state.view) ? workScope().connections : state.dbCatalog.connections;
+  const connections = state.workmode && !["home", "overview"].includes(state.view) ? workScope().connections : state.dbCatalog.connections;
   return connections.filter((db) =>
     db.owner?.[ownerKey] === path && db.status === "available" && db.cloudbeaver_url
   );

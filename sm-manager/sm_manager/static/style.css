@@ -309,7 +309,7 @@ h1 {
   grid-template-columns: minmax(0, 1fr);
   gap: 14px;
 }
-#dashboard[data-view="system"] {
+#dashboard[data-view="overview"] {
   grid-template-columns: minmax(0, 1fr) 270px;
 }
 .metrics,
@@ -1714,7 +1714,7 @@ dialog::backdrop {
   border: 0;
 }
 @media (max-width: 1250px) {
-  #dashboard[data-view="system"] {
+  #dashboard[data-view="overview"] {
     grid-template-columns: minmax(0, 1fr);
   }
   .overview-grid {

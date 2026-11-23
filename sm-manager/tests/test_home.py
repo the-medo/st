@@ -21,7 +21,7 @@ class HomeTests(unittest.TestCase):
     def test_configured_services_and_optional_integrations(self):
         html = service_cards({"home_links": [{"name": "Books", "url": "https://books.example.com", "icon": "headphones", "tone": "amber"}], "printer_url": "https://print.example.com", "dave_port": 18647})
         links = Links(html).links
-        self.assertEqual([link["href"] for link in links], ["https://books.example.com", "https://print.example.com", "/planner/tasks", "/#air-quality", "/#faceplate", "#system"])
+        self.assertEqual([link["href"] for link in links], ["https://books.example.com", "https://print.example.com", "/planner/tasks", "/#air-quality", "/#faceplate", "#overview"])
         for link in links[:2]:
             self.assertEqual(link["target"], "_blank")
             self.assertEqual(link["rel"], "noopener noreferrer")

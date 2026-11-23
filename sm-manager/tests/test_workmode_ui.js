@@ -132,6 +132,35 @@ function dashboard() {
   return ui;
 }
 
+test("home and Overview remain separate routes, including direct and legacy links", () => {
+  const ui = dashboard();
+  for (const hash of ["", "#home", "#missing"]) {
+    ui.location = new URL(`https://monitor.example/${hash}`);
+    ui.setView();
+    assert.equal(ui.state.view, "home");
+    assert.equal(ui.$("breadcrumb-current").textContent, "Home");
+    assert.equal(ui.$("home-section").hidden, false);
+    assert.equal(ui.$("overview-content").hidden, true);
+    assert.equal(ui.$("project-section").hidden, true);
+    assert.equal(ui.$("host-section").hidden, true);
+    assert.equal(ui.$("metrics").hidden, true);
+    assert.equal(ui.$("dashboard").hidden, false, "home links work without a snapshot");
+  }
+  for (const hash of ["#overview", "#system"]) {
+    ui.location = new URL(`https://monitor.example/${hash}`);
+    ui.setView();
+    assert.equal(ui.state.view, "overview");
+    assert.equal(ui.$("breadcrumb-current").textContent, "Overview");
+    assert.equal(ui.$("home-section").hidden, true);
+    for (const id of ["overview-content", "project-section", "host-section", "metrics", "copy-report"])
+      assert.equal(ui.$(id).hidden, false, `${id} belongs to Overview`);
+  }
+  ui.location = new URL("https://monitor.example/#home");
+  ui.setView();
+  assert.equal(ui.$("home-section").hidden, false);
+  assert.equal(ui.$("overview-content").hidden, true);
+});
+
 test("project, container, and storage views switch scope without changing the overview snapshot", () => {
   const ui = dashboard();
   const projects = [project("work", "/dev/ydistri/app"), project("personal", "/dev/personal")];

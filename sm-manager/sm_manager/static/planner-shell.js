@@ -13,7 +13,6 @@
   let framePath;
   let requestedPath;
   let loadTimer;
-  let consoleUrl = "/";
   let consoleScroll = 0;
   let returnFocus;
 
@@ -70,7 +69,6 @@
       else if (ready && framePath !== path) send("st:navigate", { path });
       if (ready && !wasPlanner) frame.focus();
     } else {
-      consoleUrl = location.pathname + location.search + location.hash;
       document.body.dataset.stView = "console";
       consoleView.inert = false;
       plannerView.hidden = true;
@@ -84,9 +82,13 @@
   }
   function navigate(path, replace = false) {
     const current = location.pathname + location.search + location.hash;
-    if (!plannerPath(current)) consoleUrl = current;
     if (path !== current) history[replace ? "replaceState" : "pushState"](null, "", path);
     render();
+  }
+  function goHome() {
+    consoleScroll = 0;
+    returnFocus = consoleView.querySelector(".brand");
+    navigate("/");
   }
   document.addEventListener("click", (event) => {
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -100,14 +102,14 @@
       navigate(path);
     } else if (link.closest("#st-planner") && url.pathname === "/") {
       event.preventDefault();
-      navigate(consoleUrl);
+      goHome();
     }
   });
   window.addEventListener("message", (event) => {
     if (event.origin !== location.origin || event.source !== frame?.contentWindow) return;
     const data = event.data;
     if (!data || typeof data !== "object") return;
-    if (data.type === "st:home") return navigate(consoleUrl);
+    if (data.type === "st:home") return goHome();
     const path = plannerPath(data.path);
     if (!path) return;
     if (data.type === "st:ready") {
