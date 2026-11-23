@@ -27,6 +27,7 @@ def load_config(path=None):
         "air_quality_device": "",
         "cloudbeaver_host": "",
         "printer_url": "",
+        "home_links": [],
         "dave_port": None,
         "dave_credentials_path": "",
         "dave_source_archive": "",

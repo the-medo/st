@@ -126,7 +126,7 @@ function dashboard() {
   };
   ui.history = { replaceState(_state, _unused, url) { ui.location = new URL(url); } };
   vm.createContext(ui);
-  for (const name of ["workmode", "dbs", "app"])
+  for (const name of ["workmode", "dbs", "home", "app"])
     vm.runInContext(readFileSync(join(__dirname, `../sm_manager/static/${name}.js`), "utf8"), ui);
   vm.runInContext("this.state = state; this.$ = $;", ui);
   return ui;

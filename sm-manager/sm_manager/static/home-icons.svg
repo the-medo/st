@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+  <symbol id="headphones" viewBox="0 0 48 48">
+    <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 27v-5a16 16 0 0 1 32 0v5M13 24h-3a4 4 0 0 0-4 4v7a4 4 0 0 0 4 4h3zm22 0h3a4 4 0 0 1 4 4v7a4 4 0 0 1-4 4h-3zM19 22v12m5-17v22m5-17v12"/>
+    </g>
+  </symbol>
+  <symbol id="printer" viewBox="0 0 48 48">
+    <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 38V8h32v30M5 39h38v5H5zM8 16h32M24 16v6m-4 0h8l-4 6zM17 38v-7l7-4 7 4v7m-14-7 7 4 7-4m-7 4v4M35 8v8"/>
+    </g>
+  </symbol>
+  <symbol id="calendar" viewBox="0 0 48 48">
+    <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="7" y="10" width="34" height="32" rx="5"/><path d="M15 6v8m18-8v8M7 21h34M16 31l5 5 11-10"/>
+    </g>
+  </symbol>
+  <symbol id="air" viewBox="0 0 48 48">
+    <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 18h21a6 6 0 1 0-6-6M4 25h33a6 6 0 1 0-6-6M9 32h17a5 5 0 1 1-5 5M7 11h7"/>
+    </g>
+  </symbol>
+  <symbol id="screen" viewBox="0 0 48 48">
+    <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="5" y="7" width="38" height="29" rx="4"/><path d="M17 43h14m-7-7v7M11 29h26M17 21a7 7 0 0 1 14 0M24 11v3"/>
+    </g>
+  </symbol>
+  <symbol id="system" viewBox="0 0 48 48">
+    <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="12" y="12" width="24" height="24" rx="4"/><rect x="19" y="19" width="10" height="10" rx="2"/>
+      <path d="M18 5v7m12-7v7M18 36v7m12-7v7M5 18h7m-7 12h7m24-12h7m-7 12h7"/>
+    </g>
+  </symbol>
+  <symbol id="link" viewBox="0 0 48 48">
+    <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m19 17 7-7a9 9 0 0 1 12 12l-7 7m-2 2-7 7a9 9 0 0 1-12-12l7-7m1 11 12-12"/>
+    </g>
+  </symbol>
+</svg>

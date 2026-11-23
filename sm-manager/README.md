@@ -14,6 +14,40 @@ The shared `st` CLI covers the assistant, photos, system status and screen
 control. Python package, service and configuration names remain stable; `sm`
 is retained as the monitor backend and a compatibility command.
 
+## Homepage
+
+The homepage keeps the sidebar and puts your services next to compact, live RAM
+and CPU charts. The charts show whole-machine percentages and 15 minutes of
+history. Links remain available if the monitor is still starting or offline.
+The **System monitor** card (or `#system`) opens the full resource charts,
+machine health, allocation, cleanup candidates and process tables.
+
+Prusa Local uses `printer_url`; Planner appears when DAVe is configured.
+Air quality, Faceplate and System monitor are built in. Add other services to
+`home_links` in the private `~/.config/sm-manager/config.json`, then restart the
+monitor. Entries appear before the built-in services, in configuration order:
+
+```json
+{
+  "home_links": [
+    {
+      "name": "Audiobookshelf",
+      "url": "https://books.example.com",
+      "description": "Audiobooks, podcasts and your next chapter.",
+      "category": "Listen",
+      "icon": "headphones",
+      "tone": "amber"
+    }
+  ]
+}
+```
+
+`name` and an HTTPS `url` without embedded credentials are required. Other fields
+are optional. Icons: `headphones`, `printer`, `calendar`, `air`, `screen`, `system`,
+`link`. Tones: `amber`, `coral`, `violet`, `mint`, `blue`, `slate`. Unknown icon/tone
+values fall back to `link`/`slate`; invalid links are skipped. External services
+open in a new tab. No external icons, fonts or service-status checks are loaded.
+
 ## What it does
 
 - Groups running processes and containers by Git repository and worktree.

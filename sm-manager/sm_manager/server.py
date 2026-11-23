@@ -17,6 +17,7 @@ from .collector import Collector, cleanup_plan
 from .air_quality import AirQuality
 from .dbs import read_db_catalog
 from .history import RETENTION_HOURS
+from .home import service_cards
 from .zed import read_catalog
 from .night_mode import request as night_request
 from .dave import DaveBridge, DaveUnavailable, MAX_BODY, MAX_RESPONSE, PAGES, PREFIX, upstream_path
@@ -312,6 +313,7 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
                 return self.respond(404, {"error": "Not found"})
             name = {"/": "index.html", "/app.js": "app.js", "/style.css": "style.css",
                     "/favicon.svg": "favicon.svg", "/st-logo.svg": "st-logo.svg",
+                    "/home.css": "home.css", "/home.js": "home.js", "/home-icons.svg": "home-icons.svg",
                     "/workmode.js": "workmode.js", "/ydistri.svg": "ydistri.svg",
                     "/zed.svg": "zed.svg", "/db.svg": "db.svg",
                     "/prusa-connect.svg": "prusa-connect.svg",
@@ -330,6 +332,7 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
                 printer = config.get("printer_url", "")
                 link = 'href="' + escape(printer, quote=True) + '"' if printer.startswith("https://") else "hidden"
                 body = body.replace(b"data-printer-link", link.encode())
+                body = body.replace(b"<!-- home-service-links -->", service_cards(config).encode())
             return self.respond(200, body, mime + ("; charset=utf-8" if mime.startswith("text/") else ""),
                                 cache="no-store" if name == "index.html" else "private, no-cache")
 

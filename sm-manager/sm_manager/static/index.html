@@ -9,11 +9,13 @@
     <title>ST · Overview</title>
     <link rel="icon" href="/favicon.svg?v=st-chiseled-1" type="image/svg+xml" sizes="any" />
     <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/home.css" />
     <script src="/workmode.js" defer></script>
     <script src="/dbs.js" defer></script>
     <script src="/air-quality.js" defer></script>
     <script src="/night-mode.js" defer></script>
     <script src="/planner-shell.js" defer></script>
+    <script src="/home.js" defer></script>
     <script src="/app.js" defer></script>
   </head>
   <body data-st-view="console">
@@ -96,21 +98,54 @@
           <div class="connection" id="connection" role="status">
             <span class="status-dot"></span><span>Connecting</span>
           </div>
-          <button class="button" id="copy-report">Copy system report</button>
+          <button class="button" id="copy-report" hidden>Copy system report</button>
         </div>
       </header>
       <div id="warnings" aria-live="polite"></div>
-      <div id="loading" class="loading">
+      <div id="loading" class="loading" hidden>
         <span class="loader"></span>
         <p>Collecting resource metrics…</p>
       </div>
-      <div id="dashboard" data-view="overview" hidden>
+      <div id="dashboard" data-view="overview">
+        <section id="home-section" class="home" aria-labelledby="home-title">
+          <header class="home-heading">
+            <div><p class="home-eyebrow"><span aria-hidden="true"></span> YOUR HOME BASE</p><h2 id="home-title">Everything at home.</h2><p class="home-intro">Your services, all in one place.</p></div>
+            <time id="home-date" class="home-date"></time>
+          </header>
+          <div class="home-layout">
+            <aside class="home-system" aria-labelledby="home-system-title">
+              <h3 id="home-system-title" class="home-section-label">At a glance</h3>
+              <article class="home-stat home-ram" aria-labelledby="home-ram-title">
+                <div class="home-stat-heading"><h4 id="home-ram-title">RAM</h4><span>Memory</span></div>
+                <div class="home-stat-value"><span id="home-ram-value">—</span><small>%</small></div>
+                <p id="home-ram-detail" class="home-stat-detail">Waiting for a sample</p>
+                <div id="home-ram-chart" class="home-sparkline" role="img" aria-label="RAM history is loading"></div>
+                <div class="home-stat-footer"><span>Last 15 min</span><span>0–100%</span></div>
+              </article>
+              <article class="home-stat home-cpu" aria-labelledby="home-cpu-title">
+                <div class="home-stat-heading"><h4 id="home-cpu-title">CPU</h4><span>Processor</span></div>
+                <div class="home-stat-value"><span id="home-cpu-value">—</span><small>%</small></div>
+                <p id="home-cpu-detail" class="home-stat-detail">Waiting for a sample</p>
+                <div id="home-cpu-chart" class="home-sparkline" role="img" aria-label="CPU history is loading"></div>
+                <div class="home-stat-footer"><span>Last 15 min</span><span>0–100%</span></div>
+              </article>
+              <p id="home-metrics-status" class="home-metrics-status" role="status">Connecting to monitor…</p>
+              <a class="home-monitor-link" href="#system">View system monitor</a>
+            </aside>
+            <section class="home-services" aria-labelledby="home-services-title">
+              <div class="home-services-heading"><h3 id="home-services-title" class="home-section-label">Your services</h3><span>A place for everything.</span></div>
+              <div class="service-grid"><!-- home-service-links --></div>
+              <p class="home-footnote"><svg viewBox="0 0 48 48" aria-hidden="true"><use href="/home-icons.svg#link"></use></svg> A few familiar places. One starting point.</p>
+            </section>
+          </div>
+        </section>
         <section
           class="metrics"
           id="metrics"
+          hidden
           aria-label="Machine statistics"
         ></section>
-        <div id="overview-content">
+        <div id="overview-content" hidden>
           <section class="panel machine-health" aria-labelledby="health-title">
             <div class="panel-heading"><h2 id="health-title">Machine health</h2><span class="subtle-tag" id="health-meta">Checking…</span></div>
             <div id="machine-health" class="health-grid"></div>
@@ -207,7 +242,7 @@
             <div class="allocation-note" id="cleanup-summary">Review low-activity apps before stopping them.</div>
           </section>
         </div>
-        <section id="project-section" class="project-section">
+        <section id="project-section" class="project-section" hidden>
           <div class="section-heading">
             <h2>
               Projects <span class="count-pill" id="project-count">0</span>
@@ -394,7 +429,7 @@
           <p class="inline-note">Scan a project to measure its worktrees, dependencies, build caches, and associated Docker storage. Results are cached; nothing is deleted.</p>
           <div id="storage-projects"></div>
         </section>
-        <section id="host-section" class="host-section">
+        <section id="host-section" class="host-section" hidden>
           <div class="section-heading">
             <h2>Host processes</h2>
             <span class="subtle-tag">UNASSIGNED</span>
