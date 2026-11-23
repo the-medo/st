@@ -6,7 +6,6 @@ const HomeDashboard = (() => {
   let historyError = false;
   let loading = false;
   let lastSample = null;
-  let dateLabel = "";
 
   function sparkline(points, metric, capacity, now, bucket = 10) {
     const start = now - 900;
@@ -42,13 +41,6 @@ const HomeDashboard = (() => {
   }
 
   function update(snapshot, online = true) {
-    const date = new Date();
-    const label = date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
-    if (dateLabel !== label) {
-      get("home-date").textContent = label;
-      get("home-date").dateTime = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-      dateLabel = label;
-    }
     const system = snapshot?.system;
     const ram = valid(system?.memory_used) && valid(system?.memory_total) && system.memory_total > 0
       ? system.memory_used / system.memory_total * 100 : null;
