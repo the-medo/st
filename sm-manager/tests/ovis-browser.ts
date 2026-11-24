@@ -110,6 +110,31 @@ try {
     .getByRole("button", { name: "Fixture conversation", exact: true })
     .click();
   await page.locator(".composer-text:visible").waitFor();
+  const conversations = page.locator(".medo-sidebar-head");
+  await conversations
+    .getByRole("button", { name: "Hide workspace list", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Show workspace list", exact: true })
+    .click();
+  await conversations.waitFor();
+  assert.equal(
+    await page.locator(".st-topbar, .st-ovis-root .header-side .brand").count(),
+    0,
+  );
+  assert.equal(
+    await page
+      .getByRole("navigation", { name: "Main navigation" })
+      .getByRole("link")
+      .first()
+      .textContent(),
+    "Agents",
+  );
+  assert(
+    (await conversations.boundingBox())!.y < 4,
+    "Conversations starts at the top of the sidebar",
+  );
+
   await page.locator('.st-ovis-root[style*="--bg: #0d1117;"]').waitFor();
   assert.equal(
     await page.evaluate(
@@ -182,6 +207,19 @@ try {
       .evaluate((el) => el.getBoundingClientRect().bottom <= innerHeight + 1),
     "Ovis fits below the restored mobile navigation",
   );
+  await page
+    .getByRole("button", { name: "Open workspace list", exact: true })
+    .click();
+  const drawer = page.getByRole("dialog", {
+    name: "Workspace list",
+    exact: true,
+  });
+  await drawer.waitFor();
+  await drawer
+    .locator(".medo-sidebar-head")
+    .getByRole("button", { name: "Close workspace list", exact: true })
+    .click();
+  await drawer.waitFor({ state: "hidden" });
   const evidence = process.env.ST_V2_EVIDENCE;
   if (evidence)
     await page.screenshot({

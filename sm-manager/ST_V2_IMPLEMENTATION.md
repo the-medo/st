@@ -812,3 +812,12 @@ Linux subtitle. The centered ST logo has no caption, and Agents is the first
 navigation destination with a bot icon. Copy report remains in Overview's
 Machine health panel. TypeScript, production build and both console/Ovis demo
 browser checks passed, including mobile navigation and chart tooltips.
+
+## Compact Agents sidebar — 2026-11-24
+
+The hosted Conversations row starts at the top of the sidebar and contains its
+collapse control, without Ovis branding or a second New workspace action.
+Collapsed and phone layouts retain their open/close controls; standalone Ovis
+keeps its own header. Demo browser checks cover collapsing, reopening, mobile
+drawers, chat/terminal switching, settings and unsent draft retention. Private
+before/after screenshots were captured from synthetic demo conversations.

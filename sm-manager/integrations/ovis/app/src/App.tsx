@@ -248,7 +248,8 @@ function Brand() {
 export function App() {
   const t = useT();
   const apple = /Mac|iPhone|iPad/.test(navigator.platform);
-  const { settings, resolvedTheme, resolvedEntry, update: updateSettings } = useSettings();
+  const { settings, resolvedTheme, resolvedEntry, hostAppearance, update: updateSettings } = useSettings();
+  const stConversations = hostAppearance !== undefined && import.meta.env.VITE_MEDO_PROJECTS === "1";
   const hiddenMachines = useHiddenMachines();
   const { alerts, alertsRef, alertsOn, alertsOnRef } = useAlertPrefs({ settings });
   const { machineSessions, machines, setMachines, machineRosterLoaded, setMachineRosterLoaded } = useRosterState();
@@ -918,7 +919,7 @@ export function App() {
     return (
       <div className="app">
         <header className="app-header">
-          <Brand />
+          {!stConversations && <Brand />}
         </header>
         <div className="app-body">
           <aside className="sidebar">
@@ -983,15 +984,28 @@ export function App() {
       onClose={() => setFilesOpen(false)} />
   );
 
+  const sidebarToggle = <button
+            type="button"
+            className="icon-button header-desktop-only sidebar-toggle"
+            aria-label={t(sidebarCollapsed ? "Show workspace list" : "Hide workspace list")}
+            aria-pressed={!sidebarCollapsed}
+            title={shortcutTitle(t("Toggle sidebar"), "toggle-sidebar")}
+            onClick={() => { actions.counted?.("sidebar", "button"); setSidebarCollapsed((collapsed) => !collapsed); }}
+            ref={peekToggleRef}
+            {...peekToggleHandlers}
+          >
+            <PanelLeft />
+          </button>;
+
   return (
-    <MachineSessionsProvider sessions={machineSessions} machineIds={machines.map((machine) => machine.id)}><MachineContext.Provider value={selectedMachineId}><AppLayoutContext.Provider value={appLayout}><div className={`app${(inMode ? !inboxWide : sidebarCollapsed) ? " sidebar-collapsed" : ""}${inMode ? " is-inbox" : ""}${listScreen ? " is-inbox-list" : ""}${inboxWide ? " is-inbox-wide" : ""}${inboxWide && !inbox.shown && selectedPane !== null && !chatShown ? " is-inbox-terminal" : ""}${tabRoom ? " is-inbox-tab-room" : ""}`} style={sidebarWidth === null && filePanelWidth === null ? undefined : {
+    <MachineSessionsProvider sessions={machineSessions} machineIds={machines.map((machine) => machine.id)}><MachineContext.Provider value={selectedMachineId}><AppLayoutContext.Provider value={appLayout}><div className={`app${stConversations ? " st-host-conversations" : ""}${(inMode ? !inboxWide : sidebarCollapsed) ? " sidebar-collapsed" : ""}${inMode ? " is-inbox" : ""}${listScreen ? " is-inbox-list" : ""}${inboxWide ? " is-inbox-wide" : ""}${inboxWide && !inbox.shown && selectedPane !== null && !chatShown ? " is-inbox-terminal" : ""}${tabRoom ? " is-inbox-tab-room" : ""}`} style={sidebarWidth === null && filePanelWidth === null ? undefined : {
       ...(sidebarWidth === null ? {} : { "--sidebar-user-w": `${sidebarWidth}px` }),
       ...(filePanelWidth === null ? {} : { "--file-panel-user-w": `${filePanelWidth}px` }),
     } as CSSProperties}>
       {selectedPane !== null && !guideShown && !inbox.shown && <h1 className="visually-hidden">{selectedTitle}</h1>}
       {listScreen || inboxWide ? null : <header className={`app-header is-zoned${chatShown ? " is-chat" : ""}${stripInHeader && !phoneTabRow ? " has-tab-row" : ""}${phoneTabRow && stripInHeader ? " has-phone-tabs" : ""}`}>
         <div className="header-side">
-          {wideScreen && !sidebarCollapsed && !inMode && <SidebarBrand dark={resolvedTheme === "dark"} />}
+          {!stConversations && wideScreen && !sidebarCollapsed && !inMode && <SidebarBrand dark={resolvedTheme === "dark"} />}
           {inboxBack ? <button type="button" id="inbox-back" className="icon-button inbox-back" aria-label={t("Back")} title={t("Back")} onClick={inbox.back}><ChevronLeft /></button> : <button
             type="button"
             id="drawer-toggle"
@@ -1006,26 +1020,15 @@ export function App() {
               toggleDrawerByButton(event.timeStamp);
             }}
           >
-            {drawerHead ? <OvisMark width="22" height="22" /> : drawerOpen ? <X /> : <Menu />}
+            {drawerHead && !stConversations ? <OvisMark width="22" height="22" /> : drawerOpen ? <X /> : <Menu />}
           </button>}
-          {!inMode && wideScreen && !sidebarCollapsed && settings.sidebarRows !== "two" && <button type="button" className="icon-button new-workspace-button" disabled={viewOnly(selectedMachineId) || selectedMachine?.state !== "connected"} aria-label={t("New workspace")} title={viewOnly(selectedMachineId) ? `${t("New workspace")} · ${t("View only")}` : t("New workspace")} onClick={() => { actions.counted?.("new_workspace", "button"); actions.openNewSession(); }}>
+          {!stConversations && !inMode && wideScreen && !sidebarCollapsed && settings.sidebarRows !== "two" && <button type="button" className="icon-button new-workspace-button" disabled={viewOnly(selectedMachineId) || selectedMachine?.state !== "connected"} aria-label={t("New workspace")} title={viewOnly(selectedMachineId) ? `${t("New workspace")} · ${t("View only")}` : t("New workspace")} onClick={() => { actions.counted?.("new_workspace", "button"); actions.openNewSession(); }}>
             <Plus aria-hidden="true" />
           </button>}
           {!inMode && <button type="button" className="icon-button palette-button" aria-label={t("Command palette")} title={shortcutTitle(t("Command palette"), "palette")} onClick={() => openPalette()}>
             <Search />
           </button>}
-          {!inMode && <button
-            type="button"
-            className="icon-button header-desktop-only sidebar-toggle"
-            aria-label={t(sidebarCollapsed ? "Show workspace list" : "Hide workspace list")}
-            aria-pressed={!sidebarCollapsed}
-            title={shortcutTitle(t("Toggle sidebar"), "toggle-sidebar")}
-            onClick={() => { actions.counted?.("sidebar", "button"); setSidebarCollapsed((collapsed) => !collapsed); }}
-            ref={peekToggleRef}
-            {...peekToggleHandlers}
-          >
-            <PanelLeft />
-          </button>}
+          {!inMode && !(stConversations && wideScreen && !sidebarCollapsed) && sidebarToggle}
         </div>
         <HeaderNote note={herdrPrefixWaiting ? t("herdr prefix: press a key") : note} />
         {stripInHeader ? (
@@ -1056,7 +1059,7 @@ export function App() {
               <ChevronDown aria-hidden="true" />
             </button>}
           </div>
-        ) : note !== null ? null : inbox.shown ? <Brand /> : inMode && selectedPane ? (
+        ) : note !== null ? null : inbox.shown ? (stConversations ? null : <Brand />) : inMode && selectedPane ? (
           <ThreadTitle machines={machines} activity={activity} machineId={selectedMachineId} pane={selectedPane} connection={headerConnection} watching={viewOnly(selectedMachineId)} severalPcs={sidebarMachines.length > 1} />
         ) : selectedPane && crumb && drawerHead ? (
           <DrawerHeadTitle machine={crumb.machine} workspace={crumb.workspace} connection={headerConnection} watching={viewOnly(selectedMachineId)} />
@@ -1095,7 +1098,7 @@ export function App() {
             )}
           </div>
         ) : (
-          <><Brand /><span className="machine-context-name">{selectedMachine?.name ?? selectedMachineId}</span></>
+          <>{!stConversations && <Brand />}<span className="machine-context-name">{selectedMachine?.name ?? selectedMachineId}</span></>
         )}
         {selectedPane && (isSheetWidth || inMode) && !inbox.shown && (
           <LensToggle view={view} peek={terminalPeek !== null} terminalAttach={terminalAttach} thread={inMode}
@@ -1177,6 +1180,7 @@ export function App() {
           <RenderBoundary resetKey={null} fallback={(retry) => <RegionCrash message={t("The sidebar can't be shown.")} retry={retry} />}>
             <CrashProbe region="sidebar" />
             {import.meta.env.VITE_MEDO_PROJECTS === "1" ? <MedoProjects selectedPaneId={selectedPaneId}
+              headerActions={stConversations ? (wideScreen ? (!sidebarCollapsed && sidebarToggle) : <button type="button" aria-label={t("Close workspace list")} title={t("Close workspace list")} onClick={() => setDrawerOpen(false)}><X size={18} /></button>) : undefined}
               onOpen={async (paneId) => { await load(); selectTarget("local", paneId, "chat"); setDrawerOpen(false); }}
               onNew={(project) => { setNewPrefill(project ? { cwd: project.path, name: null, agent: "codex" } : null); openNewOn("local"); }}
               onSettings={actions.openSettings} /> : <ReorderContext.Provider value={reorderCoordinator}><MachineSidebar machines={sidebarMachines} allMachines={machines} watching={auth?.role === "watch"} appLayout={appLayoutOn} drawerOpen={drawerOpen} filterRequest={sidebarFilterRequest} selectedMachineId={selectedMachineId} selectedPaneId={selectedPaneId} activity={activity} actions={actions} onSelect={selectTarget} onUsageLogin={(paneId) => { selectTarget("local", paneId, "terminal"); void load(); }} onSetup={(machine, update = false) => { setUpdateRemote(update); setMachineDialog(machine); }} onNew={openNewOn}

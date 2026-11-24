@@ -23,7 +23,8 @@ export function MedoDialog({ title, children, onClose, wide = false }: { title: 
     <header><h2>{title}</h2><button aria-label="Close" onClick={onClose}><X size={18} /></button></header>{children}
   </div></div>, document.body);
 }
-export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings }: {
+export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, headerActions }: {
+  headerActions?: ReactNode;
   selectedPaneId: string | null; onOpen: (paneId: string) => Promise<void>; onNew: (project?: MedoProject) => void; onSettings: () => void;
 }) {
   const [catalog, setCatalog] = useState<MedoCatalog | null>(null);
@@ -87,7 +88,7 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings }: {
   };
   const currentEdit = edit && (catalog?.projects.find((project) => project.id === edit.id) ?? edit);
   return <div className="medo-projects">
-    <div className="medo-sidebar-head"><strong>Conversations</strong><button aria-label="New conversation" title="New conversation" onClick={() => setNewProject(true)}><Plus size={18} /></button></div>
+    <div className="medo-sidebar-head"><strong>Conversations</strong><div className="medo-sidebar-actions">{headerActions}<button aria-label="New conversation" title="New conversation" onClick={() => setNewProject(true)}><Plus size={18} /></button></div></div>
     <label className="medo-search"><Search size={15} /><input aria-label="Search conversations" placeholder="Search conversations" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
     {error && <div className="medo-error" role="alert">{error}<button onClick={() => void refresh()}>Retry</button></div>}
     <div className="medo-project-scroll">{!catalog && !error && <p className="medo-muted">Loading projects…</p>}

@@ -6466,3 +6466,15 @@ colors, fonts and corner shapes come from `@st/theme`. Chat sizing, density,
 semantic status colors and touch targets keep their existing roles. Both CSS
 and terminal canvas colors use the same resolved entry. Appearance settings show
 the host description while hosted; saved standalone choices remain untouched.
+
+## S.T. embedded conversation navigation
+
+The S.T. host supplies the application logo and the Agents navigation item. Its
+Conversations row holds the sidebar collapse button beside New conversation,
+without a second brand row. A collapsed sidebar keeps its reopen control in the
+chat toolbar; phones keep the drawer opener and a close button in Conversations.
+The desktop list begins alongside the tab bar rather than below a vacant row.
+This follows the session-first sidebar described in
+[Claude Code's desktop redesign](https://claude.com/resources/articles/claude-code-desktop-redesign),
+with host branding removed to suit the requested two-sidebar ST layout. No code
+or artwork was copied. The standalone Ovis header retains its existing branding.
