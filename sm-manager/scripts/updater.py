@@ -60,6 +60,12 @@ def validate(checkout):
             run([bun, "install", "--frozen-lockfile"], cwd=checkout, env=env, timeout=600)
             for command in ("typecheck", "test:unit", "build"):
                 run([bun, "run", command], cwd=checkout, env=env, timeout=600)
+            legacy_checks = sorted((checkout / "tests").glob("*_ui.js"))
+            if legacy_checks:
+                node = shutil.which("node")
+                if not node:
+                    raise RuntimeError("React updates require Node for legacy compatibility checks")
+                run([node, "--test", *map(str, legacy_checks)], cwd=checkout, env=env, timeout=120)
             web = checkout / "sm_manager/web"
             if not (web / "index.html").is_file() or not (web / ".vite/manifest.json").is_file():
                 raise RuntimeError("The candidate produced no console build manifest")
