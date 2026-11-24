@@ -40,6 +40,13 @@ Changes to the updater or generated units require rerunning
 `python3 scripts/manage.py install --auto-update` from the updated source.
 Update tests must use temporary Git repositories and mock all service controls.
 
+For production v2 activation and rollback, follow [PRODUCTION_V2.md](PRODUCTION_V2.md).
+The gateway retains the public port; monitor and Agents use private loopback ports.
+The updater controls these three web services together, never shared Herdr/Codex.
+Custom-domain owner sign-in uses the existing Tailscale HTTPS identity route; keep
+that route and the existing TLS proxy intact. Private signing keys, backend tokens,
+environment files, configuration backups and Agents state stay outside Git.
+
 Never bind the app to all interfaces, enable Funnel, reset Serve, overwrite
 another application's route, or publish collected machine data. Runtime
 configuration, screenshots of real projects, and databases stay out of Git.

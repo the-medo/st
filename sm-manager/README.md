@@ -636,8 +636,11 @@ python3 -m compileall -q sm_manager scripts
 node --test tests/test_*_ui.js
 ```
 
-The backend is Python's standard library. The UI is plain HTML, CSS, and
-JavaScript; edit and reload. See `AGENTS.md` for operating and extending it.
+The monitor backend is Python's standard library. The console and embedded Agents
+use React 19, TypeScript and Vite in the pinned Bun workspace. Run `bun install
+--frozen-lockfile`, `bun run typecheck`, `bun run test:unit` and `bun run build`.
+The legacy HTML/CSS/JavaScript interface remains available for rollback.
+See `AGENTS.md` for operating and extending the application.
 
 The integrated preview is enabled after the console preview exists:
 
@@ -677,10 +680,10 @@ failed startup, and retains the preceding generated artifacts in its owned
 `previous-artifacts` folder. `release.json` records the source revision and Bun
 version. Set `SM_MANAGER_BUN` if Bun is outside the updater's PATH.
 
-This changes the updater source, not the already-installed updater copy. The
-existing production installation remains on its legacy profile until the v2
-release gates are met and its updater/units are explicitly upgraded. The v2
-preview's three-service deployment is independent of that production instance.
+An installed updater copy and its units must be explicitly upgraded from the
+updated source. Follow [Production v2 deployment](PRODUCTION_V2.md) to activate
+the three production web services, preserve existing history and private ingress,
+or roll back their configuration. Preview services remain independent.
 
 For the opt-in transport check, point `ST_OVIS_HC_BIN` at an installed `hc` and run
 `bun run test:terminal`. The check creates its own HOME, state, daemon socket and

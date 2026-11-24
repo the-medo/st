@@ -56,7 +56,7 @@ def unit_quote(value):
 
 
 def check_units():
-    for path in (UNIT, UNIT.with_name(UPDATE_SERVICE), UNIT.with_name(UPDATE_TIMER), UNIT.with_name(FACEPLATE_SERVICE)):
+    for path in (UNIT, *[UNIT.with_name(name) for name in (UPDATE_SERVICE, UPDATE_TIMER, FACEPLATE_SERVICE, "sm-manager-monitor.service", "sm-manager-ovis.service", "sm-manager-prepare.service")]):
         if path.exists() and MARKER not in path.read_text():
             raise RuntimeError(f"Refusing to overwrite an unrelated unit: {path}")
 
@@ -157,6 +157,15 @@ TimeoutStartSec=5min
 [Install]
 WantedBy=default.target
 '''
+    extra_units = []
+    if config.get("v2"):
+        from scripts.production import render_units
+        rendered = render_units(config, runtime, service_path)
+        unit = rendered.pop(SERVICE)
+        for name, value in rendered.items():
+            path = UNIT.with_name(name)
+            path.write_text(value)
+            extra_units.append(path)
     UNIT.write_text(unit)
     # Keep sudo/session access out of the web server. This helper has only a
     # mode-0600 Unix socket and a fixed vocabulary of power-control actions.
@@ -191,7 +200,7 @@ ExecStart={unit_quote(sys.executable)} {unit_quote(deployment / 'updater.py')} u
 Environment={unit_quote('PATH=' + service_path)}
 UMask=0077
 NoNewPrivileges=true
-TimeoutStartSec=6min
+TimeoutStartSec=15min
 ''')
         UNIT.with_name(UPDATE_TIMER).write_text(f'''{MARKER}
 [Unit]
@@ -206,13 +215,13 @@ Unit={UPDATE_SERVICE}
 [Install]
 WantedBy=timers.target
 ''')
-    units = [UNIT, UNIT.with_name(FACEPLATE_SERVICE)]
+    units = [UNIT, UNIT.with_name(FACEPLATE_SERVICE), *extra_units]
     if deployment:
         units += [UNIT.with_name(UPDATE_SERVICE), UNIT.with_name(UPDATE_TIMER)]
     run(["systemd-analyze", "--user", "verify", *(str(path) for path in units)])
     run(["systemctl", "--user", "daemon-reload"])
     run(["systemctl", "--user", "enable", SERVICE])
-    run(["systemctl", "--user", "restart", SERVICE], timeout=360)
+    run(["systemctl", "--user", "restart", SERVICE], timeout=900)
     if deployment:
         run(["systemctl", "--user", "enable", "--now", UPDATE_TIMER])
     print(f"Dashboard: {config.get('public_url', f'http://127.0.0.1:{port}')}")
@@ -246,6 +255,11 @@ def uninstall():
         UNIT.with_name(FACEPLATE_SERVICE).unlink()
     if CLI.is_file() and MARKER in CLI.read_text():
         CLI.unlink()
+    for name in ("sm-manager-monitor.service", "sm-manager-ovis.service", "sm-manager-prepare.service"):
+        owned = UNIT.with_name(name)
+        if owned.exists():
+            run(["systemctl", "--user", "stop", name], check=False)
+            owned.unlink()
     UNIT.unlink()
     UNIT.with_name(UPDATE_TIMER).unlink(missing_ok=True)
     UNIT.with_name(UPDATE_SERVICE).unlink(missing_ok=True)
@@ -253,20 +267,29 @@ def uninstall():
     config.pop("serve_mapping", None)
     config.pop("public_url", None)
     config.pop("deployment_dir", None)
+    config.pop("v2", None)
     save(config)
     print("SM Manager service and updater removed. Configuration, history, and runtime checkout retained.")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["install", "start", "stop", "restart", "status", "logs", "update", "uninstall", "pair-faceplate", "install-cli"])
+    parser.add_argument("command", choices=["install", "start", "stop", "restart", "status", "logs", "update", "uninstall", "pair-faceplate", "install-cli", "install-v2", "rollback-v2"])
     parser.add_argument("--tailscale", action="store_true", help="Install a private Tailscale Serve route")
     parser.add_argument("--auto-update", action="store_true", help="Run main from a separate clone; update at boot and every five minutes")
     parser.add_argument("--connector", help="DRM connector to pair, e.g. card0-HDMI-A-1")
+    parser.add_argument("--ovis-env-file", type=Path, help="Existing private Ovis/Herdr environment for production v2")
+    parser.add_argument("--bun", help="Pinned Bun executable for production v2")
+    parser.add_argument("--monitor-port", type=int)
+    parser.add_argument("--ovis-port", type=int)
+    parser.add_argument("--state-source", type=Path, help="Copy initial Ovis JSON preferences from this private directory")
     args = parser.parse_args()
     os.umask(0o077)
     try:
-        if args.command == "pair-faceplate":
+        if args.command in ("install-v2", "rollback-v2"):
+            from scripts import production
+            production.install(args) if args.command == "install-v2" else production.rollback()
+        elif args.command == "pair-faceplate":
             pair_faceplate(args.connector)
         elif args.command == "install-cli":
             config = load_config()
@@ -278,23 +301,29 @@ def main():
         elif args.command == "uninstall":
             uninstall()
         elif args.command == "logs":
-            os.execvp("journalctl", ["journalctl", "--user", "-u", SERVICE, "-u", UPDATE_SERVICE, "-n", "70", "--no-pager"])
+            units = [SERVICE, UPDATE_SERVICE]
+            if load_config().get("v2"):
+                units += ["sm-manager-monitor.service", "sm-manager-ovis.service", "sm-manager-prepare.service"]
+            os.execvp("journalctl", ["journalctl", "--user", *[arg for unit in units for arg in ("-u", unit)], "-n", "70", "--no-pager"])
         elif args.command == "update":
             deployment = load_config().get("deployment_dir")
             if not deployment:
                 raise RuntimeError("Automatic updates are not installed. Run install --auto-update first.")
-            run([sys.executable, str(Path(deployment) / "updater.py"), "update"], timeout=360)
+            run([sys.executable, str(Path(deployment) / "updater.py"), "update"], timeout=900)
         elif args.command == "status":
             config = load_config()
             print(config.get("public_url", f"http://127.0.0.1:{config['port']}"), flush=True)
-            result = run(["systemctl", "--user", "status", SERVICE, "--no-pager"], check=False)
+            units = [SERVICE]
+            if config.get("v2"):
+                units += ["sm-manager-monitor.service", "sm-manager-ovis.service"]
+            result = run(["systemctl", "--user", "status", *units, "--no-pager"], check=False)
             if deployment := config.get("deployment_dir"):
                 revision = updater.git(Path(deployment) / "checkout", "rev-parse", "--short", "HEAD").stdout.strip()
                 print(f"Runtime main: {revision} ({deployment}/checkout)", flush=True)
                 run(["systemctl", "--user", "status", UPDATE_TIMER, "--no-pager"], check=False)
             sys.exit(result.returncode)
         else:
-            run(["systemctl", "--user", args.command, SERVICE], timeout=360)
+            run(["systemctl", "--user", args.command, SERVICE], timeout=900)
     except (RuntimeError, OSError, ValueError, subprocess.SubprocessError) as error:
         parser.exit(1, f"{error}\n")
 

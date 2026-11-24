@@ -1,10 +1,13 @@
 import type { ServerWebSocket } from "bun";
+import { ownerAuth, type OwnerAuthConfig } from "./owner-auth";
 export type GatewayConfig = {
   port: number;
   publicOrigin: string;
   monitorOrigin: string;
   ovisOrigin: string;
   ownerLogin?: string;
+  ownerAuth?: OwnerAuthConfig;
+  ovisToken?: string;
 };
 type Bridge = {
   upstream: WebSocket;
@@ -39,6 +42,12 @@ export function createGateway(config: GatewayConfig) {
     !["127.0.0.1", "localhost", "[::1]"].includes(ovis.hostname)
   )
     throw new Error("Upstreams must use loopback");
+  const auth = config.ownerAuth
+    ? ownerAuth(config.publicOrigin, config.ownerLogin ?? "", config.ownerAuth)
+    : null;
+  const publicHosts = new Map(
+    [publicUrl, ...(auth ? [auth.origin] : [])].map((url) => [url.host, url]),
+  );
   const server = Bun.serve<Bridge>({
     hostname: "127.0.0.1",
     port: config.port,
@@ -51,15 +60,27 @@ export function createGateway(config: GatewayConfig) {
         `127.0.0.1:${server.port}`,
         `localhost:${server.port}`,
       ]);
-      if (host !== publicUrl.host && !localHosts.has(host))
+      const publicHost = publicHosts.get(host);
+      if (!publicHost && !localHosts.has(host))
         return new Response("Host not allowed", { status: 403 });
+      // These two GET endpoints use a one-use code plus the vanity-domain nonce cookie.
+      // Cross-site navigation is necessary for the Tailscale identity handoff.
+      if (
+        auth &&
+        ["/_st/auth/login", "/_st/auth/callback"].includes(url.pathname)
+      )
+        return (
+          auth.check(request, false) ??
+          new Response("Invalid sign-in request", { status: 400 })
+        );
       const origin = request.headers.get("origin");
       if (
         request.headers.get("sec-fetch-site") === "cross-site" ||
-        (origin &&
-          !new Set([config.publicOrigin, `http://${host}`]).has(origin))
+        (origin && !new Set([publicHost?.origin, `http://${host}`]).has(origin))
       )
         return new Response("Origin not allowed", { status: 403 });
+      const denial = auth?.check(request, localHosts.has(host));
+      if (denial) return denial;
       if (url.pathname === "/api/gateway-health")
         return Response.json(
           { status: "ok" },
@@ -73,6 +94,7 @@ export function createGateway(config: GatewayConfig) {
         url.pathname.startsWith("/ovis/page-media/");
       if (
         ovisRoute &&
+        !auth &&
         host === publicUrl.host &&
         config.ownerLogin &&
         request.headers.get("tailscale-user-login")?.toLowerCase() !==
@@ -107,8 +129,8 @@ export function createGateway(config: GatewayConfig) {
       headers.set("host", host);
       headers.set("x-forwarded-host", host);
       headers.delete("forwarded");
-      if (host === publicUrl.host)
-        headers.set("x-forwarded-proto", publicUrl.protocol.slice(0, -1));
+      if (publicHost)
+        headers.set("x-forwarded-proto", publicHost.protocol.slice(0, -1));
       else {
         headers.delete("tailscale-user-login");
         headers.delete("tailscale-user-name");
@@ -119,6 +141,9 @@ export function createGateway(config: GatewayConfig) {
         headers.delete("via");
         headers.delete("x-forwarded-proto");
       }
+      // The private backend credential is added only after ingress authorization; it never reaches a browser.
+      if (ovisRoute && config.ovisToken)
+        headers.set("authorization", `Bearer ${config.ovisToken}`);
       if (url.pathname === "/ovis/ws") {
         if (request.headers.get("upgrade")?.toLowerCase() !== "websocket")
           return new Response("WebSocket upgrade required", { status: 426 });

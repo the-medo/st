@@ -858,3 +858,25 @@ Synthetic browser checks cover different-length values across multiple projects,
 engine image loading, status colors, link destinations, stale/disabled launches,
 tooltip full values, keyboard dismissal, phone taps and viewport bounds.
 Private screenshots were captured from fixtures only.
+
+## Production migration — 2026-11-24
+
+Following owner acceptance of the integrated UI, the production installer now
+supports the gateway, monitor and Agents as one owned web stack. Its preparation
+unit stages main before startup; the updater swaps built assets and dependencies
+with source and checks all three upstreams, including authenticated Agents access.
+Activation backs up private configuration, units and the installed helper, restores
+them on failed startup or health checks, and supports an explicit rollback command.
+Existing monitor history, shared Herdr/Codex runtimes and TLS routes are retained.
+
+Custom-domain ingress uses an automatic, nonce-bound Tailscale owner handoff with
+a one-use code and signed HttpOnly session. Browser and unit checks cover successful
+redirects, cookie persistence, forged headers, a different owner, replay and origin
+rejection. The private Agents credential remains server-side. Preview services are
+independent. See `PRODUCTION_V2.md` for activation, verification and rollback.
+
+Release validation includes the console/Agents browser suites, TypeScript and build,
+frontend/gateway units, monitor/lifecycle/updater and Python bridge tests, legacy
+UI tests, and a real Herdr PTY isolated from the user's sessions. This does not claim
+the complete upstream Ovis matrix or delegated-device/native relay/PWA acceptance;
+those broader modes remain outside this owner-only web deployment.

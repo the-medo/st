@@ -153,21 +153,32 @@ class Deployment:
         return git(self.checkout, "rev-parse", "HEAD").stdout.strip()
 
     def service(self, command, check=True):
-        return run(["systemctl", "--user", command, SERVICE], check=check)
+        config = json.loads(Path(self.settings["config_path"]).read_text())
+        units = [SERVICE]
+        if config.get("v2") and command in ("stop", "start", "restart"):
+            units += ["sm-manager-monitor.service", "sm-manager-ovis.service"]
+        return run(["systemctl", "--user", command, *units], check=check, timeout=900)
 
     def healthy(self, timeout=45):
         config = json.loads(Path(self.settings["config_path"]).read_text())
-        url = f"http://127.0.0.1:{int(config['port'])}/api/health"
+        origin = f"http://127.0.0.1:{int(config['port'])}"
+        paths = ["/api/health"]
+        if config.get("v2"):
+            paths += ["/api/gateway-health", "/ovis/api/health?scope=bridge"]
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             try:
-                with opener.open(url, timeout=2) as response:
-                    if json.load(response).get("status") == "ok":
-                        return True
+                for path in paths:
+                    with opener.open(origin + path, timeout=2) as response:
+                        data = json.load(response)
+                        if not isinstance(data, dict) or (not path.startswith("/ovis/") and data.get("status") != "ok"):
+                            raise ValueError("Service is not ready")
+                        if path.startswith("/ovis/") and (data.get("ok") is not True or data.get("auth", {}).get("authenticated") is not True):
+                            raise ValueError("Agents authentication is not ready")
+                return True
             except (OSError, ValueError, urllib.error.URLError):
-                pass
-            time.sleep(1)
+                time.sleep(1)
         return False
 
     def refresh(self, prepare=False):
