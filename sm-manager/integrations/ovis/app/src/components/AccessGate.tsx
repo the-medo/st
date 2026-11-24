@@ -1,3 +1,4 @@
+import sheepIcon from '../assets/brand/sheep.png';
 import "./AccessGate.css";
 
 import { type FormEvent, useEffect, useRef, useState } from "react";
@@ -45,7 +46,7 @@ function LockedGate({ ownWindow }: { ownWindow: boolean }) {
   return (
     <main className="access-gate-screen">
       <div className="access-gate" data-testid="strict-gate">
-        <img src="/icons/icon-192.png?v=sheep1" alt="" width="44" height="44" className="access-gate-mark" />
+        <img src={sheepIcon} alt="" width="44" height="44" className="access-gate-mark" />
         {ownWindow ? <StrictUnlockAsk /> : <p className="access-gate-copy">{t("This PC is in strict mode.")}</p>}
       </div>
     </main>
@@ -114,7 +115,7 @@ function PairingGate({ reason, initialCode, consumePairCode, pairingUnconfirmed,
   return (
     <main className="access-gate-screen">
       <div className="access-gate" data-testid="token-gate">
-        <img src="/icons/icon-192.png?v=sheep1" alt="" width="44" height="44" className="access-gate-mark" />
+        <img src={sheepIcon} alt="" width="44" height="44" className="access-gate-mark" />
         <h1 id="access-gate-title" className="access-gate-title">
           {t(reason === "token_required" ? "Unlock" : "Pair this device")}
         </h1>

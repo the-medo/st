@@ -35,12 +35,12 @@ def write(path, text):
     path.chmod(0o600)
 
 
-def wait(port):
+def wait(port, path='/api/ui-config'):
     until = time.monotonic() + 30
     while time.monotonic() < until:
         connection = http.client.HTTPConnection('127.0.0.1', port, timeout=2)
         try:
-            connection.request('GET', '/api/ui-config')
+            connection.request('GET', path)
             response = connection.getresponse()
             if response.status == 200:
                 return
@@ -65,16 +65,24 @@ def main():
         parser.error('Preview belongs to another checkout')
     if UNIT.exists() and MARKER not in UNIT.read_text():
         parser.error('The service name belongs to an unrelated unit')
+    units = profile.get('units', [NAME]) if profile else [NAME]
+    for name in units:
+        owned = UNIT.with_name(name)
+        if '/' in name or not owned.is_file() or MARKER not in owned.read_text():
+            if profile:
+                parser.error('Preview service ownership changed')
     if args.action == 'status':
-        print(run('systemctl', '--user', 'status', NAME, '--no-pager'))
+        print(run('systemctl', '--user', 'status', *units, '--no-pager'))
         if profile:
             print(profile['url'])
         return
     if args.action in ('stop', 'restart') and not profile:
         parser.error('No preview configured')
     if args.action == 'restart':
-        run('systemctl', '--user', 'restart', NAME)
+        run('systemctl', '--user', 'restart', *units)
         wait(profile['port'])
+        if profile.get('ovis'):
+            wait(profile['ovis_port'], '/api/health?scope=bridge')
         print(profile['url'])
         return
     tailscale = shutil.which('tailscale')
@@ -88,14 +96,19 @@ def main():
             parser.error('Serve route has changed ownership')
         if route:
             run(tailscale, 'serve', f"--https={profile['port']}", 'off')
-        run('systemctl', '--user', 'disable', '--now', NAME)
+        run('systemctl', '--user', 'disable', '--now', *units)
         print('Preview stopped; data and profile retained.')
         return
     if not (ROOT / 'sm_manager/web/index.html').is_file():
         parser.error('Run bun run build first')
     if profile:
-        run('systemctl', '--user', 'restart', NAME)
+        route = serve.get('Web', {}).get(profile['host'])
+        if route and route != {'Handlers': {'/': {'Proxy': profile['target']}}}:
+            parser.error('Serve route has changed ownership')
+        run('systemctl', '--user', 'enable', '--now', *units)
+        run('systemctl', '--user', 'restart', *units)
         wait(profile['port'])
+        run(tailscale, 'serve', '--bg', f"--https={profile['port']}", profile['target'])
         print(profile['url'])
         return
     if not 1024 <= args.port <= 65535:

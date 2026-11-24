@@ -101,6 +101,12 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Referrer-Policy", "no-referrer")
             policy = "sandbox; default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'" if icon else "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+            if not icon and config.get("frontend") == "react":
+                # Ovis renders local file blobs and runs syntax/diff workers. These
+                # capabilities apply only to the v2 app, not sandboxed project icons.
+                policy = policy.replace("script-src 'self'", "script-src 'self' 'wasm-unsafe-eval'")
+                policy = policy.replace("img-src 'self' data:", "img-src 'self' data: blob:")
+                policy += "; worker-src 'self' blob:; font-src 'self' data:; media-src 'self' blob: data:"
             url = urlsplit(self.path)
             if (not icon and status == 200 and content_type.startswith("text/html") and
                     url.path.removeprefix(PREFIX) in PAGES and url.path.startswith(PREFIX + "/") and

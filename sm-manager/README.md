@@ -638,3 +638,34 @@ node --test tests/test_*_ui.js
 
 The backend is Python's standard library. The UI is plain HTML, CSS, and
 JavaScript; edit and reload. See `AGENTS.md` for operating and extending it.
+
+The integrated preview is enabled after the console preview exists:
+
+```sh
+python3 scripts/preview-ovis.py --env-file /absolute/private/ovis-service.env --bun /absolute/path/to/bun
+python3 scripts/preview-v2.py status
+python3 scripts/preview-v2.py restart
+python3 scripts/preview-v2.py stop
+```
+
+The environment file supplies the existing Herdr runtime, binary paths and private
+sidebar catalog. It stays outside Git. The preview overrides ports, cookie names,
+base path and Ovis state; it owns only its gateway, monitor and Ovis web services.
+The existing Herdr terminals and managed Codex daemon remain external services.
+Use `start` to restore the preview's owned Serve mapping after `stop`.
+An unsuccessful initial Ovis activation restores the previous console service.
+
+Ovis is mounted natively at `/ovis`, with its own conversation sidebar beside ST.
+The frontend retains chat drafts while navigating to console pages. Its packaged
+server entry omits the upstream self updater and runtime installer; deploy this
+fork through ST. Native mobile-app relay hosting and Ovis's standalone root PWA
+are not enabled by this preview.
+
+Browser verification uses synthetic fixtures, including Ovis's upstream demo:
+
+```sh
+bun run test:browser
+bun run test:ovis-browser
+```
+
+Install a Playwright Chromium first or set `BROWSER_EXECUTABLE` explicitly.

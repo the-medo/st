@@ -1,3 +1,4 @@
+import sheepIcon from '../assets/brand/sheep.png';
 import "./RelayShell.css";
 
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
@@ -424,7 +425,7 @@ export function RelayShell(props: RelayShellProps) {
   return (
     <main className={plain ? "relay-shell-screen relay-shell-plain" : "relay-shell-screen"} data-relay-state={stateName} {...(account ? { "data-account-state": account.kind } : {})}>
       <div className={plain ? "relay-shell relay-shell-signin" : "relay-shell"}>
-        {plain ? <SheepMascot screen="header" size={80} /> : <img src="/icons/icon-192.png?v=sheep1" alt="" width="44" height="44" className="relay-shell-mark" />}
+        {plain ? <SheepMascot screen="header" size={80} /> : <img src={sheepIcon} alt="" width="44" height="44" className="relay-shell-mark" />}
         {noneOnline}
         {content}
         {otherSaved && <OpenState open={scan} />}

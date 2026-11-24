@@ -1,28 +1,19 @@
 import { chromium } from "playwright-core";
 import { readdirSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import assert from "node:assert/strict";
 import { fixtureApi, ui } from "./v2-fixtures";
 import panes from "../integrations/ovis/app/site/demo/fixtures/panes.json";
-const root = resolve("sm_manager/web");
 ui.ovis = true;
-const server = Bun.serve({
-  hostname: "127.0.0.1",
-  port: 0,
-  async fetch(req) {
-    const url = new URL(req.url);
-    if (url.pathname.startsWith("/api/"))
-      return Response.json(fixtureApi(url, req.method));
-    const path = resolve(root, "." + url.pathname);
-    if (!path.startsWith(root + "/") && path !== root)
-      return new Response("", { status: 404 });
-    const file = Bun.file(path);
-    return (await file.exists())
-      ? new Response(file)
-      : new Response(Bun.file(join(root, "index.html")));
-  },
-});
+const fixture = Bun.spawn(["python3", "tests/serve_v2_fixture.py"], {stdin:"pipe",stdout:"pipe",stderr:"inherit"});
+fixture.stdin.write(JSON.stringify(Object.fromEntries(["ui-config","snapshot","history","zed","dbs"].map(name=>[`/api/${name}`,fixtureApi(new URL(`http://fixture/api/${name}`),"GET")])))+"\n");
+fixture.stdin.end();
+const reader = fixture.stdout.getReader();
+const first = await reader.read();
+const port = Number(new TextDecoder().decode(first.value).trim());
+if(!port)throw new Error("Fixture server did not start");
+const server={port,stop(_force:boolean){fixture.kill();}};
 const demo = await Bun.build({
   entrypoints: ["integrations/ovis/app/site/demo/transport.ts"],
   target: "browser",
@@ -57,6 +48,7 @@ try {
     viewport: { width: 1600, height: 1000 },
   });
   page.setDefaultTimeout(15000);
+  page.on("response",r=>{if(r.status()>=400)console.error("HTTP",r.status(),r.url())});
   const errors: string[] = [];
   page.on("console", (m) => {
     if (m.type() === "error") console.error(m.text());

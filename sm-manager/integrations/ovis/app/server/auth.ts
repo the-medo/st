@@ -19,13 +19,16 @@ import { isLoopbackAddress } from "./access.ts";
 import { PAGE_MEDIA_ROUTE } from "./file-view.ts";
 import { badRequest, jsonResponse } from "./http.ts";
 
-const cookiePrefix = process.env["MEDO_PROJECTS"] === "1" ? "medo_ovis" : "ovis";
+const configuredPrefix = process.env["ST_OVIS_COOKIE_PREFIX"];
+if (configuredPrefix && !/^[a-z0-9_]{1,64}$/.test(configuredPrefix)) throw new Error("Invalid ST_OVIS_COOKIE_PREFIX");
+const cookiePrefix = configuredPrefix || (process.env["MEDO_PROJECTS"] === "1" ? "medo_ovis" : "ovis");
+const cookiePath = process.env["ST_OVIS_BASE_PATH"] === "/ovis" ? "/ovis" : "/";
 export const TOKEN_COOKIE = `${cookiePrefix}_token`;
 /** a paired device's own credential; the same flags as the token cookie */
 export const DEVICE_COOKIE = `${cookiePrefix}_device`;
 /** their names before the rename: a browser signed in then keeps sending them for up to a year */
-const LEGACY_TOKEN_COOKIE = `${cookiePrefix === "ovis" ? "herdr_web" : "medo_ovis_legacy"}_token`;
-const LEGACY_DEVICE_COOKIE = `${cookiePrefix === "ovis" ? "herdr_web" : "medo_ovis_legacy"}_device`;
+const LEGACY_TOKEN_COOKIE = `${configuredPrefix ? `${configuredPrefix}_legacy` : cookiePrefix === "ovis" ? "herdr_web" : "medo_ovis_legacy"}_token`;
+const LEGACY_DEVICE_COOKIE = `${configuredPrefix ? `${configuredPrefix}_legacy` : cookiePrefix === "ovis" ? "herdr_web" : "medo_ovis_legacy"}_device`;
 
 /** The token cookie a request carries, under its name or the one before the rename. */
 export function tokenCookie(cookies: Map<string, string>): string | undefined {
@@ -38,7 +41,7 @@ export function deviceCookieValue(cookies: Map<string, string>): string | undefi
 }
 
 function clearCookie(name: string): string {
-  return `${name}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`;
+  return `${name}=; Path=${cookiePath}; HttpOnly; SameSite=Strict; Max-Age=0`;
 }
 
 /** Set with a fresh credential, so the browser stops sending the old name beside the new one. */
@@ -141,12 +144,12 @@ export function isSecureRequest(request: Request): boolean {
 }
 
 function sessionCookie(token: string, secure: boolean): string {
-  const attributes = `Path=/; HttpOnly; SameSite=Strict; Max-Age=${COOKIE_MAX_AGE_SECONDS}`;
+  const attributes = `Path=${cookiePath}; HttpOnly; SameSite=Strict; Max-Age=${COOKIE_MAX_AGE_SECONDS}`;
   return `${TOKEN_COOKIE}=${encodeURIComponent(token)}; ${attributes}${secure ? "; Secure" : ""}`;
 }
 
 export function deviceCookie(token: string, secure: boolean): string {
-  return `${DEVICE_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${COOKIE_MAX_AGE_SECONDS}${secure ? "; Secure" : ""}`;
+  return `${DEVICE_COOKIE}=${encodeURIComponent(token)}; Path=${cookiePath}; HttpOnly; SameSite=Strict; Max-Age=${COOKIE_MAX_AGE_SECONDS}${secure ? "; Secure" : ""}`;
 }
 
 /** The Set-Cookie that drops a browser's device cookie: signing out, or revoking every device (its own included). */

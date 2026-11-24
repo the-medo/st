@@ -1,5 +1,6 @@
+import sheepIcon from '../assets/brand/sheep.png';
 import type { ComponentProps } from "react";
 
 export function OvisMark({ className, ...rest }: ComponentProps<"img">) {
-  return <img src="/icons/icon-192.png?v=sheep1" alt="" {...rest} className={`ovis-mark${className ? ` ${className}` : ""}`} />;
+  return <img src={sheepIcon} alt="" {...rest} className={`ovis-mark${className ? ` ${className}` : ""}`} />;
 }

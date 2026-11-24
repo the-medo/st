@@ -25,7 +25,7 @@ export function createGateway(config:GatewayConfig){
    // The gateway only listens on loopback. The public ingress is the owned Tailscale
    // Serve route, which supplies identity. Keep its identity and public Host intact:
    // treating the downstream peer as a fresh local owner would bypass Ovis policy.
-   headers.set('host',host);headers.delete('forwarded');
+   headers.set('host',host);headers.set('x-forwarded-host',host);headers.delete('forwarded');
    if(host===publicUrl.host)headers.set('x-forwarded-proto',publicUrl.protocol.slice(0,-1));
    else {headers.delete('tailscale-user-login');headers.delete('tailscale-user-name');headers.delete('tailscale-user-profile-pic');headers.delete('x-forwarded-for');headers.delete('x-forwarded-proto');}
    if(url.pathname==='/ovis/ws'){

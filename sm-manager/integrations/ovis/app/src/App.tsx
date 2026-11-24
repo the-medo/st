@@ -1,3 +1,4 @@
+import sheepIcon from './assets/brand/sheep.png';
 import { MedoProjects } from './components/MedoProjects.tsx';
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bell, ChevronDown, ChevronLeft, Eye, Plus, CircleHelp, Ellipsis, FolderOpen, Inbox, Link, Menu, MessageCircle, MessageSquare, PanelLeft, PanelsTopLeft, Search, Settings as SettingsGlyph, SquareTerminal, Target, TextSearch, X } from "lucide-react";
@@ -236,7 +237,7 @@ function DrawerHeadTitle({ machine, workspace, connection, watching }: { machine
 function Brand() {
   return (
     <h1 className="brand">
-      <img src="/icons/icon-192.png?v=sheep1" alt="" width="22" height="22" className="brand-mark" />
+      <img src={sheepIcon} alt="" width="22" height="22" className="brand-mark" />
       <span className="brand-name">
         Ovis
       </span>
