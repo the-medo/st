@@ -114,6 +114,9 @@ export function createGateway(config: GatewayConfig) {
         headers.delete("tailscale-user-name");
         headers.delete("tailscale-user-profile-pic");
         headers.delete("x-forwarded-for");
+        headers.delete("x-forwarded-host");
+        headers.delete("x-real-ip");
+        headers.delete("via");
         headers.delete("x-forwarded-proto");
       }
       if (url.pathname === "/ovis/ws") {

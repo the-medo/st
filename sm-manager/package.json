@@ -12,7 +12,8 @@
     "test:unit": "bun test frontend/src services/web-gateway services/ovis",
     "test:browser": "bun tests/v2-browser.ts",
     "build:ovis": "cd integrations/ovis/app && VITE_MEDO_PROJECTS=1 bun run build",
-    "test:ovis-browser": "bun tests/ovis-browser.ts"
+    "test:ovis-browser": "bun tests/ovis-browser.ts",
+    "test:terminal": "bun tests/ovis-terminal.ts"
   },
   "devDependencies": {
     "@types/bun": "1.4.2",

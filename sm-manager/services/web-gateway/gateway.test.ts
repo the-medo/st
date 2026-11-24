@@ -171,3 +171,68 @@ test("compressed assets and streaming bodies survive forwarding", async () => {
     backend.stop(true);
   }
 });
+
+test("local ingress drops proxy assertions while public ingress preserves Tailscale identity", async () => {
+  const backend = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch: (r) =>
+      Response.json(
+        Object.fromEntries(
+          [
+            "host",
+            "origin",
+            "x-forwarded-host",
+            "x-forwarded-for",
+            "tailscale-user-login",
+          ].map((k) => [k, r.headers.get(k)]),
+        ),
+      ),
+  });
+  const gateway = createGateway({
+    port: 0,
+    publicOrigin: "https://st.example.test",
+    monitorOrigin: `http://127.0.0.1:${backend.port}`,
+    ovisOrigin: `http://127.0.0.1:${backend.port}`,
+    ownerLogin: "owner@example.test",
+  });
+  try {
+    const local = `http://127.0.0.1:${gateway.port}`;
+    const response = await fetch(local + "/ovis/api/health", {
+      headers: {
+        "x-forwarded-host": "forged.invalid",
+        "x-forwarded-for": "100.64.0.1",
+        "tailscale-user-login": "owner@example.test",
+      },
+    });
+    expect(await response.json()).toMatchObject({
+      host: `127.0.0.1:${gateway.port}`,
+      "x-forwarded-host": null,
+      "x-forwarded-for": null,
+      "tailscale-user-login": null,
+    });
+    const remote = await fetch(local + "/ovis/api/health", {
+      headers: {
+        host: "st.example.test",
+        origin: "https://st.example.test",
+        "x-forwarded-host": "forged.invalid",
+        "x-forwarded-for": "100.64.0.1",
+        "tailscale-user-login": "owner@example.test",
+      },
+    });
+    expect(await remote.json()).toMatchObject({
+      host: "st.example.test",
+      origin: "https://st.example.test",
+      "x-forwarded-host": "st.example.test",
+      "x-forwarded-for": "100.64.0.1",
+      "tailscale-user-login": "owner@example.test",
+    });
+    for (const path of ["/api/runtime", "/api/access/tailscale/serve"])
+      expect(
+        (await fetch(local + "/ovis" + path, { method: "POST" })).status,
+      ).toBe(403);
+  } finally {
+    gateway.stop(true);
+    backend.stop(true);
+  }
+});

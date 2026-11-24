@@ -681,3 +681,9 @@ This changes the updater source, not the already-installed updater copy. The
 existing production installation remains on its legacy profile until the v2
 release gates are met and its updater/units are explicitly upgraded. The v2
 preview's three-service deployment is independent of that production instance.
+
+For the opt-in transport check, point `ST_OVIS_HC_BIN` at an installed `hc` and run
+`bun run test:terminal`. The check creates its own HOME, state, daemon socket and
+terminal, exercises the real Ovis/Herdr PTY through the gateway, verifies that
+stopping the web services leaves the terminal alive, then removes its own test
+session. It never uses the normal Herdr session or a live Codex conversation.
