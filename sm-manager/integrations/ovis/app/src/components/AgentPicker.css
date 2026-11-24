@@ -1,0 +1,82 @@
+.agent-picker {
+  position: relative;
+}
+
+.agent-picker-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.agent-picker-trigger:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.agent-picker-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-picker-chevron {
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+  flex: none;
+  color: var(--text-dim);
+}
+
+.agent-picker .agent-mark,
+.agent-picker-shell {
+  display: inline-flex;
+  flex: none;
+}
+
+.agent-picker-shell svg {
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+  color: var(--text-dim);
+}
+
+.agent-picker-menu {
+  position: fixed;
+  z-index: var(--z-popover);
+  overflow-y: auto;
+  /* a scroll that reaches the list's end stays in it: moving the sheet under it would close the list */
+  overscroll-behavior: contain;
+}
+
+.agent-picker-menu .menu-item[aria-selected="true"] {
+  background: transparent;
+  color: var(--text);
+}
+
+.agent-picker-menu .menu-item[data-active] {
+  background: var(--bg-hover);
+  color: var(--text-strong);
+}
+
+.agent-picker-menu .menu-item[aria-selected="true"] .menu-item-main {
+  font-weight: var(--fw-selected);
+}
+
+.agent-picker-menu .menu-item {
+  flex-shrink: 0;
+}
+
+.agent-picker-menu .agent-picker-add {
+  margin-top: var(--space-1);
+  border-top: var(--hairline) solid var(--border);
+  color: var(--text-dim);
+}
+
+@media (pointer: coarse) {
+  .agent-picker-menu .menu-item {
+    min-height: var(--touch-target);
+  }
+}

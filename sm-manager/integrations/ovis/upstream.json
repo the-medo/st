@@ -1,0 +1,17 @@
+{
+  "repository": "https://github.com/devswha/ovis.git",
+  "revision": "1d71a718db4e0318c2d7d3f3a80c3e8c939e36c1",
+  "version": "0.5.9",
+  "packageManager": "bun@1.4.4",
+  "sourceManifest": "source-manifest.json",
+  "customization": "Custom working tree including Medo project sidebar and managed Codex adapter",
+  "excluded": [
+    "native mobile app",
+    "marketing sites",
+    "release automation",
+    "screenshots and recordings",
+    "private setup notes",
+    "dependencies and builds",
+    "all runtime configuration and user data"
+  ]
+}

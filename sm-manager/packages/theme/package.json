@@ -1,0 +1,17 @@
+{
+  "name": "@st/theme",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./ovis.css": "./ovis.css",
+    "./planner.css": "./planner.css",
+    "./theme.css": "./theme.css",
+    "./ovis": "./ovis.ts"
+  },
+  "scripts": {
+    "build": "bun build.ts",
+    "check": "bun build.ts --check"
+  }
+}

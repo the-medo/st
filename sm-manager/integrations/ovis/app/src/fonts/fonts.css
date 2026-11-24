@@ -1,0 +1,32 @@
+/*
+ * The app's own typefaces (THIRD_PARTY_NOTICES.md), served from the user's PC: nothing here is
+ * fetched from another host.
+ *
+ * Pretendard Variable is upstream's dynamic subset, 92 chunks told apart by unicode-range in the
+ * stylesheet imported below (copied whole from the package): the browser fetches only the chunks
+ * whose characters a page draws: the demo's English chat takes three (90 KB) and the same
+ * chat in Korean eight more (200 KB). Vite fingerprints each into /assets/, where the service worker keeps what was fetched.
+ */
+@import "./pretendard/pretendardvariable-dynamic-subset.css";
+
+/* The code face of the terminal, the chat and the chrome (lib/fontFamily.ts, --font-mono in
+   styles.css): every device draws the terminal in it, so its cell and row are the same in Chrome,
+   Safari and Ovis for Mac. Its family name is the app's own, apart from an installed "JetBrains
+   Mono", and it is always the bundled file, never a local() copy: Ovis for Mac's web view draws an
+   installed font that its canvas, which xterm measures with, cannot see, so a face resolved to the
+   installed copy was dropped from the terminal there (lib/fontFamily.ts, measurableFontStack). */
+@font-face {
+  font-family: "JetBrains Mono Web";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./JetBrainsMono-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono Web";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./JetBrainsMono-Bold.woff2") format("woff2");
+}

@@ -194,6 +194,23 @@ class DaveTests(unittest.TestCase):
         self.assertIn("frame-ancestors 'none'", self.request("/?st-embedded=1")[1]["Content-Security-Policy"])
         self.assertEqual(self.request("/planner/api/auth/login?st-embedded=1")[0], 404)
 
+    def test_react_planner_inherits_only_static_same_origin_theme_assets(self):
+        self.config["frontend"] = "react"
+        html = b"<!doctype html><html><head></head><body>Fixture planner</body></html>"
+        with patch.object(DaveBridge, "request", return_value=(200, {"Content-Type": "text/html"}, html)):
+            status, headers, body = self.request("/planner/tasks?st-embedded=1")
+            self.assertEqual(status, 200)
+            self.assertIn(b'href="/st-theme.css"', body)
+            self.assertIn(b'href="/st-planner.css"', body)
+            self.assertIn(b'<script src="/st-planner.js"></script></head>', body)
+            self.assertNotIn("'unsafe-inline'", headers["Content-Security-Policy"].split("script-src", 1)[1].split(";", 1)[0])
+            self.config.pop("frontend")
+            self.assertEqual(self.request("/planner/tasks?st-embedded=1")[2], html)
+        for path in ["/st-theme.css", "/st-planner.css", "/st-planner.js"]:
+            status, headers, body = self.request(path)
+            self.assertEqual(status, 200)
+            self.assertEqual(headers["Cache-Control"], "private, no-cache")
+
     def test_errors_hide_upstream_authentication_and_redirects(self):
         self.assertEqual(self.request("/planner/api/redirect")[0], 502)
         with patch.object(DaveBridge, "request", side_effect=DaveUnavailable("private details")):

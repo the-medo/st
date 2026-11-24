@@ -1,0 +1,54 @@
+.relay-status {
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.relay-error {
+  overflow-wrap: anywhere;
+}
+
+.relay-pairing {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.relay-pairing-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.relay-pairing-text .phone-actions {
+  margin-top: var(--space-2);
+}
+
+@media (max-width: 640px) {
+  .relay-pairing {
+    flex-direction: column;
+  }
+}
+
+.relay-codeless-link {
+  display: block;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.relay-pairing-id {
+  margin-top: var(--space-3);
+}
+
+.relay-typed-code {
+  margin-top: var(--space-2);
+}
+
+.relay-typed-code-value {
+  font-family: var(--font-mono);
+  font-size: var(--fs-pairing);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-code);
+  user-select: all;
+}

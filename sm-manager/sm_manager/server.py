@@ -17,7 +17,8 @@ from .collector import Collector, cleanup_plan
 from .air_quality import AirQuality
 from .dbs import read_db_catalog
 from .history import RETENTION_HOURS
-from .home import service_cards
+from .home import service_cards, ui_config
+from . import web
 from .zed import read_catalog
 from .night_mode import request as night_request
 from .dave import DaveBridge, DaveUnavailable, MAX_BODY, MAX_RESPONSE, PAGES, PREFIX, upstream_path
@@ -100,6 +101,12 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Referrer-Policy", "no-referrer")
             policy = "sandbox; default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'" if icon else "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+            if not icon and config.get("frontend") == "react":
+                # Ovis renders local file blobs and runs syntax/diff workers. These
+                # capabilities apply only to the v2 app, not sandboxed project icons.
+                policy = policy.replace("script-src 'self'", "script-src 'self' 'wasm-unsafe-eval'")
+                policy = policy.replace("img-src 'self' data:", "img-src 'self' data: blob:")
+                policy += "; worker-src 'self' blob:; font-src 'self' data:; media-src 'self' blob: data:"
             url = urlsplit(self.path)
             if (not icon and status == 200 and content_type.startswith("text/html") and
                     url.path.removeprefix(PREFIX) in PAGES and url.path.startswith(PREFIX + "/") and
@@ -186,6 +193,13 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
                     r"/planner/assets/[\w.-]+-[\w-]{8,}\.(js|css)", path) else "private, no-cache"
             elif status == 200 and path.removeprefix(PREFIX) in PAGES:
                 cache = "no-store"
+                if config.get("frontend") == "react" and content_type.startswith("text/html"):
+                    # Static, same-origin host styles load before the planner paints.
+                    # No account data, user CSS, or credentials enter this markup.
+                    theme = (b'<link rel="stylesheet" href="/st-theme.css">'
+                             b'<link rel="stylesheet" href="/st-planner.css">'
+                             b'<script src="/st-planner.js"></script>')
+                    data = data.replace(b"</head>", theme + b"</head>", 1)
             return self.respond(status, data, content_type, cache=cache)
 
         def do_PUT(self):
@@ -225,6 +239,17 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
             if error := self.access_error():
                 return self.respond(403, {"error": error})
             url = urlsplit(self.path)
+            if config.get("frontend") == "react" and not url.path.startswith("/api/"):
+                shell_path = url.path
+                if url.path.startswith(PREFIX + "/") and url.path.removeprefix(PREFIX) in PAGES and parse_qs(url.query).get("st-embedded") != ["1"]:
+                    shell_path = "/"
+                found = web.asset(shell_path)
+                if found:
+                    file, cache = found
+                    mime = mimetypes.guess_type(file.name)[0] or "application/octet-stream"
+                    return self.respond(200, file.read_bytes(), mime, cache=cache)
+                if shell_path in web.PAGES:
+                    return self.respond(503, {"error": "Console assets are not built. Run the console build."})
             planner_shell = (dave is not None and url.path.startswith(PREFIX + "/") and
                              url.path.removeprefix(PREFIX) in PAGES - {"/"} and
                              parse_qs(url.query).get("st-embedded") != ["1"])
@@ -233,6 +258,8 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
             if url.path == "/api/night-mode":
                 return self.respond(200, {**night_control("status"), "token": token})
             if url.path.startswith("/api/"):
+                if url.path == "/api/ui-config":
+                    return self.respond(200, ui_config(config))
                 if url.path == "/api/air-quality":
                     if air_quality is None:
                         return self.respond(503, {"error": "Air quality collector unavailable"})
@@ -313,6 +340,8 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
                 return self.respond(404, {"error": "Not found"})
             name = {"/": "index.html", "/app.js": "app.js", "/style.css": "style.css",
                     "/favicon.svg": "favicon.svg", "/st-logo.svg": "st-logo.svg",
+                    "/st-theme.css": "st-theme.css",
+                    "/st-planner.css": "st-planner.css", "/st-planner.js": "st-planner.js",
                     "/home.css": "home.css", "/home.js": "home.js", "/home-icons.svg": "home-icons.svg",
                     "/workmode.js": "workmode.js", "/ydistri.svg": "ydistri.svg",
                     "/zed.svg": "zed.svg", "/db.svg": "db.svg",

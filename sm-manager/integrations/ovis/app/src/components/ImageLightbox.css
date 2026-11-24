@@ -1,0 +1,165 @@
+.image-lightbox-scrim {
+  padding: 0;
+  background: var(--bg);
+}
+
+.image-lightbox {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.image-lightbox-bar,
+.image-lightbox-foot {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: var(--bg-elevated);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+}
+
+.image-lightbox-bar {
+  top: calc(var(--space-3) + env(safe-area-inset-top, 0px));
+  right: calc(var(--space-3) + env(safe-area-inset-right, 0px));
+}
+
+.image-lightbox-zoom {
+  min-width: 4ch;
+  text-align: center;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.image-lightbox-bar .icon-button.is-copied {
+  color: var(--status-done);
+}
+
+.image-lightbox-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.image-lightbox-stage.is-dragging { cursor: grabbing; }
+
+.image-lightbox-canvas {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: 0 0;
+}
+
+.image-lightbox-canvas img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: calc(100% - 2 * var(--space-4));
+  max-height: calc(100% - 2 * (var(--control-h) + 2 * var(--space-3)));
+}
+
+.image-lightbox-failed {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+}
+
+.image-lightbox-failed svg {
+  width: var(--space-6);
+  height: var(--space-6);
+}
+
+.image-lightbox-foot {
+  bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  left: calc(var(--space-3) + env(safe-area-inset-left, 0px));
+  right: calc(var(--space-3) + env(safe-area-inset-right, 0px));
+  width: fit-content;
+  max-width: calc(100% - 2 * var(--space-3) - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+  margin: 0 auto;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.image-lightbox-foot-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.image-lightbox-caption {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0 var(--space-2);
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+
+.image-lightbox-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-lightbox-count {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.image-lightbox-note {
+  margin: 0;
+  padding: 0 var(--space-2) var(--space-1);
+  color: var(--status-blocked);
+  font-size: var(--fs-xs);
+  text-align: center;
+}
+
+.image-lightbox-note.is-done {
+  color: var(--status-done);
+}
+
+/* Installed app with the title bar folded away: the header's drag region and the browser's window
+   controls stay over the title bar band under the preview (Chromium takes drag regions from
+   app-region, not from what is stacked on top), so the preview opts out of dragging and its bar
+   starts below the band; the fitted picture keeps the same room clear of the bar (#2026). */
+@media (display-mode: window-controls-overlay) {
+  .image-lightbox-scrim {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+
+  .image-lightbox-bar {
+    top: calc(var(--space-3) + env(titlebar-area-y, 0px) + env(titlebar-area-height, 0px));
+  }
+
+  .image-lightbox-canvas img {
+    max-height: calc(100% - 2 * (var(--control-h) + 2 * var(--space-3) + env(titlebar-area-y, 0px) + env(titlebar-area-height, 0px)));
+  }
+}

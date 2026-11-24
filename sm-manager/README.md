@@ -1,5 +1,12 @@
 # ST · System console
 
+The React v2 migration is developed on `feature/st-v2`. See
+[the implementation plan](ST_V2_IMPLEMENTATION.md). From this directory run
+`bun install --frozen-lockfile`, `bun run typecheck`, `bun run test:unit`, and
+`bun run build`. A private configuration with `"frontend": "react"` selects
+the built console; existing installations retain the legacy frontend during
+the migration. Built output and local configuration stay out of Git.
+
 A quiet, local dashboard for the projects running on your machine. See which app,
 branch, worktree, or Docker container is using memory and CPU without asking an
 agent to inspect the host every time.
@@ -629,5 +636,57 @@ python3 -m compileall -q sm_manager scripts
 node --test tests/test_*_ui.js
 ```
 
-The backend is Python's standard library. The UI is plain HTML, CSS, and
-JavaScript; edit and reload. See `AGENTS.md` for operating and extending it.
+The monitor backend is Python's standard library. The console and embedded Agents
+use React 19, TypeScript and Vite in the pinned Bun workspace. Run `bun install
+--frozen-lockfile`, `bun run typecheck`, `bun run test:unit` and `bun run build`.
+The legacy HTML/CSS/JavaScript interface remains available for rollback.
+See `AGENTS.md` for operating and extending the application.
+
+The integrated preview is enabled after the console preview exists:
+
+```sh
+python3 scripts/preview-ovis.py --env-file /absolute/private/ovis-service.env --bun /absolute/path/to/bun
+python3 scripts/preview-v2.py status
+python3 scripts/preview-v2.py restart
+python3 scripts/preview-v2.py stop
+```
+
+The environment file supplies the existing Herdr runtime, binary paths and private
+sidebar catalog. It stays outside Git. The preview overrides ports, cookie names,
+base path and Ovis state; it owns only its gateway, monitor and Ovis web services.
+The existing Herdr terminals and managed Codex daemon remain external services.
+Use `start` to restore the preview's owned Serve mapping after `stop`.
+An unsuccessful initial Ovis activation restores the previous console service.
+
+Ovis is mounted natively at `/ovis`, with its own conversation sidebar beside ST.
+The frontend retains chat drafts while navigating to console pages. Its packaged
+server entry omits the upstream self updater and runtime installer; deploy this
+fork through ST. Native mobile-app relay hosting and Ovis's standalone root PWA
+are not enabled by this preview.
+
+Browser verification uses synthetic fixtures, including Ovis's upstream demo:
+
+```sh
+bun run test:browser
+bun run test:ovis-browser
+```
+
+Install a Playwright Chromium first or set `BROWSER_EXECUTABLE` explicitly.
+
+The updated installer/updater stages frozen Bun dependencies, type checking,
+unit checks and the React build before stopping an installed service. It moves
+validated assets and dependencies together with source, restores both after a
+failed startup, and retains the preceding generated artifacts in its owned
+`previous-artifacts` folder. `release.json` records the source revision and Bun
+version. Set `SM_MANAGER_BUN` if Bun is outside the updater's PATH.
+
+An installed updater copy and its units must be explicitly upgraded from the
+updated source. Follow [Production v2 deployment](PRODUCTION_V2.md) to activate
+the three production web services, preserve existing history and private ingress,
+or roll back their configuration. Preview services remain independent.
+
+For the opt-in transport check, point `ST_OVIS_HC_BIN` at an installed `hc` and run
+`bun run test:terminal`. The check creates its own HOME, state, daemon socket and
+terminal, exercises the real Ovis/Herdr PTY through the gateway, verifies that
+stopping the web services leaves the terminal alive, then removes its own test
+session. It never uses the normal Herdr session or a live Codex conversation.

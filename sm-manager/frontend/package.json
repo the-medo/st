@@ -1,0 +1,25 @@
+{
+  "name": "@st/console",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc -p ../integrations/ovis/app/shared/vendor/paseo-e2ee/tsconfig.json --emitDeclarationOnly && tsc --noEmit",
+    "typecheck:gateway": "tsc -p ../services/web-gateway/tsconfig.json"
+  },
+  "dependencies": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-router": "7.9.6",
+    "lucide-react": "1.47.0",
+    "@st/theme": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "typescript": "7.0.2",
+    "vite": "8.3.4",
+    "postcss": "8.5.29"
+  }
+}

@@ -254,5 +254,46 @@ class ManageTests(unittest.TestCase):
         commands.assert_any_call(["systemctl", "--user", "disable", "--now", manage.UPDATE_TIMER])
 
 
+class ArtifactTests(unittest.TestCase):
+    def test_recovery_restores_previous_assets_and_removes_new_dependencies(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkout, candidate, backup = [root / part for part in ('runtime', 'candidate', 'backup')]
+            backup.mkdir()
+            old = checkout / updater.GENERATED[0]
+            old.mkdir(parents=True)
+            (old / 'version').write_text('previous')
+            for name in updater.GENERATED:
+                folder = candidate / name
+                folder.mkdir(parents=True)
+                (folder / 'version').write_text('candidate')
+            moved = updater.exchange_artifacts(candidate, checkout, backup)
+            self.assertEqual((old / 'version').read_text(), 'candidate')
+            updater.restore_artifacts(moved)
+            self.assertEqual((old / 'version').read_text(), 'previous')
+            for name in updater.GENERATED[1:]:
+                self.assertFalse((checkout / name).exists())
+
+    def test_partial_artifact_failure_restores_already_switched_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkout, candidate, backup = [root / part for part in ('runtime', 'candidate', 'backup')]
+            backup.mkdir()
+            for base, text in [(checkout, 'previous'), (candidate, 'candidate')]:
+                for name in updater.GENERATED[:2]:
+                    folder = base / name
+                    folder.mkdir(parents=True)
+                    (folder / 'version').write_text(text)
+            original = Path.rename
+            def rename(path, destination):
+                if path == candidate / updater.GENERATED[1]:
+                    raise OSError('fixture disk failure')
+                return original(path, destination)
+            with patch.object(Path, 'rename', rename), self.assertRaisesRegex(OSError, 'fixture disk failure'):
+                updater.exchange_artifacts(candidate, checkout, backup)
+            for name in updater.GENERATED[:2]:
+                self.assertEqual((checkout / name / 'version').read_text(), 'previous')
+
+
 if __name__ == "__main__":
     unittest.main()

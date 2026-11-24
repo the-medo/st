@@ -1,0 +1,680 @@
+/* The card sits on the composer's column, directly above the input card and outside the
+   transcript (PaneTerminal places it; the column and the space under it are Composer.css's).
+   Its height is budgeted, and a phone's keyboard counts (--app-height): the larger of 60% of the
+   app and six touch rows, so a three-option approval is never cut. Only the reference text gives
+   way (.prompt-card-body); when that is not enough the card scrolls as a whole. The composer's
+   folder strip under the input card comes out of that 60% (--prompt-card-strip), so the transcript
+   keeps what it had without one. */
+.prompt-card {
+  --prompt-card-strip: 0px;
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: max(calc(var(--app-height, 100dvh) * 0.6 - var(--prompt-card-strip)), calc(var(--touch-target) * 6));
+  padding: var(--space-3) var(--space-3) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow-y: auto;
+  /* at its top, a drag down is still the card's: handed on to the page, Android Chrome takes it
+     for pull-to-refresh and reloads the app, with a typed answer or a checked box in the card */
+  overscroll-behavior: contain;
+  border: var(--hairline) solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--bg-elevated);
+}
+
+.prompt-card > * {
+  flex: none;
+}
+
+.prompt-card::after {
+  content: "";
+  position: sticky;
+  bottom: 0;
+  flex: none;
+  height: var(--space-3);
+  margin-top: calc(-1 * var(--space-2));
+  background: linear-gradient(transparent, var(--bg-elevated));
+  pointer-events: none;
+}
+
+.prompt-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.prompt-card-header h2,
+.prompt-card-question,
+.prompt-card-hint,
+.prompt-card-error {
+  margin: 0;
+}
+
+.prompt-card-header h2 {
+  color: var(--status-blocked);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  overflow-wrap: anywhere;
+}
+
+.prompt-card-back {
+  flex: none;
+  height: var(--space-6);
+  padding: 0 var(--space-2);
+  gap: var(--space-1);
+  font-size: var(--fs-xs);
+}
+
+.prompt-card-next {
+  flex: none;
+  height: var(--space-6);
+  margin-inline-start: auto;
+  padding: 0 var(--space-2);
+  gap: var(--space-1);
+  font-size: var(--fs-xs);
+}
+
+.prompt-card-next + .prompt-card-fold {
+  margin-inline-start: 0;
+}
+
+.prompt-card-plan-file {
+  margin-inline-start: auto;
+  flex: none;
+}
+
+.prompt-card-fold {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--control-h);
+  height: var(--control-h);
+  margin-inline-start: auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.prompt-card-status:not(.is-empty) + .prompt-card-fold,
+.prompt-card-plan-file + .prompt-card-fold {
+  margin-inline-start: 0;
+}
+
+.prompt-card-fold svg {
+  width: var(--fs-md);
+  height: var(--fs-md);
+}
+
+@media (hover: hover) {
+  .prompt-card-fold:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+  }
+}
+
+.prompt-card-fold:focus-visible {
+  outline: var(--ring);
+  outline-offset: var(--ring-offset);
+}
+
+@media (pointer: coarse) {
+  .prompt-card-fold {
+    width: var(--touch-target);
+    height: var(--touch-target);
+  }
+}
+
+.prompt-card.is-folded > :not(.prompt-card-header, .prompt-card-error, .visually-hidden) {
+  display: none;
+}
+
+.prompt-card-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.prompt-card-step {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-half) var(--space-2) var(--space-half) var(--space-half);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-tight);
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out);
+}
+
+.prompt-card-step-mark {
+  flex: none;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+}
+
+.prompt-card-step-mark svg {
+  width: var(--icon-size-xs);
+  height: var(--icon-size-xs);
+  stroke-width: 3;
+}
+
+.prompt-card-step-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prompt-card-step.is-answered {
+  color: var(--text);
+}
+
+.prompt-card-step.is-answered .prompt-card-step-mark {
+  color: var(--accent);
+}
+
+.prompt-card-step.is-clickable {
+  padding: 0;
+}
+
+.prompt-card-step-button {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-half) var(--space-2) var(--space-half) var(--space-half);
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-pill);
+}
+
+.prompt-card-step-button:focus-visible {
+  outline: var(--ring);
+  outline-offset: var(--ring-offset);
+}
+
+@media (hover: hover) {
+  .prompt-card-step.is-clickable:hover {
+    border-color: var(--accent);
+    background: var(--bg-hover);
+  }
+}
+
+.prompt-card-step.is-current {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+  color: var(--text-strong);
+  font-weight: var(--fw-medium);
+}
+
+.prompt-card-step.is-current .prompt-card-step-mark {
+  background: var(--primary);
+  color: var(--primary-text);
+}
+
+.prompt-card-question {
+  color: var(--text-strong);
+  font-size: var(--fs-md);
+  line-height: var(--lh-base);
+  overflow-wrap: anywhere;
+}
+
+.prompt-card-words {
+  display: contents;
+}
+
+.prompt-card-words-text {
+  flex: 0 1 auto;
+  min-height: 2lh;
+  max-height: 8lh;
+  margin: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.prompt-card-words .prompt-card-hint {
+  flex: none;
+  margin-top: calc(-1 * var(--space-1));
+}
+
+.markdown.prompt-card-question {
+  font-size: var(--fs-md);
+  line-height: var(--lh-base);
+}
+
+.prompt-card-option code {
+  padding: var(--hairline) var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-strong);
+  font-family: var(--font-mono);
+  font-size: 0.87em;
+}
+
+/* a question in Codex's queue: the agent is not waiting on it, so the card says who answers what */
+.prompt-card-hint {
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+}
+
+.prompt-card-body {
+  flex: 0 1 auto;
+  min-height: calc(2lh + 2 * var(--space-2));
+  max-height: calc(6lh + 2 * var(--space-2));
+  margin: 0;
+  padding: var(--space-2) var(--space-3) 0;
+  overflow-y: auto;
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.prompt-card-answers {
+  flex: 0 1 auto;
+  min-height: calc(2lh + 2 * var(--space-2));
+  max-height: calc(8lh + 2 * var(--space-2));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  overflow-y: auto;
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+  overflow-wrap: anywhere;
+}
+
+.prompt-card-answer dt {
+  color: var(--text-dim);
+}
+
+.prompt-card-answer dd {
+  margin: 0;
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+
+.prompt-card-answer dd.is-empty,
+.prompt-card-answer .prompt-card-answer-note {
+  color: var(--text-dim);
+  font-weight: var(--fw-regular);
+}
+
+.prompt-card-body.is-line {
+  min-height: calc(1lh + 2 * var(--space-2));
+}
+
+.prompt-card-body::after {
+  content: "";
+  position: sticky;
+  bottom: 0;
+  display: block;
+  height: var(--space-2);
+  background: linear-gradient(transparent, var(--bg));
+  pointer-events: none;
+}
+
+.prompt-card-options {
+  display: flex;
+  flex-direction: column;
+}
+
+/* the preview Claude draws for the option under its cursor (#1212), under that option and in line with
+   its label: kept as drawn, its own scroll both ways, so a mockup's columns never re-wrap */
+.prompt-card-option-preview {
+  margin: 0 0 var(--space-1) calc(var(--space-3) + var(--space-5) + var(--space-2));
+}
+
+.prompt-card-option-preview pre {
+  max-height: calc(8lh + 2 * var(--space-2));
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  white-space: pre;
+}
+
+.prompt-card-option-preview .prompt-card-hint {
+  margin: var(--space-1) 0 0;
+}
+
+.prompt-card-option {
+  width: 100%;
+  min-height: var(--control-h);
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  background: transparent;
+  border: var(--hairline) solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-strong);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .prompt-card-option:hover {
+    background: var(--bg-hover);
+  }
+
+  .prompt-card-option:hover .prompt-card-number {
+    color: var(--accent);
+  }
+}
+
+.prompt-card-option:focus-visible {
+  background: var(--bg-hover);
+}
+
+/* A device that may only watch sees them so too (is-unavailable): it cannot answer */
+.prompt-card-options[aria-busy="true"] .prompt-card-option,
+.prompt-card-options.is-unavailable .prompt-card-option {
+  color: var(--text-dim);
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .prompt-card-options[aria-busy="true"] .prompt-card-option:hover,
+  .prompt-card-options.is-unavailable .prompt-card-option:hover {
+    background: transparent;
+  }
+
+  .prompt-card-options[aria-busy="true"] .prompt-card-option:hover .prompt-card-number,
+  .prompt-card-options.is-unavailable .prompt-card-option:hover .prompt-card-number {
+    color: var(--text-dim);
+  }
+}
+
+.prompt-card-option.is-checked,
+.prompt-card-option.is-selected,
+.prompt-card-option.is-typed {
+  background: var(--accent-tint);
+  border-color: var(--accent);
+}
+
+.prompt-card-number {
+  flex: none;
+  min-width: var(--space-5);
+  border: var(--hairline) solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-regular);
+  text-align: center;
+}
+
+.prompt-card-option.is-checked .prompt-card-number,
+.prompt-card-option.is-selected .prompt-card-number,
+.prompt-card-option.is-typed .prompt-card-number {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.prompt-card-option input {
+  flex: none;
+  align-self: flex-start;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+  margin: calc((var(--fs-sm) * var(--lh-base) - var(--icon-size-md)) / 2) 0 0;
+  accent-color: var(--primary);
+  cursor: inherit;
+}
+
+.prompt-card-option-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+}
+
+.prompt-card-option-label {
+  font-weight: var(--fw-medium);
+}
+
+.prompt-card-option-description {
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-regular);
+}
+
+.prompt-card-tag {
+  display: inline-block;
+  padding: 1px var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+}
+
+/* Its words are drawn from data-scope and the tag is aria-hidden, so the option's text and name
+   stay the agent's alone; a visually-hidden span beside the option carries the same words as text
+   for the option's aria-describedby (generated content on a hidden node reaches no accessibility
+   tree) (G-071) */
+.prompt-card-scope {
+  margin-inline-start: var(--space-1);
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+
+.prompt-card-scope::after {
+  content: attr(data-scope);
+}
+
+.prompt-card-confirm {
+  position: sticky;
+  bottom: var(--space-3);
+  z-index: 1;
+  background: var(--bg-elevated);
+  box-shadow:
+    0 var(--space-3) 0 var(--bg-elevated),
+    0 calc(-1 * var(--space-2)) var(--space-2) var(--bg-elevated);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: var(--hairline) solid var(--accent);
+  border-radius: var(--radius-md);
+  color: var(--text-strong);
+  font-size: var(--fs-sm);
+}
+
+.prompt-card-confirm-text {
+  flex: 1 1 12em;
+  min-width: 0;
+  max-height: 2lh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  line-height: var(--lh-base);
+  overflow-wrap: anywhere;
+}
+
+.prompt-card-confirm-actions {
+  flex: none;
+  display: flex;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.prompt-card-submit {
+  align-self: flex-start;
+}
+
+.prompt-card-custom {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.prompt-card-custom-label {
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+}
+
+.prompt-card-custom-row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.prompt-card-custom .input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: auto;
+  border-color: var(--border-input);
+}
+
+.prompt-card-custom .input:focus-visible {
+  outline: var(--ring);
+  outline-offset: var(--ring-offset);
+}
+
+.prompt-card-custom .btn svg {
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+
+.prompt-card-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  color: var(--status-blocked);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+}
+
+.prompt-card-error-text {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.prompt-card-retry {
+  flex: none;
+  margin-inline-start: auto;
+  font-size: var(--fs-xs);
+}
+
+/* an answer on its way: said in the header when it speaks, and clipped while empty (never display: none)
+   so its live region is in the card from the first render without adding a row at rest or while pending */
+.prompt-card-status {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0 0 0 auto;
+  overflow: hidden;
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-tight);
+  text-align: end;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prompt-card-next + .prompt-card-status,
+.prompt-card-plan-file + .prompt-card-status {
+  margin-inline-start: 0;
+}
+
+.prompt-card-status.is-empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prompt-card-step,
+  .prompt-card-option {
+    transition: none;
+  }
+}
+
+/* a desktop always shows the tab strip (as herdr's TUI): the card's 60% is of what is under it,
+   so the transcript keeps two lines at 800x600. A phone hides a lone tab and keeps the rule above */
+@media (min-width: 769px) {
+  .prompt-card { max-height: max(calc((var(--app-height, 100dvh) - var(--control-h)) * 0.6 - var(--prompt-card-strip)), calc(var(--touch-target) * 6)); }
+}
+
+.prompt-dock:has(~ .composer > .composer-strip) > .prompt-card {
+  --prompt-card-strip: calc(var(--chip-h) + var(--space-5) + var(--space-1) + var(--hairline) - var(--space-4));
+}
+
+@media (pointer: coarse) {
+  .prompt-card-question,
+  .markdown.prompt-card-question {
+    font-size: var(--fs-lg);
+  }
+
+  .prompt-card-option {
+    min-height: var(--touch-target);
+    padding-block: var(--space-2);
+    font-size: var(--fs-lg);
+  }
+
+  .prompt-card-option.has-description {
+    padding-block: var(--space-1);
+  }
+
+  .prompt-card-option-description {
+    font-size: var(--fs-md);
+  }
+}

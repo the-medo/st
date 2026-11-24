@@ -1,0 +1,130 @@
+.worktree-modal {
+  width: min(100%, var(--dialog-w-form));
+}
+
+.worktree-modal :is(.input, .select):focus-visible {
+  outline: var(--ring);
+  outline-offset: var(--ring-offset);
+}
+
+.worktree-code-input {
+  font-family: var(--font-mono);
+}
+
+.worktree-lead {
+  margin: 0 0 var(--space-4);
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+
+.worktree-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.worktree-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--row-h);
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+@media (hover: hover) {
+  .worktree-row:hover:not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--text-strong);
+  }
+}
+
+.worktree-row:focus-visible {
+  outline: var(--ring);
+  outline-offset: var(--ring-offset);
+  background: var(--bg-hover);
+  color: var(--text-strong);
+}
+
+.worktree-row:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.worktree-row > svg {
+  flex: 0 0 auto;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  color: var(--text-dim);
+}
+
+.worktree-copy {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.worktree-branch {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.worktree-branch.is-literal {
+  font-family: var(--font-mono);
+}
+
+.worktree-path {
+  overflow: hidden;
+  direction: rtl;
+  text-align: left;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.worktree-row .pill {
+  flex: 0 0 auto;
+  font-size: var(--fs-xs);
+}
+
+.worktree-empty {
+  margin: 0;
+}
+
+.worktree-error {
+  color: var(--status-blocked);
+  overflow-wrap: anywhere;
+}
+
+@media (pointer: coarse), (max-width: 640px) {
+  .worktree-modal .input,
+  .worktree-modal .select,
+  .worktree-modal .btn,
+  .worktree-modal .icon-button {
+    min-height: var(--touch-target);
+    height: var(--touch-target);
+  }
+
+  .worktree-modal .icon-button {
+    min-width: var(--touch-target);
+  }
+}

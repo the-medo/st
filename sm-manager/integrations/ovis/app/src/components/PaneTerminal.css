@@ -1,0 +1,465 @@
+/* The range is the private use area alone, so the browser fetches the file only once a pane
+   prints an icon, and a heart, a lightning bolt or a box line keeps the system font's glyph */
+@font-face {
+  font-family: "Symbols Nerd Font Mono";
+  src: url("../fonts/SymbolsNerdFontMono-Regular.woff2") format("woff2");
+  font-display: block;
+  unicode-range: U+E000-F8FF, U+F0000-FFFFD;
+}
+
+/* Hangul in a coding face (HANGUL_FAMILY in lib/fontFamily.ts): the syllables and compatibility
+   jamo of D2Coding 1.3.2, renamed as its license asks (THIRD_PARTY_NOTICES.md). The range holds
+   no Latin, so it never sizes a cell, and a weight is fetched only once a pane prints Korean that
+   reaches it, which a Korean font installed ahead of it in the stack keeps from it;
+   lib/terminalGlyphs.ts measures again when it arrives. Blocked rather than swapped, as the
+   icon font: past a swap face's short block period WebKit reports it failed while it still loads,
+   and the terminal could not tell when to measure again */
+@font-face {
+  font-family: "Ovis Hangul Mono";
+  src: url("../fonts/OvisHangulMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: block;
+  unicode-range: U+3131-318E, U+AC00-D7A3;
+}
+
+@font-face {
+  font-family: "Ovis Hangul Mono";
+  src: url("../fonts/OvisHangulMono-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: block;
+  unicode-range: U+3131-318E, U+AC00-D7A3;
+}
+
+.terminal-stack {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* the grid keeps a small gutter of its own: the host (styles.css) has none, because the
+   chat lens and the composer want the full width. The gutter sits on .xterm itself, not
+   on the mount: the fit addon subtracts the terminal element's padding but reads the
+   parent's border-box width, so padding on the mount would overflow the last columns */
+.pane-terminal {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+  /* a drag here is ours (PaneTerminal turns it into wheel events for herdr): without
+     this the browser takes the gesture after its first move and scrolls the page or
+     the composer instead, or starts pull-to-refresh */
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+
+.pane-terminal[data-adopted-grid] {
+  overflow: auto;
+}
+
+/* The helper textarea is not hidden: typing still reaches xterm */
+.pane-terminal[data-folded] {
+  position: relative;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.pane-terminal[data-folded] > .xterm {
+  overflow: hidden;
+}
+
+.pane-terminal[data-folded] .xterm-rows,
+.pane-terminal[data-folded] .xterm-selection,
+.pane-terminal[data-folded] .xterm-decoration-container {
+  visibility: hidden;
+}
+
+.terminal-fold {
+  position: absolute;
+  inset: 0 0 auto;
+  min-height: 100%;
+  box-sizing: border-box;
+  padding: var(--space-2) var(--space-2) 0;
+  line-height: var(--fold-line);
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  text-spacing-trim: space-all;
+  text-autospace: no-autospace;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.terminal-fold-row {
+  min-height: var(--fold-line);
+}
+
+.pane-terminal[data-folded] ~ .terminal-viewport-tools .terminal-find-hit {
+  display: none;
+}
+
+/* Chrome's CJK typography (text-spacing-trim, text-autospace) changes how far a glyph advances
+   with what stands beside it, and a cell grid needs every glyph to advance alike. xterm's
+   WidthCache measures a glyph as 32 copies in one span, which Chrome trims to half width when
+   the glyph is fullwidth punctuation (，。（）), so xterm gave every such mark half a glyph too
+   much letter-spacing and the rest of its row drew right of its cells: OmO's side panel stood
+   in a different column on each row, moving as scrolling brought other rows beside it (#739). */
+.pane-terminal .xterm {
+  padding: var(--space-2) var(--space-2) 0;
+  text-spacing-trim: space-all;
+  text-autospace: no-autospace;
+}
+
+.terminal-surface {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.terminal-font-size {
+  position: absolute;
+  top: var(--space-3);
+  left: 50%;
+  z-index: var(--z-banner);
+  transform: translateX(-50%);
+  padding: var(--space-1) var(--space-2);
+  border: var(--hairline) solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  color: var(--text-strong);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-base);
+  white-space: nowrap;
+  box-shadow: var(--shadow-card);
+  pointer-events: none;
+}
+
+.terminal-stack.is-chat > .terminal-surface {
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .terminal-stack.is-chat > .terminal-surface {
+    overflow: visible;
+    clip-path: inset(calc(-1 * var(--header-over, 0px)) 0 0 0);
+  }
+}
+
+.pane-terminal.is-idle {
+  visibility: hidden;
+}
+
+/* the native viewport never scrolls (xterm draws its own scrollbar for a herdr-core pane's history):
+   hide the track that would otherwise sit over the last columns on platforms with classic scrollbars */
+.pane-terminal .xterm-viewport {
+  background-color: var(--term-bg);
+  scrollbar-width: none;
+}
+
+.pane-terminal .xterm-viewport::-webkit-scrollbar {
+  display: none;
+}
+
+.terminal-placeholder {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-banner);
+  display: grid;
+  place-items: center;
+  color: var(--text-dim);
+  font-size: var(--fs-md);
+  pointer-events: none;
+}
+
+.terminal-placeholder-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.terminal-placeholder svg {
+  width: var(--space-6);
+  height: var(--space-6);
+}
+
+.terminal-placeholder.is-restore-error {
+  padding: 0 var(--space-4);
+  text-align: center;
+}
+
+.terminal-placeholder.is-restore-error svg {
+  color: var(--status-blocked);
+}
+
+.terminal-placeholder-detail {
+  max-width: 36rem;
+  font-size: var(--fs-sm);
+}
+
+.terminal-banners {
+  position: absolute;
+  top: calc(var(--space-2) + var(--header-over, 0px));
+  right: var(--space-3);
+  z-index: calc(var(--z-banner) + 1);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  max-width: calc(100% - 2 * var(--space-3));
+  pointer-events: none;
+}
+
+.terminal-banners > .visually-hidden {
+  top: 0;
+  left: 0;
+}
+
+.terminal-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--chip-h);
+  padding: 0 var(--space-2);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.terminal-banner button {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.terminal-banner-warning {
+  border-color: var(--status-working);
+  color: var(--status-working);
+}
+
+.terminal-banner-action {
+  pointer-events: auto;
+}
+
+.terminal-quote {
+  font-family: inherit;
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out);
+}
+
+.terminal-quote svg {
+  width: var(--icon-size);
+  height: var(--icon-size);
+  flex: none;
+}
+
+.terminal-quote:hover {
+  border-color: var(--accent);
+}
+
+.terminal-quote:focus-visible {
+  outline: var(--ring);
+  outline-offset: var(--ring-offset);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-quote {
+    transition: none;
+  }
+}
+
+.terminal-banner-soon {
+  border-color: var(--accent);
+  color: var(--text);
+  background: linear-gradient(var(--accent-tint), var(--accent-tint)) var(--bg-elevated);
+}
+
+.terminal-banner-output-error {
+  max-width: 100%;
+  white-space: normal;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  pointer-events: auto;
+}
+
+.terminal-banner-observe svg {
+  width: 1em;
+  height: 1em;
+  flex: none;
+}
+
+.terminal-banner-draft {
+  height: auto;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  max-width: 100%;
+  pointer-events: auto;
+}
+
+.terminal-banner-command {
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  pointer-events: auto;
+}
+
+.terminal-command-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.terminal-command-words {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.terminal-command-words > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.terminal-command-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  max-width: 100%;
+}
+
+.terminal-command-label > svg {
+  width: var(--fs-sm);
+  height: var(--fs-sm);
+  flex: none;
+}
+
+.draft-held {
+  max-width: min(32ch, 100%);
+  white-space: nowrap;
+  overflow-wrap: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* takes the pointer back from the pass-through column, as a banner's action does: a title only
+     shows for an element the pointer can reach */
+  pointer-events: auto;
+}
+
+.draft-held code {
+  font-family: var(--font-mono);
+}
+
+.terminal-banner-draft .draft-text {
+  max-width: min(32ch, 100%);
+  white-space: nowrap;
+  overflow-wrap: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
+.terminal-banner-draft .draft-truncated {
+  flex-basis: 100%;
+  color: var(--text-dim);
+}
+
+.terminal-banner-draft .draft-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  max-width: 100%;
+  gap: var(--space-1);
+}
+
+@media (max-width: 480px) {
+  .terminal-banner-soon,
+  .terminal-banner-warning {
+    max-width: min(36ch, 100%);
+    text-align: start;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
+  }
+}
+
+/* xterm swaps its row elements on every redraw. A touch keeps its first target for the
+   whole gesture, so a finger that landed on a row lost every later move (and its end)
+   as soon as the first scroll redrew that row, and the browser took the drag. On touch
+   screens the rows take no touches: the gesture lands on the screen element, which stays. */
+@media (pointer: coarse) {
+  .pane-terminal .xterm-rows { pointer-events: none; }
+}
+
+/* under the chat lens the grid is covered: skip drawing it (xterm pauses its renderer while
+   the screen is not intersecting, and repaints in full on return). The box keeps its size,
+   so the grid never refits to zero */
+.terminal-stack.is-chat .pane-terminal {
+  content-visibility: hidden;
+}
+
+.terminal-stack.is-chat.is-peek .pane-terminal {
+  content-visibility: visible;
+}
+
+.terminal-stack.is-peek > .terminal-surface {
+  background: var(--term-bg);
+}
+
+.terminal-stack.is-peek > .terminal-surface > .chat-frame,
+.terminal-stack.is-peek > .terminal-surface > .chat-view {
+  visibility: hidden;
+}
+
+.terminal-stack.is-peek > .terminal-surface::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-banner);
+  border: var(--hairline) solid var(--accent);
+  pointer-events: none;
+}
+
+.terminal-stack.is-peek > .composer,
+.terminal-stack.is-peek > .composer-queue,
+.terminal-stack.is-peek > .pending-messages,
+.terminal-stack.is-peek > .prompt-dock {
+  opacity: 0.5;
+}
+
+@media (pointer: coarse), (max-width: 768px) {
+  .terminal-stack.is-peek > .composer,
+  .terminal-stack.is-peek > .composer-queue,
+  .terminal-stack.is-peek > .pending-messages,
+  .terminal-stack.is-peek > .prompt-dock {
+    display: none;
+  }
+}
+
+.pane-terminal[data-renderer="ghostty"] .xterm-rows { visibility: hidden; }
+.pane-terminal[data-folded] .ghostty-layer { visibility: hidden; }
+.pane-terminal .ghostty-layer { position: absolute; inset: 0 auto auto 0; pointer-events: none; overflow: hidden; z-index: 1; }
+.pane-terminal .ghostty-layer > * { position: absolute; inset: 0; }
+.pane-terminal .ghostty-row { position: relative; height: var(--ghostty-ch); line-height: var(--ghostty-ch); white-space: pre; font-variant-ligatures: none; }
+.pane-terminal .ghostty-row > span { position: absolute; top: 0; height: 100%; }
+.pane-terminal .ghostty-wide { display: inline-block; width: calc(var(--ghostty-cw) * 2); text-align: center; letter-spacing: 0; text-decoration: inherit; }
+/* an inline-block takes no underline or strikethrough from the run around it: each asks for its own (terminalGlyphs.ts) */
+.pane-terminal .ghostty-fit { display: inline-block; text-decoration: inherit; }
+/* clipped to its cell, it would sit on its bottom edge as on a baseline: it takes the row's top and height instead, as xterm's fitted icons do */
+.pane-terminal .ghostty-icon { display: inline-block; width: var(--ghostty-cw); height: var(--ghostty-ch); vertical-align: top; overflow: hidden; text-align: center; letter-spacing: 0; text-decoration: inherit; }
+.pane-terminal .ghostty-image { position: absolute; image-rendering: auto; }
+.pane-terminal .ghostty-cursor { inset: auto; opacity: 0.6; }
+.pane-terminal[data-renderer="ghostty"] .composition-view { z-index: 2; }
