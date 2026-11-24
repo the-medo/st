@@ -1,12 +1,7 @@
 import { useState } from "react";
 import { bytes, percent } from "../lib/api";
 import { Panel, Metric, Notice, Empty } from "../components/Ui";
-import {
-  CopyReport,
-  CopyText,
-  cleanupBrief,
-  useMonitor,
-} from "./MonitorContext";
+import { CopyText, cleanupBrief, useMonitor } from "./MonitorContext";
 import { Projects, ProcessTable, WorktreeDetail } from "./Resources";
 import { HistoryChart } from "./HistoryChart";
 export function Overview() {
@@ -57,10 +52,7 @@ export function Overview() {
   ];
   return (
     <>
-      <div className="st-toolbar">
-        <CopyReport />
-      </div>
-      <div className="st-metrics">
+      <div className="st-metrics metrics">
         <Metric
           label="Memory"
           value={bytes(s.system.memory_used)}
@@ -95,28 +87,55 @@ export function Overview() {
           )) ?? <Empty>Health checks unavailable.</Empty>}
         </div>
       </Panel>
-      <Panel title="Resource activity">
-        <HistoryChart snapshot={s} />
-      </Panel>
-      <Panel title="Memory allocation">
-        <div className="st-allocation">
-          {allocated.map((a, i) => (
-            <div key={i}>
-              <span>{a.label}</span>
-              <meter
-                min={0}
-                max={Math.max(s.system.memory_used, 1)}
-                value={a.value}
-              />
-              <strong>{bytes(a.value)}</strong>
-            </div>
-          ))}
-        </div>
-        <small>
-          RSS + container working set; shared pages may overlap. System & other
-          is the remainder.
-        </small>
-      </Panel>
+      <div className="overview-grid">
+        <Panel title="Resource activity">
+          <HistoryChart snapshot={s} />
+        </Panel>
+        <Panel title="Memory allocation" className="allocation-panel">
+          <div id="allocation">
+            {allocated.map((a, i) => {
+              const color =
+                a.label === "Codex"
+                  ? "#c4b5fd"
+                  : a.label === "System & other"
+                    ? "#91a0b2"
+                    : ["#58a6ff", "#63cf8c", "#d2a8ff", "#f0b65f"][i % 4];
+              return (
+                <div className="allocation-row" key={i}>
+                  <div className="allocation-label">
+                    <span
+                      className="allocation-color"
+                      style={{ background: color }}
+                    />
+                    <strong>{a.label}</strong>
+                    <span>{bytes(a.value)}</span>
+                  </div>
+                  <div
+                    className="allocation-track"
+                    role="meter"
+                    aria-label={a.label}
+                    aria-valuemin={0}
+                    aria-valuemax={Math.max(s.system.memory_used, 1)}
+                    aria-valuenow={a.value}
+                    aria-valuetext={bytes(a.value)}
+                  >
+                    <span
+                      style={{
+                        width: `${Math.min(100, (a.value / Math.max(s.system.memory_used, 1)) * 100)}%`,
+                        background: color,
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="allocation-note">
+            RSS + container working set; shared pages may overlap. System &amp;
+            other is the remainder.
+          </div>
+        </Panel>
+      </div>
       <Panel
         title="Cleanup candidates"
         actions={

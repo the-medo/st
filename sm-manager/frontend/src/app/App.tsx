@@ -1,26 +1,11 @@
 import { isWorkmode } from "../lib/workmode";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef } from "react";
 import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
-import {
-  Activity,
-  FolderGit2,
-  Boxes,
-  HardDrive,
-  Terminal,
-  CalendarDays,
-  ListTodo,
-  Monitor,
-  Wind,
-  Database,
-  Code,
-  Menu,
-  Home as HomeIcon,
-} from "lucide-react";
 import { Home } from "../features/Home";
 import { Notice } from "../components/Ui";
 import { usePoll } from "../lib/api";
 import type { UiConfig } from "../lib/types";
-import { useMonitor } from "../features/MonitorContext";
+import { CopyReport, useMonitor } from "../features/MonitorContext";
 import { Planner } from "../features/Planner";
 import { Ovis } from "../features/ovis/Ovis";
 const Overview = lazy(() =>
@@ -51,20 +36,19 @@ const Faceplate = lazy(() =>
   import("../features/Faceplate").then((m) => ({ default: m.Faceplate })),
 );
 const navigation = [
-  ["overview", "Overview", Activity],
-  ["projects", "Projects", FolderGit2],
-  ["containers", "Containers", Boxes],
-  ["codex", "Codex", Terminal],
-  ["storage", "Storage", HardDrive],
-  ["zed", "Zed", Code],
-  ["dbs", "DBs", Database],
+  ["overview", "Overview", "◫"],
+  ["projects", "Projects", "⌘"],
+  ["containers", "Containers", "▤"],
+  ["codex", "Codex", "✳"],
+  ["storage", "Storage", "▥"],
+  ["zed", "Zed", "/zed.svg"],
+  ["dbs", "DBs", "/db.svg"],
 ] as const;
 export function App() {
   const location = useLocation(),
     navigate = useNavigate();
-  const [drawer, setDrawer] = useState(false);
   const config = usePoll<UiConfig>("/api/ui-config", 60000);
-  const { snapshot: monitor } = useMonitor();
+  const { snapshot: monitor, projects } = useMonitor();
   const planner = location.pathname.startsWith("/planner/");
   const ovis = location.pathname.startsWith("/ovis");
   const workmode = isWorkmode(location.search);
@@ -79,7 +63,8 @@ export function App() {
           .split("/")
           .filter(Boolean)
           .at(-1)
-          ?.replaceAll("-", " ") ??
+          ?.replaceAll("-", " ")
+          .replace(/^./, (letter) => letter.toUpperCase()) ??
         "Home");
   useEffect(() => {
     if (location.pathname === "/" && location.hash) {
@@ -91,72 +76,154 @@ export function App() {
   }, [location.hash, location.pathname, location.search, navigate]);
   useEffect(() => {
     document.title = `ST · ${title}`;
-    setDrawer(false);
   }, [title]);
+  useEffect(() => {
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute("content", workmode ? "#19120e" : "#0d1117");
+  }, [workmode]);
   return (
     <div className="st-app" data-workmode={workmode}>
-      <aside className={`st-sidebar ${drawer ? "open" : ""}`}>
-        <NavLink className="st-brand" to="/">
-          <img src="/st-logo.svg" alt="S.T." />
-          <span>SYSTEM CONSOLE</span>
+      <aside className="st-sidebar sidebar">
+        <NavLink
+          className="st-brand brand"
+          to="/"
+          aria-label="Home"
+          title="ST · System console"
+        >
+          <img src="/st-logo.svg" alt="" width="86" height="48" />
+          <span className="brand-caption">SYSTEM CONSOLE</span>
+          <img
+            className="workmode-logo"
+            src="/ydistri.svg"
+            alt="Ydistri"
+            hidden={!workmode}
+          />
         </NavLink>
         <nav aria-label="Main navigation">
-          <NavLink to="/" end>
-            <HomeIcon size={18} />
-            Home
-          </NavLink>
-          {navigation.map(([path, label, Icon]) => (
-            <NavLink key={path} to={`/${path}${workmode ? "?workmode=1" : ""}`}>
-              <Icon size={18} />
+          {navigation.map(([path, label, icon]) => (
+            <NavLink
+              className="nav-link"
+              title={label}
+              aria-label={label}
+              key={path}
+              to={`/${path}${workmode ? "?workmode=1" : ""}`}
+            >
+              {icon.startsWith("/") ? (
+                <img
+                  className="nav-icon"
+                  src={icon}
+                  alt=""
+                  width="17"
+                  height="17"
+                />
+              ) : (
+                <span className="nav-icon" aria-hidden="true">
+                  {icon}
+                </span>
+              )}
               {label}
+              {path === "projects" && (
+                <span className="nav-count" aria-hidden="true">
+                  {monitor.data ? projects.length : "—"}
+                </span>
+              )}
+              {path === "containers" && (
+                <span className="nav-count" aria-hidden="true">
+                  {monitor.data
+                    ? projects.reduce(
+                        (count, project) => count + project.container_count,
+                        0,
+                      ) + monitor.data.unassigned_containers.length
+                    : "—"}
+                </span>
+              )}
             </NavLink>
           ))}
           {config.data?.ovis && (
-            <NavLink to={ovisAddress.current}>
-              <Terminal size={18} />
+            <NavLink className="nav-link" title="Ovis" to={ovisAddress.current}>
+              <span className="nav-icon" aria-hidden="true">
+                ◌
+              </span>
               Ovis
             </NavLink>
           )}
         </nav>
-        <div className="st-sidebar-bottom">
+        <div className="st-sidebar-bottom sidebar-bottom">
           {config.data?.planner && (
-            <nav aria-label="Planner">
-              <span className="st-nav-label">Planner</span>
-              <NavLink to="/planner/tasks">
-                <ListTodo size={18} />
+            <nav className="sidebar-planner" aria-label="Planner">
+              <h2 className="sidebar-heading">Planner</h2>
+              <NavLink className="nav-link" title="Tasks" to="/planner/tasks">
+                <span className="nav-icon" aria-hidden="true">
+                  ☑
+                </span>
                 Tasks
               </NavLink>
-              <NavLink to="/planner/calendar">
-                <CalendarDays size={18} />
+              <NavLink
+                className="nav-link"
+                title="Calendar"
+                to="/planner/calendar"
+              >
+                <span className="nav-icon" aria-hidden="true">
+                  ▦
+                </span>
                 Calendar
               </NavLink>
             </nav>
           )}
           {!workmode && (
-            <nav aria-label="Devices">
-              <span className="st-nav-label">Devices</span>
-              <NavLink to="/faceplate">
-                <Monitor size={18} />
+            <nav className="sidebar-devices" aria-label="Devices">
+              <h2 className="sidebar-heading">Devices</h2>
+              <NavLink className="nav-link" title="Faceplate" to="/faceplate">
+                <span className="nav-icon" aria-hidden="true">
+                  ▣
+                </span>
                 Faceplate
-              </NavLink>
-              <NavLink to="/air-quality">
-                <Wind size={18} />
-                Air quality
               </NavLink>
               {config.data?.printer_url && (
                 <a
+                  className="nav-link"
+                  title="Prusa Connect"
                   href={config.data.printer_url}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  <img src="/prusa-connect.svg" alt="" width="18" />
-                  Prusa Connect ↗
+                  <img
+                    className="nav-icon"
+                    src="/prusa-connect.svg"
+                    alt=""
+                    width="17"
+                    height="17"
+                  />
+                  Prusa Connect
+                  <span className="nav-external" aria-hidden="true">
+                    ↗
+                  </span>
                 </a>
               )}
+              <NavLink
+                className="nav-link"
+                title="Air quality"
+                to="/air-quality"
+              >
+                <span className="nav-icon" aria-hidden="true">
+                  ≋
+                </span>
+                Air quality
+              </NavLink>
             </nav>
           )}
+          <div className="machine">
+            <span className="status-dot" />
+            <div>
+              <strong>{monitor.data?.system.hostname ?? "Connecting…"}</strong>
+              <span>Linux · local monitor</span>
+            </div>
+          </div>
           <button
+            className="workmode-toggle"
             role="switch"
+            aria-label="Workmode"
             aria-checked={workmode}
             onClick={() => {
               const p = new URLSearchParams(location.search);
@@ -165,39 +232,44 @@ export function App() {
               navigate({ pathname: location.pathname, search: p.toString() });
             }}
           >
-            Workmode <span>{workmode ? "On" : "Off"}</span>
+            <span className="workmode-label">Workmode</span>
+            <span className="workmode-switch" aria-hidden="true" />
           </button>
-          <small>
-            {monitor.data?.system.hostname ?? "Connecting…"}
-            <br />
-            ST · v2 preview
-          </small>
+          <div className="sidebar-version">
+            ST · LOCAL <span>v2 preview</span>
+          </div>
         </div>
       </aside>
       <main className="st-main">
-        <header className="st-topbar">
-          <button
-            className="st-menu"
-            aria-label="Toggle S.T. navigation"
-            aria-expanded={drawer}
-            onClick={() => setDrawer(!drawer)}
-          >
-            <Menu />
-          </button>
+        <header className="st-topbar topbar">
           <h1>
-            <span>ST /</span> {title}
+            <span className="breadcrumb">ST</span>
+            <span className="slash">/</span>
+            {title}
           </h1>
-          <span className={`st-connection ${monitor.error ? "offline" : ""}`}>
-            {monitor.error
-              ? "Reconnecting"
-              : !monitor.data
-                ? "Connecting"
-                : monitor.data.stale
-                  ? "Stale"
-                  : "Connected"}
-          </span>
+          <div className="topbar-actions">
+            <span
+              className={`st-connection connection ${monitor.error || monitor.data?.stale ? "stale" : ""}`}
+              role="status"
+            >
+              <span className="status-dot" />
+              {monitor.error
+                ? "Reconnecting"
+                : !monitor.data
+                  ? "Connecting"
+                  : monitor.data.stale
+                    ? "Stale"
+                    : "Connected"}
+            </span>
+            {location.pathname === "/overview" && <CopyReport />}
+          </div>
         </header>
-        <div className="st-content" hidden={planner || ovis}>
+        <div
+          id="dashboard"
+          data-view={location.pathname.slice(1) || "home"}
+          className="st-content"
+          hidden={planner || ovis}
+        >
           {config.error && (
             <Notice retry={config.refresh}>{config.error}</Notice>
           )}

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Container, Process, Worktree } from "../lib/types";
+import type { Container, Process, Project, Worktree } from "../lib/types";
 import { bytes, percent, ago } from "../lib/api";
 import {
   External,
@@ -57,37 +57,46 @@ export function ContainerTable({
 }) {
   return items.length ? (
     <div className="st-table-scroll">
-      <table>
+      <table className="container-table">
         <thead>
           <tr>
             <th>Container</th>
-            <th>Memory</th>
-            <th>Tasks</th>
-            <th>CPU</th>
-            <th>Worktree</th>
-            <th>Ports</th>
+            <th className="container-memory container-memory-column">Memory</th>
+            <th className="container-tasks container-tasks-column">Tasks</th>
+            <th className="container-cpu container-cpu-column">CPU</th>
+            <th className="container-owner-column">Worktree</th>
+            <th className="container-ports-column">Ports</th>
           </tr>
         </thead>
         <tbody>
           {items.map((c) => (
             <tr key={c.id}>
               <td>
-                <strong>{c.name}</strong>
-                <small>{c.image}</small>
+                <strong className="container-name">{c.name}</strong>
+                <small className="container-image">{c.image}</small>
                 <code>
                   {c.id.slice(0, 12)}
                   {!c.stats_available ? " · Stats unavailable" : ""}
                 </code>
+                <span className="container-mobile-owner">
+                  {c.owner ?? "Unassigned"}
+                  {c.path && <CheckoutActions path={c.path} />}
+                </span>
+                <span className="container-mobile-ports">
+                  {c.ports.join(", ") || "—"}
+                </span>
               </td>
-              <td>{bytes(c.memory_bytes)}</td>
-              <td>{c.pids ?? "—"}</td>
-              <td>{percent(c.cpu_percent)}</td>
-              <td>
+              <td className="container-memory">{bytes(c.memory_bytes)}</td>
+              <td className="container-tasks">{c.pids ?? "—"}</td>
+              <td className="container-cpu">{percent(c.cpu_percent)}</td>
+              <td className="container-owner-cell">
                 {c.owner ?? "Unassigned"}
                 <small>{c.ownership}</small>
                 {c.path && <CheckoutActions path={c.path} />}
               </td>
-              <td>{c.ports.join(", ") || "—"}</td>
+              <td className="container-ports-cell">
+                {c.ports.join(", ") || "—"}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -120,7 +129,7 @@ export function WorktreeDetail({
               Last Codex metadata update: {ago(tree.last_codex_activity)}
             </small>
           </p>
-          <div className="st-metrics">
+          <div className="st-metrics metrics">
             <Metric label="Memory" value={bytes(tree.memory_bytes)} />
             <Metric label="CPU" value={percent(tree.cpu_percent)} />
             <Metric label="Ports" value={tree.ports.join(", ") || "—"} />
@@ -225,76 +234,109 @@ export function Projects() {
         </label>
         <small>{shown.length} projects</small>
       </div>
-      {shown.map((p) => (
-        <Panel
-          key={p.id}
-          title={p.name}
-          actions={
-            <button
-              aria-expanded={!collapsed.has(p.id)}
-              onClick={() => toggle(p.id)}
+      {shown.map((p) => {
+        const path =
+          p.info?.primary_path ?? p.info?.path ?? p.worktrees[0]!.path;
+        return (
+          <article className="project-card" key={p.id}>
+            <aside
+              className="project-info"
+              aria-label={`${p.name} project details`}
             >
-              {collapsed.has(p.id) ? "Expand" : "Collapse"}
-            </button>
-          }
-        >
-          <div className="st-project-info">
-            {p.info?.icon_url &&
-              /^\/api\/project-icon\/[a-f0-9]{16}\/[a-f0-9]{16}$/.test(
-                p.info.icon_url,
-              ) && <img src={p.info.icon_url} alt="" />}
-            <div>
-              <p>{p.info?.description || "No description available."}</p>
-              <small>
-                {p.info?.languages?.join(" · ")}{" "}
-                {p.info?.version ? `· v${p.info.version}` : ""} ·{" "}
-                {p.running_worktrees ? "Running" : "Idle"} ·{" "}
-                {bytes(p.memory_bytes)} · {percent(p.cpu_percent)}
-              </small>
+              <div className="project-info-identity">
+                <ProjectAvatar project={p} />
+                <div>
+                  <h3>{p.name}</h3>
+                  <RunningBadge project={p} />
+                </div>
+              </div>
+              <p className="project-description">
+                {p.info?.description || "No description available."}
+              </p>
+              <div className="project-tags">
+                {p.info?.languages?.map((language) => (
+                  <span key={language}>{language}</span>
+                ))}
+                {p.info?.version && <span>v{p.info.version}</span>}
+              </div>
+              <div className="project-directory">
+                <span>Checkout</span>
+                <div className="checkout-actions">
+                  <code>{path}</code>
+                  <CheckoutActions primary path={path} />
+                </div>
+              </div>
+              <div className="project-link">
+                <External url={p.info?.repository_url}>Repository</External>
+              </div>
+              {[
+                ...new Set(
+                  p.worktrees.flatMap((w) => w.urls.map((l) => l.url)),
+                ),
+              ]
+                .slice(0, 3)
+                .map((url) => (
+                  <div className="project-link" key={url}>
+                    <External url={url}>Open app</External>
+                  </div>
+                ))}
+            </aside>
+            <div className="project-worktrees">
+              <div className="project-heading">
+                <div className="project-identity">
+                  <div className="project-title">
+                    <span className="project-overview-name">
+                      <ProjectAvatar project={p} />
+                      {p.name}
+                      <CheckoutActions primary path={path} />
+                    </span>
+                    <span className="project-table-title">Worktrees</span>
+                    <span className="project-heading-status">
+                      <RunningBadge project={p} />
+                    </span>
+                  </div>
+                  <div className="project-meta">
+                    {p.worktrees.length} wt · {p.process_count} proc ·{" "}
+                    {p.container_count} ctr
+                  </div>
+                </div>
+                <div className="project-totals numeric">
+                  <span className="project-memory" title="Project memory">
+                    {bytes(p.memory_bytes)}
+                  </span>
+                  <span title="Project CPU">{percent(p.cpu_percent)}</span>
+                </div>
+                <button
+                  className="collapse-button"
+                  aria-label={`${collapsed.has(p.id) ? "Expand" : "Collapse"} ${p.name}`}
+                  aria-expanded={!collapsed.has(p.id)}
+                  aria-controls={`tree-${p.id}`}
+                  onClick={() => toggle(p.id)}
+                >
+                  {collapsed.has(p.id) ? "+" : "−"}
+                </button>
+              </div>
+              <div id={`tree-${p.id}`} hidden={collapsed.has(p.id)}>
+                <div className="tree-columns">
+                  <span>Worktree / branch</span>
+                  <span className="services-heading">Proc / containers</span>
+                  <span className="ports-heading">Ports</span>
+                  <span className="align-right memory-heading">Memory</span>
+                  <span className="align-right">CPU</span>
+                  <span />
+                </div>
+                {p.worktrees.map((w) => (
+                  <TreeRow
+                    key={w.id}
+                    tree={w}
+                    inspect={() => setSelected(w.id)}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-          <div className="st-actions">
-            <External url={p.info?.repository_url}>Repository</External>
-            <CheckoutActions
-              primary
-              path={
-                p.info?.primary_path ?? p.info?.path ?? p.worktrees[0]!.path
-              }
-            />
-            {[...new Set(p.worktrees.flatMap((w) => w.urls.map((l) => l.url)))]
-              .slice(0, 3)
-              .map((url) => (
-                <External key={url} url={url}>
-                  Open app
-                </External>
-              ))}
-          </div>
-          {!collapsed.has(p.id) && (
-            <div className="st-table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Worktree / branch</th>
-                    <th>Processes / containers</th>
-                    <th>Ports</th>
-                    <th>Memory</th>
-                    <th>CPU</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {p.worktrees.map((w) => (
-                    <TreeRow
-                      key={w.id}
-                      tree={w}
-                      inspect={() => setSelected(w.id)}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Panel>
-      ))}
+          </article>
+        );
+      })}
       {!shown.length && (
         <Empty>
           {query
@@ -308,6 +350,42 @@ export function Projects() {
     </>
   );
 }
+function ProjectAvatar({ project }: { project: Project }) {
+  const initials =
+    project.name
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => [...part][0])
+      .join("")
+      .toUpperCase() || "?";
+  const icon = project.info?.icon_url;
+  return (
+    <span className="project-avatar" aria-hidden="true">
+      <span>{initials}</span>
+      {icon &&
+        /^\/api\/project-icon\/[a-f0-9]{16}\/[a-f0-9]{16}$/.test(icon) && (
+          <img src={icon} alt="" loading="lazy" />
+        )}
+    </span>
+  );
+}
+function RunningBadge({ project }: { project: Project }) {
+  return (
+    <span
+      className={`running-badge ${project.running_worktrees ? "" : "idle"}`}
+    >
+      {project.running_worktrees ? (
+        <>
+          <span className="status-dot" />
+          Running
+        </>
+      ) : (
+        "Idle"
+      )}
+    </span>
+  );
+}
 function TreeRow({
   tree: w,
   inspect,
@@ -316,21 +394,42 @@ function TreeRow({
   inspect: () => void;
 }) {
   return (
-    <tr>
-      <td>
-        <button onClick={inspect}>
-          {w.branch} {w.is_main ? "[main]" : ""} {w.codex_managed ? "✳" : ""}
+    <div className="worktree-row">
+      <div className="worktree-name">
+        <button className="branch-label" onClick={inspect} title={w.path}>
+          <span className="branch-icon" aria-hidden="true">
+            ⑂
+          </span>
+          <span className="branch-title">{w.branch}</span>
+          <span className="branch-info">
+            {w.is_main ? "[main]" : ""}
+            {w.codex_managed && (
+              <span className="codex-marker" title="Codex worktree">
+                ✳
+              </span>
+            )}
+          </span>
         </button>
-        <code>{w.path}</code>
         <CheckoutActions path={w.path} />
-      </td>
-      <td>
-        {w.running ? `${w.processes.length} / ${w.containers.length}` : "Idle"}
-      </td>
-      <td>{w.ports.join(", ") || "—"}</td>
-      <td>{w.running ? bytes(w.memory_bytes) : "—"}</td>
-      <td>{w.running ? percent(w.cpu_percent) : "—"}</td>
-    </tr>
+      </div>
+      <span className="service-summary">
+        {w.running
+          ? `${w.processes.length} proc / ${w.containers.length} ctr`
+          : "Idle"}
+      </span>
+      <span className="row-ports" title={w.ports.join(", ")}>
+        {w.ports.join(", ") || "—"}
+      </span>
+      <span className="row-memory">
+        {w.running ? bytes(w.memory_bytes) : "—"}
+      </span>
+      <span className="row-cpu">
+        {w.running ? percent(w.cpu_percent) : "—"}
+      </span>
+      <span className="row-arrow" aria-hidden="true">
+        ↗
+      </span>
+    </div>
   );
 }
 export function Containers() {
@@ -365,7 +464,7 @@ export function Codex() {
     : snapshot.data.codex;
   return (
     <>
-      <div className="st-metrics">
+      <div className="st-metrics metrics">
         <Metric
           label="Threads updated · 24h"
           value={c.available ? c.recent_threads : "—"}

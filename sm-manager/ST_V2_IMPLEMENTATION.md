@@ -744,3 +744,23 @@ The full upstream Ovis test matrix has not been claimed as passing.
 The existing S.T. and standalone Ovis installations remain available. Preview
 addresses and real-machine screenshots are kept in private local profiles/cache,
 not in the repository. Use the lifecycle and verification commands in README.md.
+
+## Original console styling restored — 2026-11-24
+
+The React console now imports the preserved `static/style.css` and `home.css`
+through a Vite scope adapter. The original dark blue palette, 174px sidebar,
+12px console typography, tinted home cards and sparklines, compact monitoring
+panels, project/worktree layouts, container memory emphasis, and amber Workmode
+styling are restored. Tablet navigation returns to the 54px icon rail; phones
+use the original horizontal navigation. Ovis and the planner fill the remaining
+height below the console navigation.
+
+The console CSS scope stops at the Ovis root. Legacy home `rem` sizes retain
+their original 12px baseline without changing Ovis's document baseline.
+Validation: TypeScript and production build passed; all 8 frontend/gateway
+unit checks and both browser acceptance suites passed. A local synthetic-data
+comparison against the original HTML/CSS matched 15 computed style properties
+on 18 shell/home selectors at 1440px, 900px and 390px viewport widths. Fixture
+screenshots were inspected for home, monitoring views, Workmode and embedded
+Ovis. Browser coverage also checks the original desktop/tablet sidebar widths,
+mobile project overflow and the Ovis viewport below mobile navigation.

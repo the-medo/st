@@ -138,10 +138,8 @@ try {
   await page.getByRole("button", { name: "Chat", exact: true }).click();
   await page.locator(".composer-text:visible").waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole("button", { name: "Toggle S.T. navigation" }).click();
   await page.getByRole("link", { name: "Home", exact: true }).click();
   await page.getByRole("heading", { name: "Your services" }).waitFor();
-  await page.getByRole("button", { name: "Toggle S.T. navigation" }).click();
   await page.getByRole("link", { name: "Ovis", exact: true }).click();
   await page.locator(".composer-text:visible").waitFor();
   assert(
@@ -149,6 +147,12 @@ try {
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
     "Mobile viewport does not overflow",
+  );
+  assert(
+    await page
+      .locator(".st-ovis-section")
+      .evaluate((el) => el.getBoundingClientRect().bottom <= innerHeight + 1),
+    "Ovis fits below the restored mobile navigation",
   );
   const evidence = process.env.ST_V2_EVIDENCE;
   if (evidence)

@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { ovisHostPlugin } from "./ovis-plugin";
+import { consoleStylePlugin } from "./console-style-plugin";
 import { buildXtermSource } from "../integrations/ovis/app/scripts/build-xterm";
 import { fileURLToPath } from "node:url";
 const ovis = fileURLToPath(
@@ -9,7 +10,7 @@ const ovis = fileURLToPath(
 const xterm = buildXtermSource(ovis);
 
 export default defineConfig({
-  plugins: [ovisHostPlugin(), react()],
+  plugins: [consoleStylePlugin(), ovisHostPlugin(), react()],
   define: {
     __APP_VERSION__: JSON.stringify("0.5.9"),
     __APP_REVISION__: "null",

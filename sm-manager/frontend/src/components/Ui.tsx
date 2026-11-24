@@ -2,17 +2,19 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { safeUrl } from "../lib/api";
 export function Panel({
   title,
+  className = "",
   actions,
   children,
 }: {
   title?: string;
+  className?: string;
   actions?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <section className="st-panel">
+    <section className={`st-panel panel ${className}`}>
       {(title || actions) && (
-        <header>
+        <header className="panel-heading">
           <h2>{title}</h2>
           {actions}
         </header>
@@ -52,10 +54,10 @@ export function Metric({
   detail?: ReactNode;
 }) {
   return (
-    <div className="st-metric">
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <small>{detail}</small>
+    <div className="st-metric metric">
+      <span className="metric-label">{label}</span>
+      <strong className="metric-value">{value}</strong>
+      <small className="metric-caption">{detail}</small>
     </div>
   );
 }

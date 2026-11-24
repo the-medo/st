@@ -88,7 +88,11 @@ export function Planner({ active }: { active: boolean }) {
     return () => document.removeEventListener("visibilitychange", visibility);
   }, [active, path]);
   return (
-    <section hidden={!active} aria-label="Planner">
+    <section
+      hidden={!active}
+      className="st-planner-section"
+      aria-label="Planner"
+    >
       {active && !loaded && (
         <Notice
           retry={

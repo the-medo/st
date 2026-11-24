@@ -4,13 +4,13 @@ import type { History, Snapshot } from "../lib/types";
 import { Chart, type Series } from "../components/Chart";
 import { Notice } from "../components/Ui";
 const colors = [
-  "#7297a6",
-  "#78a177",
-  "#b59b66",
-  "#9c86ae",
-  "#b87d79",
-  "#7baeb1",
-  "#b09586",
+  "#f0f6fc",
+  "#63cf8c",
+  "#c4b5fd",
+  "#91a0b2",
+  "#58a6ff",
+  "#f0b65f",
+  "#f778ba",
 ];
 export function HistoryChart({
   snapshot,

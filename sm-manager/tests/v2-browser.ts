@@ -54,7 +54,28 @@ try {
   await page.goto(base);
   await page.getByRole("heading", { name: "Your services" }).waitFor();
   await page.getByRole("link", { name: /RAM/ }).waitFor();
-  assert.match(await page.locator("body").innerText(), /8.0 GB/);
+  assert.match(await page.locator("body").innerText(), /8.0\s*GB/);
+  assert.equal(
+    await page
+      .locator(".st-app")
+      .evaluate((el) => getComputedStyle(el).backgroundColor),
+    "rgb(13, 17, 23)",
+  );
+  assert.equal(
+    await page
+      .locator(".st-sidebar")
+      .evaluate((el) => el.getBoundingClientRect().width),
+    174,
+  );
+  await page.setViewportSize({ width: 900, height: 1000 });
+  assert.equal(
+    await page
+      .locator(".st-sidebar")
+      .evaluate((el) => el.getBoundingClientRect().width),
+    54,
+  );
+  await page.setViewportSize({ width: 1440, height: 1000 });
+
   for (const route of [
     "overview",
     "projects",
@@ -100,9 +121,14 @@ try {
   ); // authoritative status remains fixture-provided
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(base);
-  await page.getByRole("button", { name: "Toggle S.T. navigation" }).click();
   await page.getByRole("link", { name: "Projects", exact: true }).click();
   await page.getByPlaceholder("Project, branch, path…").waitFor();
+  assert(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+    "Mobile projects fit the viewport",
+  );
   const evidence = process.env.ST_V2_EVIDENCE;
   if (evidence) {
     await page.setViewportSize({ width: 1440, height: 1000 });
