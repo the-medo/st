@@ -1,0 +1,1 @@
+Rename saved conversations from the project sidebar's conversation menu. The name is saved through Codex, appears immediately in the sidebar, and remains after refreshing. Rename errors keep the entered name available to retry.

@@ -2,12 +2,29 @@ import { focusInOtherModal, useFocusTrap } from '../lib/useFocusTrap.ts';
 import { usePhoneSheetBack } from '../lib/sheetHistory.ts';
 import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { ChevronDown, ChevronRight, Circle, Ellipsis, Folder, MessageCircle, Plus, RefreshCw, Search, Settings, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Circle, Ellipsis, Folder, LoaderCircle, MessageCircle, Pencil, Plus, RefreshCw, Search, Settings, X } from 'lucide-react';
 import type { MedoCatalog, MedoChat, MedoOpen, MedoProject, MedoStyle } from '../../shared/medo.ts';
 import { apiFetch } from '../lib/api-request-id.ts';
 import { ChatView } from './ChatView.tsx';
+import { RowMenu } from './RowMenu.tsx';
 import './MedoProjects.css';
 import {useResourceUrl} from '../lib/useResourceUrl.ts';
+import { useMedoReadState } from '../lib/medoReadState.ts';
+
+function projectColors(style: MedoStyle): CSSProperties {
+  const tinted = Boolean(style.sectionColor || style.borderColor);
+  const base = style.sectionColor || 'var(--bg-panel)';
+  const tint = style.borderColor || 'var(--text)';
+  return {
+    '--medo-section': style.sectionColor || 'transparent',
+    '--medo-border': style.borderColor || 'transparent',
+    '--medo-title': style.titleColor || 'var(--text-strong)',
+    '--medo-icon': style.iconColor || 'var(--text-dim)',
+    '--medo-activity': style.iconColor || style.titleColor || 'var(--accent)',
+    '--medo-hover': tinted ? `color-mix(in srgb, ${tint} 12%, ${base})` : 'var(--bg-hover)',
+    '--medo-selected': tinted ? `color-mix(in srgb, ${tint} 22%, ${base})` : 'var(--bg-hover)',
+  } as CSSProperties;
+}
 
 async function call<T>(path: string, body?: unknown): Promise<T> {
   const response = await apiFetch(`/api/medo/${path}`, body === undefined ? undefined : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -40,6 +57,12 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
   const [move, setMove] = useState<MedoChat | null>(null);
   const [edit, setEdit] = useState<MedoProject | null>(null);
   const [reader, setReader] = useState<MedoChat | null>(null);
+  const [chatMenu, setChatMenu] = useState<{ chat: MedoChat; anchor: HTMLElement } | null>(null);
+  const [projectMenu, setProjectMenu] = useState<{ project: MedoProject; anchor: HTMLElement } | null>(null);
+  const [reordering, setReordering] = useState(false);
+  const reorderPending = useRef(false);
+  const [rename, setRename] = useState<MedoChat | null>(null);
+  const readState = useMedoReadState(catalog?.chats, selectedPaneId, Boolean(newProject || move || edit || reader || rename || chatMenu || projectMenu), reader?.id);
   const pending = useRef<Promise<void> | null>(null);
   const revision = useRef(0);
   const mounted = useRef(false);
@@ -122,16 +145,30 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
   };
   const chats = catalog?.chats.filter((chat) => chat.archived === archived && (!query || chat.title.toLocaleLowerCase().includes(query.toLocaleLowerCase()))) ?? [];
   const drafts = archived ? [] : catalog?.drafts?.filter((draft) => !query || draft.title.toLocaleLowerCase().includes(query.toLocaleLowerCase())) ?? [];
+  const projects = catalog?.projects.filter((project) => !query || chats.some((chat) => chat.project === project.id) || drafts.some((draft) => draft.project === project.id)) ?? [];
+  const projectPosition = projectMenu ? projects.findIndex((project) => project.id === projectMenu.project.id) : -1;
+  const moveProject = async (direction: 'up' | 'down') => {
+    const relative = projects[projectPosition + (direction === 'up' ? -1 : 1)];
+    if (!projectMenu || !relative || reorderPending.current) return;
+    reorderPending.current = true; setReordering(true);
+    try { await action(() => organize({ operation: 'move-project', projectId: projectMenu.project.id, relativeTo: relative.id, direction })); }
+    finally { reorderPending.current = false; if (mounted.current) setReordering(false); }
+  };
   const rows = (project: MedoProject, folder: string | null) => {
     const key = `${project.id}/${folder ?? ''}`;
     const group = chats.filter((chat) => chat.project === project.id && chat.folder === folder).sort((a, b) => b.updated - a.updated);
     const limit = limits[key] ?? 5;
-    return <>{group.slice(0, limit).map((chat) => <div key={chat.id} className={`medo-chat${chat.paneId && chat.paneId === selectedPaneId ? ' is-selected' : ''}`}>
-      <button className="medo-chat-open" disabled={opening === chat.id} onClick={() => void open(chat)} title={chat.title} aria-busy={opening === chat.id}>
-        <span className={`medo-indicator${chat.status === 'working' || opening === chat.id ? ' is-working' : ''}`} title={chat.paneId ? 'Open session' : 'Saved conversation'}><Circle size={7} fill={chat.paneId ? 'currentColor' : 'none'} /></span>
-        <span>{chat.title || 'Untitled conversation'}</span>
-      </button><button className="medo-row-action" aria-label={`Move ${chat.title} to folder`} onClick={() => setMove(chat)}><Ellipsis size={15} /></button>
-    </div>)}{group.length > limit && <button className="medo-more" onClick={() => setLimits((value) => ({ ...value, [key]: limit + 5 }))}>Show more ({group.length - limit})</button>}</>;
+    return <>{group.slice(0, limit).map((chat) => {
+      const working = chat.status === 'working' || opening === chat.id;
+      const finished = !chat.status || chat.status === 'idle' || chat.status === 'done';
+      const unread = !working && finished && readState.get(chat.id)?.unread;
+      const status = opening === chat.id ? 'Opening conversation' : working ? 'Working' : unread ? 'Unread conversation' : chat.paneId ? 'Open session' : 'Saved conversation';
+      return <div key={chat.id} className={`medo-chat${chat.paneId && chat.paneId === selectedPaneId ? ' is-selected' : ''}${unread ? ' is-unread' : ''}`}>
+      <button className="medo-chat-open" disabled={opening === chat.id} onClick={() => void open(chat)} title={chat.title} aria-label={chat.title || 'Untitled conversation'} aria-description={status} aria-busy={opening === chat.id}>
+        <span className={`medo-indicator${working ? ' is-working' : ''}`} title={status} role="img" aria-label={status}>{working ? <LoaderCircle className="medo-spinner" size={14} strokeWidth={2} /> : <Circle size={7} fill={unread || chat.paneId ? 'currentColor' : 'none'} />}</span>
+        <span className="medo-chat-title">{chat.title || 'Untitled conversation'}</span>
+      </button><button className="medo-row-action" aria-label={`Actions for ${chat.title}`} aria-haspopup="menu" aria-expanded={chatMenu?.chat.id === chat.id} onClick={(event) => setChatMenu(chatMenu?.chat.id === chat.id ? null : { chat, anchor: event.currentTarget })}><Ellipsis size={15} /></button>
+    </div>; })}{group.length > limit && <button className="medo-more" onClick={() => setLimits((value) => ({ ...value, [key]: limit + 5 }))}>Show more ({group.length - limit})</button>}</>;
   };
   const currentEdit = edit && (catalog?.projects.find((project) => project.id === edit.id) ?? edit);
   return <div className="medo-projects">
@@ -139,19 +176,19 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
     <label className="medo-search"><Search size={15} /><input aria-label="Search conversations" placeholder="Search conversations" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
     {(error || catalogError) && <div className="medo-error" role="alert">{error || catalogError}<button onClick={() => { setError(''); void refresh(true); }}>Retry</button></div>}
     <div className="medo-project-scroll">{!catalog && !catalogError && <p className="medo-muted">Loading projects…</p>}
-      {catalog?.projects.map((project) => {
+      {projects.map((project) => {
         const style = project.appearance ?? {};
         const hidden = !query && closed.has(project.id);
         const projectDrafts = drafts.filter((draft) => draft.project === project.id);
         const matching = chats.filter((chat) => chat.project === project.id).length + projectDrafts.length;
         if (query && !matching) return null;
-        return <section key={project.id} className="medo-project" style={{ '--medo-section': style.sectionColor || 'transparent', '--medo-title': style.titleColor || 'var(--text-strong)', '--medo-icon': style.iconColor || 'var(--text-dim)' } as CSSProperties}>
+        return <section key={project.id} className="medo-project" style={projectColors(style)}>
           <div className="medo-project-head"><button className="medo-project-toggle" onClick={() => toggle(project.id)} aria-expanded={!hidden}>
             {hidden ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
-            <span className="medo-project-icon">{style.image ? <ProjectImage name={style.image} /> : style.iconText || <Folder size={16} />}</span>
+            <ProjectIcon style={style} />
             <span>{project.name}</span></button>
             {project.path && <button className="medo-row-action" disabled={creating} aria-label={`New conversation in ${project.name}`} onClick={() => void start(project)}><Plus size={15} /></button>}
-            <button className="medo-row-action" aria-label={`Customize ${project.name}`} onClick={() => setEdit(project)}><Ellipsis size={15} /></button>
+            <button className="medo-row-action" aria-label={`Actions for project ${project.name}`} aria-haspopup="menu" aria-expanded={projectMenu?.project.id === project.id} onClick={(event) => setProjectMenu(projectMenu?.project.id === project.id ? null : { project, anchor: event.currentTarget })}><Ellipsis size={15} /></button>
           </div>{!hidden && <div className="medo-project-chats">{projectDrafts.map((draft) => <div key={draft.address} className={`medo-chat${draft.address === selectedPaneId ? ' is-selected' : ''}`}><button className="medo-chat-open" onClick={() => void openDraft(draft.address)}><span className="medo-indicator"><Circle size={7} /></span><span>{draft.title}</span></button></div>)}{rows(project, null)}{project.folders.map((folder) => {
             const key = `${project.id}/${folder.id}`;
             const folded = !query && closed.has(key);
@@ -161,11 +198,43 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
       })}
     </div>
     <footer><button onClick={() => setArchived(!archived)} aria-pressed={archived}><MessageCircle size={15} />{archived ? 'Archived' : 'Active chats'}</button><button aria-label="Refresh projects" onClick={() => void refresh()}><RefreshCw size={15} /></button><button aria-label="Settings" onClick={onSettings}><Settings size={16} /></button></footer>
-    {newProject && <MedoDialog title="New conversation" onClose={() => setNewProject(false)}><div className="medo-folder-choices">{catalog?.projects.filter((project) => project.path).map((project) => <button className="btn" key={project.id} onClick={() => void start(project)}><Folder size={15} />{project.name}</button>)}<button className="btn" onClick={() => { setNewProject(false); onNew(); }}>Other folder or agent…</button></div></MedoDialog>}
+    {projectMenu && <RowMenu anchor={projectMenu.anchor} title="Project actions" subtitle={projectMenu.project.name} onClose={() => setProjectMenu(null)} items={[
+      { id: 'customize', label: 'Customize project', icon: Settings, run: () => setEdit(projectMenu.project) },
+      { id: 'up', label: 'Move up', icon: ArrowUp, divider: true, disabled: reordering || projectPosition <= 0, run: () => void moveProject('up') },
+      { id: 'down', label: 'Move down', icon: ArrowDown, disabled: reordering || projectPosition < 0 || projectPosition >= projects.length - 1, run: () => void moveProject('down') },
+    ]} />}
+    {chatMenu && <RowMenu anchor={chatMenu.anchor} title="Conversation actions" subtitle={chatMenu.chat.title} onClose={() => setChatMenu(null)} items={[
+      { id: 'rename', label: 'Rename', icon: Pencil, disabled: chatMenu.chat.archived, ...(chatMenu.chat.archived ? { hint: 'Unarchive in Codex to rename' } : {}), run: () => setRename({ ...chatMenu.chat }) },
+      { id: 'move', label: 'Move to folder', icon: Folder, run: () => setMove(chatMenu.chat) },
+      { id: 'read', label: 'Read saved conversation', icon: MessageCircle, run: () => setReader(chatMenu.chat) },
+    ]} />}
+    {rename && <RenameChat key={rename.id} chat={rename} onClose={() => setRename((current) => current === rename ? null : current)} onSave={async (name) => {
+      const result = await call<{ title: string }>('rename', { threadId: rename.id, name });
+      void refresh(true);
+      setCatalog((current) => current && ({ ...current, chats: current.chats.map((chat) => chat.id === rename.id ? { ...chat, title: result.title } : chat) }));
+    }} />}
+    {newProject && <MedoDialog title="New conversation" onClose={() => setNewProject(false)}><div className="medo-folder-choices">{catalog?.projects.filter((project) => project.path).map((project) => <button className="btn medo-project-choice" key={project.id} aria-label={project.name} style={projectColors(project.appearance ?? {})} onClick={() => void start(project)}><ProjectIcon style={project.appearance ?? {}} /><span>{project.name}</span></button>)}<button className="btn" onClick={() => { setNewProject(false); onNew(); }}>Other folder or agent…</button></div></MedoDialog>}
     {move && <MedoDialog title="Move to folder" onClose={() => setMove(null)}><p className="medo-muted">{move.title}</p><div className="medo-folder-choices">{[{ id: '', name: 'No folder' }, ...(catalog?.projects.find((project) => project.id === move.project)?.folders ?? [])].map((folder) => <button key={folder.id} className="btn" onClick={() => void action(() => organize({ operation: 'move', projectId: move.project, threadId: move.id, folderId: folder.id || null })).then((ok) => { if (ok) setMove(null); })}><Folder size={15} />{folder.name}</button>)}</div><button className="btn" onClick={() => { setReader(move); setMove(null); }}>Read saved conversation</button></MedoDialog>}
     {currentEdit && <ProjectEditor key={currentEdit.id} project={currentEdit} onClose={() => setEdit(null)} onSave={(style) => action(() => call('style', { projectId: currentEdit.id, style }))} onFolder={(change) => action(() => organize({ ...change, projectId: currentEdit.id }))} />}
     {reader && <MedoDialog title={reader.title} wide onClose={() => setReader(null)}><p className="medo-muted">{reader.unavailable || (reader.archived ? 'Archived conversation — unarchive it in Codex to continue.' : 'Read-only preview of saved history.')}</p><div className="medo-reader-body"><ChatView paneId={`medo:${reader.id}`} refreshKey={0} connected ended agent="codex" watching cwd={reader.cwd} /></div></MedoDialog>}
   </div>;
+}
+function RenameChat({ chat, onClose, onSave }: { chat: MedoChat; onClose: () => void; onSave: (name: string) => Promise<void> }) {
+  const [name, setName] = useState(chat.title);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const saving = useRef(false);
+  return <MedoDialog title="Rename conversation" onClose={onClose}><form onSubmit={(event) => {
+    event.preventDefault();
+    if (saving.current || !name.trim()) return;
+    if (name.trim() === chat.title) { onClose(); return; }
+    saving.current = true; setBusy(true); setError('');
+    void onSave(name.trim()).then(onClose).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'The conversation could not be renamed.')).finally(() => { saving.current = false; setBusy(false); });
+  }}>
+    <label>Conversation name<input autoFocus value={name} maxLength={140} required disabled={busy} onFocus={(event) => event.currentTarget.select()} onChange={(event) => setName(event.target.value)} /></label>
+    {error && <p className="medo-error" role="alert">{error}</p>}
+    <div className="medo-dialog-actions"><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn" disabled={busy || !name.trim()}>{busy ? 'Saving…' : 'Save name'}</button></div>
+  </form></MedoDialog>;
 }
 function ProjectEditor({ project, onClose, onSave, onFolder }: { project: MedoProject; onClose: () => void; onSave: (style: MedoStyle) => Promise<boolean>; onFolder: (change: Record<string, unknown>) => Promise<boolean> }) {
   const [style, setStyle] = useState<MedoStyle>(project.appearance ?? {});
@@ -181,10 +250,15 @@ function ProjectEditor({ project, onClose, onSave, onFolder }: { project: MedoPr
       reader.onerror = () => { setError('The image could not be read.'); setBusy(false); };
       reader.onload = () => { void call<{ image: string }>('icon', { base64: String(reader.result).split(',')[1] }).then((value) => setStyle((current) => ({ ...current, image: value.image }))).catch((cause: unknown) => setError(String(cause))).finally(() => setBusy(false)); }; reader.readAsDataURL(file);
     }} /></label>{style.image && <button type="button" className="btn" onClick={() => setStyle({ ...style, image: '' })}>Remove image</button>}
-    <div className="medo-colors">{([['titleColor', 'Title'], ['sectionColor', 'Section'], ['iconColor', 'Icon']] as const).map(([key, title]) => <label key={key}>{title}<input type="color" value={style[key] || (key === 'sectionColor' ? '#181613' : '#d8d0c3')} onChange={(event) => setStyle({ ...style, [key]: event.target.value })} /><button type="button" onClick={() => setStyle({ ...style, [key]: '' })}>Reset</button></label>)}</div>
+    <div className="medo-colors">{([['titleColor', 'Title'], ['sectionColor', 'Background'], ['borderColor', 'Border'], ['iconColor', 'Icon']] as const).map(([key, title]) => <div className="medo-color" key={key}><label>{title}<input aria-label={`${title} color`} type="color" value={style[key]?.slice(0, 7) || (key === 'sectionColor' ? '#181613' : '#d8d0c3')} onChange={(event) => setStyle({ ...style, [key]: event.target.value })} /></label><button type="button" aria-label={`Reset ${title.toLowerCase()} color`} onClick={() => setStyle({ ...style, [key]: '' })}>Reset</button></div>)}</div>
+    <p className="medo-muted">Hover and selected rows follow your background and border colors.</p>
+    <div className="medo-appearance-preview" style={projectColors(style)} aria-label="Appearance preview"><div className="medo-preview-heading"><ProjectIcon style={style} />{project.name}<span>Preview</span></div><div className="medo-preview-row"><span className="medo-indicator is-working"><LoaderCircle className="medo-spinner" size={14} /></span>Working conversation</div><div className="medo-preview-row is-unread"><span className="medo-indicator"><Circle size={7} fill="currentColor" /></span>Finished, unread</div><div className="medo-preview-row is-selected"><span className="medo-indicator"><Circle size={7} /></span>Selected conversation</div></div>
     {error && <p role="alert" className="medo-error">{error}</p>}<button className="btn" disabled={busy}>Save appearance</button>
   </form><h3>Folders</h3>{project.folders.map((folder) => <div className="medo-folder-edit" key={folder.id}><input aria-label={`Rename ${folder.name}`} defaultValue={folder.name} key={folder.name} onBlur={(event) => { if (event.target.value !== folder.name) void onFolder({ operation: 'rename', folderId: folder.id, name: event.target.value }); }} /><button title="Remove folder; keep its conversations" aria-label={`Remove folder ${folder.name}`} onClick={() => void onFolder({ operation: 'delete', folderId: folder.id })}><X size={16} /></button></div>)}
     <form className="medo-folder-edit" onSubmit={(event) => { event.preventDefault(); void onFolder({ operation: 'create', name }).then((ok) => { if (ok) setName(''); }); }}><input aria-label="New folder name" placeholder="New folder" maxLength={60} value={name} onChange={(event) => setName(event.target.value)} /><button className="btn" disabled={!name.trim()}><Plus size={16} />Add</button></form><p className="medo-muted">Folders and appearance sync across your PCs. Removing a folder keeps its conversations.</p></MedoDialog>;
 }
 
+function ProjectIcon({ style }: { style: MedoStyle }) {
+  return <span className="medo-project-icon" aria-hidden="true">{style.image ? <ProjectImage name={style.image} /> : style.iconText || <Folder size={16} />}</span>;
+}
 function ProjectImage({name}:{name:string}) { const url=useResourceUrl(`/api/medo/icon?name=${encodeURIComponent(name)}`);return url?<img src={url} alt=""/>:null; }

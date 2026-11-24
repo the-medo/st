@@ -3,7 +3,8 @@ import { act, createElement } from "react";
 import { create, type ReactTestRenderer } from "react-test-renderer";
 
 import type { ConversationResponse } from "../../shared/protocol.ts";
-import { currentWaitingSends, forgetWaitingSends, rememberWaitingSend, waitingKey } from "../lib/sentWaiting.ts";
+import { medoConversation } from "../../server/medo.ts";
+import { currentWaitingSends, forgetWaitingSends, rememberWaitingSend, settleWaitingSends, stampedBaseline, waitingBaseline, waitingKey } from "../lib/sentWaiting.ts";
 import { SettingsProvider } from "../lib/settings.ts";
 import { ChatView } from "./ChatView.tsx";
 import { SentWaitingList } from "./SentWaiting.tsx";
@@ -113,6 +114,40 @@ test("a send with pasted tabs leaves no waiting copy once Pi's transcript record
     await act(async () => {
       renderer = create(createElement(SettingsProvider, null, createElement(ChatView, {
         paneId, refreshKey: 0, connected: true, ended: false, agent: "pi", agentStatus: "idle", onMetadata: () => { applied(); },
+      })), { createNodeMock: () => new Node() });
+    });
+    await act(async () => { await within(read, 5_000, "the conversation read"); });
+    if (renderer === undefined) throw new Error("Chat did not mount");
+    expect(currentWaitingSends(key)).toEqual([]);
+    expect(renderer.root.findAllByType(SentWaitingList)).toHaveLength(0);
+  } finally { act(() => { forgetWaitingSends(key); }); }
+});
+
+test.each([false, true])("a Codex message has no waiting copy below its working turn (follow-up=%p)", async (followup) => {
+  const paneId = "waiting-first-codex-message";
+  const key = waitingKey("local", paneId);
+  const started = Math.floor(Date.now() / 1000) - 10;
+  const sentAt = started * 1000 + (followup ? 8000 : 400);
+  const text = "Create a new branch and fix the conversation display.\n\nKeep the first message visible once.";
+  const prior = [
+    { id: "original", role: "user", text: "Start working on the project." },
+    { id: "earlier-command", role: "activity", kind: "commandExecution", text: "git status" },
+  ];
+  const exchange = (items: object[]) => medoConversation({ version: "first-turn", thread: { id: "fixture" }, active: true,
+    turns: [{ id: "turn-1", startedAt: started, items }] });
+  if (followup) settleWaitingSends(key, exchange(prior).turns, sentAt - 1, true, "codex-transcript");
+  answer = exchange([
+      ...(followup ? prior : []),
+      { id: "user-1", role: "user", text },
+      { id: "command-1", role: "activity", kind: "commandExecution", title: "Command", text: "git status", status: "inProgress" },
+    ]);
+  rememberWaitingSend(key, text, sentAt, stampedBaseline(followup ? waitingBaseline(key) : null, new Date(sentAt).toISOString(), sentAt));
+  try {
+    let applied!: () => void;
+    const read = new Promise<void>((resolve) => { applied = resolve; });
+    await act(async () => {
+      renderer = create(createElement(SettingsProvider, null, createElement(ChatView, {
+        paneId, refreshKey: 0, connected: true, ended: false, agent: "codex", agentStatus: "working", onMetadata: () => { applied(); },
       })), { createNodeMock: () => new Node() });
     });
     await act(async () => { await within(read, 5_000, "the conversation read"); });

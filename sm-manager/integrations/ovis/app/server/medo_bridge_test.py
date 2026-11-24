@@ -1,7 +1,9 @@
 """No real terminals, Codex RPCs or user files are touched by these tests."""
 import importlib.util
-import unittest
+import json
+import os
 import tempfile
+import unittest
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 from unittest.mock import patch, Mock
@@ -9,6 +11,100 @@ from pathlib import Path
 
 spec=importlib.util.spec_from_file_location('medo_bridge',Path(__file__).with_name('medo-bridge.py'))
 bridge=importlib.util.module_from_spec(spec);spec.loader.exec_module(bridge)
+
+class LaunchPermissionTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.state = self.root / 'ovis'
+        self.state.mkdir()
+        self.project = {'id': 'fixture', 'name': 'Fixture', 'path': str(self.root)}
+        self.environment = patch.dict(os.environ, {'OVIS_STATE_DIR': str(self.state)})
+        self.environment.start()
+        self.addCleanup(self.environment.stop)
+        catalog_root = patch.object(bridge.sidebar, 'ROOT', self.root)
+        catalog_root.start()
+        self.addCleanup(catalog_root.stop)
+
+    def save_mode(self, mode):
+        (self.state / 'preferences.json').write_text(json.dumps({'settings': {'codexLaunchMode': mode}}))
+
+    def launched_args(self, thread=None):
+        with patch.object(bridge, 'Bridge', return_value=Mock()), patch.object(bridge.sidebar, 'read_rows', return_value=[]), patch.object(bridge.sidebar, 'hc', side_effect=lambda *args:
+            {'address': 'fixture-pane'} if args[0] == 'run' else {'terminals': []}) as hc:
+            bridge.launch(self.project, thread)
+        command = hc.call_args.args
+        return command[command.index('--') + 1:]
+
+    def test_new_conversations_honor_the_saved_permission_preset(self):
+        for mode, sandbox, approvals in [('fullAccess', 'danger-full-access', 'never'),
+                                         ('readOnly', 'read-only', 'on-request'),
+                                         ('auto', 'workspace-write', 'on-request')]:
+            with self.subTest(mode=mode):
+                self.save_mode(mode)
+                args = self.launched_args()
+                self.assertEqual(args[args.index('--sandbox') + 1], sandbox)
+                self.assertEqual(args[args.index('--ask-for-approval') + 1], approvals)
+
+    def test_agent_default_and_missing_preferences_leave_codex_in_control(self):
+        for mode in [None, 'default']:
+            with self.subTest(mode=mode):
+                if mode is not None: self.save_mode(mode)
+                args = self.launched_args()
+                self.assertNotIn('--sandbox', args)
+                self.assertNotIn('--ask-for-approval', args)
+
+    def test_resuming_keeps_the_conversations_existing_permissions(self):
+        self.save_mode('fullAccess')
+        args = self.launched_args('saved-thread')
+        self.assertIn('resume', args)
+        self.assertNotIn('--sandbox', args)
+        self.assertNotIn('--ask-for-approval', args)
+
+    def test_invalid_preferences_do_not_launch_with_unintended_permissions(self):
+        for mode in ['unknown', ['fullAccess']]:
+            with self.subTest(mode=mode):
+                self.save_mode(mode)
+                with patch.object(bridge.sidebar, 'hc') as hc, self.assertRaises(ValueError):
+                    bridge.launch(self.project)
+                hc.assert_not_called()
+
+class RenameTests(unittest.TestCase):
+    thread = '01234567-1234-1234-1234-123456789abc'
+
+    def test_rename_updates_the_native_name_without_starting_a_turn_or_terminal(self):
+        client = Mock()
+        # A missing checkout does not stop a saved conversation from being renamed.
+        with patch.object(bridge.sidebar, 'read_rows', return_value=[{'id':self.thread, 'cwd':'/missing-checkout'}]), \
+             patch.object(bridge, 'Bridge', return_value=client), patch.object(bridge.sidebar, 'hc') as hc:
+            result = bridge.handle({'operation':'rename', 'threadId':self.thread, 'name':'  New\n conversation 🛠  '})
+        self.assertEqual(result, {'ok':True, 'title':'New conversation 🛠'})
+        client.rpc.assert_called_once_with('thread/name/set', {'threadId':self.thread, 'name':'New conversation 🛠'})
+        client.process.terminate.assert_called_once_with()
+        hc.assert_not_called()
+
+    def test_bad_names_and_unknown_or_archived_threads_do_not_reach_codex(self):
+        with patch.object(bridge, 'Bridge') as connect, patch.object(bridge.sidebar, 'read_rows', return_value=[{'id':self.thread}]) as rows:
+            for name in [None, 42, '', ' \n ', 'x'*141, 'bad\x00name']:
+                with self.subTest(name=name), self.assertRaises(ValueError):
+                    bridge.handle({'operation':'rename', 'threadId':self.thread, 'name':name})
+            for thread in [None, 'not-a-thread', '00000000-0000-4000-8000-000000000000']:
+                with self.subTest(thread=thread), self.assertRaises(ValueError):
+                    bridge.handle({'operation':'rename', 'threadId':thread, 'name':'New name'})
+            rows.return_value = [{'id':self.thread, 'archived':True}]
+            with self.assertRaisesRegex(ValueError, 'Unarchive'):
+                bridge.handle({'operation':'rename', 'threadId':self.thread, 'name':'New name'})
+            connect.assert_not_called()
+
+    def test_codex_error_is_reported_and_its_client_connection_is_closed(self):
+        client = Mock()
+        client.rpc.side_effect = RuntimeError('Name could not be saved')
+        with patch.object(bridge.sidebar, 'read_rows', return_value=[{'id':self.thread}]), \
+             patch.object(bridge, 'Bridge', return_value=client), self.assertRaisesRegex(RuntimeError, 'Name could not be saved'):
+            bridge.handle({'operation':'rename', 'threadId':self.thread, 'name':'New name'})
+        client.process.terminate.assert_called_once_with()
+
 
 class HistoryTests(unittest.TestCase):
     def test_paging_keeps_the_read_window_when_new_turns_arrive(self):

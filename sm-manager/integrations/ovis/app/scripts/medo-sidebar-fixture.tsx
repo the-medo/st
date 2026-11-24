@@ -2,6 +2,7 @@ import '../src/styles.css';
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MedoProjects } from '../src/components/MedoProjects.tsx';
+import { SettingsProvider } from '../src/lib/settings.ts';
 
 function Fixture() {
   const [selected, setSelected] = useState<string | null>(null);
@@ -17,4 +18,4 @@ function Fixture() {
   </div>;
 }
 
-createRoot(document.getElementById('root')!).render(<Fixture />);
+createRoot(document.getElementById('root')!).render(<SettingsProvider><Fixture /></SettingsProvider>);

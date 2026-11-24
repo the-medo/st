@@ -29,7 +29,7 @@ try {
   const chat = (id: string, title: string) => ({ id, title, project: 'garden', cwd: '/fixture/garden', updated: 1, archived: false, unavailable: null, folder: null });
   let catalog: MedoCatalog = { projects: [{ id: 'garden', name: 'Garden', path: '/fixture/garden', folders: [] }],
     chats: [chat('a', 'Automation work'), chat('b', 'Sidebar work')], drafts: [{ address: 'draft', project: 'garden', title: 'New conversation' }], organizationRevision: 0 };
-  const opens: Route[] = [], selects: Route[] = [], polls: Route[] = [], creates: Route[] = [];
+  const opens: Route[] = [], selects: Route[] = [], polls: Route[] = [], creates: Route[] = [], moves: Route[] = [];
   const arrivals = new EventEmitter();
   const hold = (list: Route[], route: Route) => { list.push(route); arrivals.emit('request'); };
   let holdPoll = false;
@@ -41,6 +41,7 @@ try {
     }
     if (path.endsWith('/open')) { hold(opens, route); return; }
     if (path.endsWith('/new')) { hold(creates, route); return; }
+    if (path.endsWith('/organize')) { hold(moves, route); return; }
     await route.fulfill({ json: {} });
   });
   await page.route('**/fixture/select?*', (route) => { hold(selects, route); });
@@ -118,9 +119,46 @@ try {
   await page.waitForFunction(() => !document.querySelector<HTMLButtonElement>('[aria-label="New conversation in Garden"]')?.disabled);
   assert.equal(await page.getByTestId('selected').textContent(), 'b');
   assert.equal(selects.length, 0);
+
+  // Project order persists through fresh catalogues; stale polls cannot undo a move.
+  catalog.projects.push({ id: 'studio', name: 'Studio', path: '/fixture/studio', folders: [] }, { id: 'home', name: 'Home', path: '/fixture/home', folders: [] });
+  await row('Refresh projects').click();
+  await row('Actions for project Home').waitFor();
+  const names = () => page.locator('.medo-project-toggle>span:last-child').allTextContents();
+  const menu = page.getByRole('menu', { name: 'Project actions', exact: true });
+  await row('Actions for project Garden').click();
+  assert.equal(await menu.getByRole('menuitem', { name: 'Move up', exact: true }).getAttribute('aria-disabled'), 'true');
+  await page.keyboard.press('Escape');
+  await row('Actions for project Home').click();
+  assert.equal(await menu.getByRole('menuitem', { name: 'Move down', exact: true }).getAttribute('aria-disabled'), 'true');
+  await page.keyboard.press('Escape');
+  holdPoll = true;
+  await row('Refresh projects').click();
+  await waitCount(polls, 1);
+  await row('Actions for project Garden').click();
+  await menu.getByRole('menuitem', { name: 'Move down', exact: true }).click();
+  await waitCount(moves, 1);
+  const move = moves.shift()!;
+  assert.deepEqual(move.request().postDataJSON(), { change: { operation: 'move-project', projectId: 'garden', relativeTo: 'studio', direction: 'down' } });
+  const stale = structuredClone(catalog);
+  catalog = { ...catalog, projects: [catalog.projects[1]!, catalog.projects[0]!, catalog.projects[2]!], organizationRevision: 1 };
+  await move.fulfill({ json: { ok: true, revision: 1 } });
+  holdPoll = false;
+  await polls.shift()!.fulfill({ json: stale });
+  await page.waitForFunction(() => document.querySelector('.medo-project-toggle>span:last-child')?.textContent === 'Studio');
+  assert.deepEqual(await names(), ['Studio', 'Garden', 'Home']);
+  await row('Actions for project Home').click();
+  await menu.getByRole('menuitem', { name: 'Move up', exact: true }).click();
+  await waitCount(moves, 1);
+  await moves.shift()!.fulfill({ status: 400, json: { error: { message: 'Project order could not be saved' } } });
+  await page.getByRole('alert').filter({ hasText: 'Project order could not be saved' }).waitFor();
+  assert.deepEqual(await names(), ['Studio', 'Garden', 'Home']);
+  await page.reload();
+  await row('Actions for project Studio').waitFor();
+  assert.deepEqual(await names(), ['Studio', 'Garden', 'Home']);
   assert.deepEqual(errors, []);
   if (evidence) await page.screenshot({ path: join(evidence, 'sidebar.png') });
-  console.log('Sidebar browser regressions passed: stable titles, last selection wins, refresh after mutation, draft filters, single creation.');
+  console.log('Sidebar browser regressions passed: stable titles, last selection wins, refresh after mutation, draft filters, single creation, project reordering and persistence.');
 } finally {
   await browser.close();
   await server.stop(true);

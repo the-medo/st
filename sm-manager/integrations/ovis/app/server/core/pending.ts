@@ -39,6 +39,7 @@ import { capturePiDeliveryAnchorRetrying, matchPiDeliveries, PiReceiptCapacity, 
 import { isPiProcess, piTranscriptPath, piUnwrittenHeaderId } from "../pi.ts";
 import { PendingRequestBook } from "../pending-requests.ts";
 import { interruptCodexSteering } from "../codex-steering.ts";
+import { captureMedoSteering } from "../medo-steering.ts";
 import type { OmoStatus } from "../omo-status.ts";
 import { heldOmoProcess } from "../omo.ts";
 import { startOpenCodeWatch, openCodeSkillsToType, type OpenCodeWatch, skillsNotAttached } from "../opencode-native.ts";
@@ -807,7 +808,9 @@ export function createPendingDelivery({ options, clients, attachments, sight, se
       // Status is deliberately not evidence: Pi can report idle/done while its TUI is staging an automatic-compaction input.
       const beforeCapturePid = beforeEnter.identity.processPid;
       const piAnchor = piTracked ? await preparePiReceipt(paneId, beforeEnter.identity).catch(() => null) : undefined;
-      if (piAnchor !== undefined) {
+      const codexTracked = interruptWorkingCodex && beforeEnter.working && beforeEnter.identity.agent === "codex" && process.env["MEDO_PROJECTS"] === "1";
+      const codexConfirmed = codexTracked ? await captureMedoSteering(paneId, closeMention(text)) : undefined;
+      if (piAnchor !== undefined || codexTracked) {
         enterMark = pending.mark(paneId);
         beforeEnter = await pendingContext(owner, paneId, lease, identity, true, agentOnly).catch(enterRefused);
         if (automatic && (beforeEnter.working || queueHeld(paneId, false))) enterRefused(new HerdrError("pending_wait", "The agent started another turn before this queued message could be committed"));
@@ -867,6 +870,7 @@ export function createPendingDelivery({ options, clients, attachments, sight, se
       }
       let statusAtRead = pending.current(paneId);
       await interruptCodexSteering(interruptWorkingCodex, closeMention(text), { agent: beforeEnter.identity.agent, working: beforeEnter.working, screen: beforeEnter.screen }, {
+        confirmed: codexConfirmed,
         read: async () => {
           const status = pending.current(paneId);
           const current = await pendingContext(owner, paneId, lease, identity, true);

@@ -6,6 +6,7 @@ from pathlib import Path
 import tempfile
 import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import Mock, patch
 
 from integrations.ovis.bridge import chat_service
@@ -49,6 +50,50 @@ class FolderTests(unittest.TestCase):
         self.change('a', 'create', name='Ideas')
         with self.assertRaises(ValueError): self.change('a', 'create', name=' ideas ')
         with self.assertRaises(ValueError): self.change('a', 'rename', folderId='deleted', name='New')
+
+
+class ProjectOrderTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.projects = ['a', 'b', 'c', 'd']
+
+    def move(self, project, relative, direction):
+        return organization.update(self.root, self.projects, {}, dict(operation='move-project', projectId=project, relativeTo=relative, direction=direction))
+
+    def test_moves_persist_and_leave_folders_and_chat_membership_intact(self):
+        folder = organization.update(self.root, self.projects, {}, dict(operation='create', projectId='a', name='Ideas'))['folder']['id']
+        organization.update(self.root, self.projects, {'chat':'a'}, dict(operation='move', projectId='a', threadId='chat', folderId=folder))
+        before = organization.load(self.root)['projects']
+        self.assertEqual(self.move('c', 'b', 'up')['projectOrder'], ['a', 'c', 'b', 'd'])
+        self.assertEqual(self.move('a', 'c', 'down')['projectOrder'], ['c', 'a', 'b', 'd'])
+        saved = organization.load(self.root)
+        self.assertEqual(organization.project_order(saved, self.projects), ['c', 'a', 'b', 'd'])
+        self.assertEqual(saved['projects'], before)
+        self.assertEqual((self.root/'organization.json').stat().st_mode & 0o777, 0o600)
+
+    def test_repeated_moves_are_idempotent_and_stale_ids_cannot_overwrite_order(self):
+        result = self.move('b', 'a', 'up')
+        self.assertEqual(self.move('b', 'a', 'up'), result)
+        for project, relative, direction in [('gone','a','up'), ('a','gone','down'), ('a','a','up'), ('a','b','sideways')]:
+            with self.subTest(project=project, relative=relative, direction=direction), self.assertRaises(ValueError):
+                self.move(project, relative, direction)
+        self.assertEqual(organization.load(self.root)['projectOrder'], result['projectOrder'])
+
+    def test_new_projects_append_and_removed_projects_are_ignored(self):
+        saved = {'projectOrder':['b', 'gone', 'b', 'a']}
+        self.assertEqual(organization.project_order(saved, ['a','b','new','other']), ['b','a','new','other'])
+        self.assertEqual(organization.project_order({}, ['b','a']), ['b','a'])
+
+    def test_simultaneous_moves_preserve_both_changes(self):
+        barrier = threading.Barrier(2)
+        def move(pair):
+            barrier.wait(timeout=2)
+            return self.move(*pair, 'up')
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            list(pool.map(move, [('b','a'), ('d','c')]))
+        self.assertEqual(organization.load(self.root)['projectOrder'], ['b','a','d','c'])
 
 
 class BridgeTests(unittest.TestCase):

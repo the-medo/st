@@ -6,7 +6,7 @@ import sqlite3
 import tempfile
 import unittest
 from unittest.mock import patch
-from integrations.ovis.bridge import server
+from integrations.ovis.bridge import server, organization
 
 
 class SidebarTests(unittest.TestCase):
@@ -34,6 +34,12 @@ class SidebarTests(unittest.TestCase):
         self.assertEqual(server.project_for(row,self.cfg),'a')
         self.cfg['threadProjects']['c']='root'
         self.assertEqual(server.project_for(row,self.cfg),'root')
+
+    def test_catalog_uses_shared_project_order_and_appends_new_projects(self):
+        organization.move_project(self.root, ['root','a'], dict(projectId='a', relativeTo='root', direction='up'))
+        self.assertEqual([p['id'] for p in server.catalog(self.cfg, [])['projects']], ['a','root'])
+        self.cfg['projects'].append({'id':'new', 'name':'New', 'path':'/fixture/new'})
+        self.assertEqual([p['id'] for p in server.catalog(self.cfg, [])['projects']], ['a','root','new'])
 
     def test_paginated_history_does_not_need_jsonl(self):
         (self.root/'thread_history_1.sqlite').touch()
@@ -110,12 +116,16 @@ class SidebarTests(unittest.TestCase):
 
     def test_styles_persist_and_keep_other_projects(self):
         with patch.object(server,'ROOT',self.root),patch.object(server,'config',return_value=self.cfg):
-            server.save_style('a',{'iconText':'AB','titleColor':'#123456','sectionColor':''})
+            server.save_style('a',{'iconText':'AB','titleColor':'#123456','sectionColor':'','borderColor':'#438a75'})
             server.save_style('root',{'iconText':'R','titleColor':'#abcdef'})
             data=server.catalog(self.cfg,[])
             self.assertEqual(data['projects'][1]['appearance']['titleColor'],'#123456')
+            self.assertEqual(data['projects'][1]['appearance']['borderColor'],'#438a75')
             self.assertEqual(data['projects'][0]['appearance']['iconText'],'R')
             with self.assertRaises(ValueError): server.save_style('a',{'titleColor':'red;anything'})
+            with self.assertRaises(ValueError): server.save_style('a',{'borderColor':'red;anything'})
+            server.save_style('a',{'borderColor':''})
+            self.assertEqual(server.catalog(self.cfg,[])['projects'][1]['appearance']['borderColor'],'')
             with self.assertRaises(ValueError): server.save_style('unknown',{})
             with self.assertRaises(ValueError): server.save_style('a',{'image':'../../secret'})
 

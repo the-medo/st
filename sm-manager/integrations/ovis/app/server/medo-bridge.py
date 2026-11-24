@@ -14,6 +14,25 @@ from integrations.ovis.bridge.chat_service import request, Bridge
 root = sidebar.ROOT
 
 
+def codex_permission_args(state):
+    """Use this web instance's saved preset for new conversations only."""
+    try:
+        preferences = json.loads((state / 'preferences.json').read_text())
+    except FileNotFoundError:
+        return []
+    settings = preferences.get('settings', {}) if isinstance(preferences, dict) else None
+    mode = settings.get('codexLaunchMode', 'default') if isinstance(settings, dict) else None
+    presets = {
+        'default': [],
+        'readOnly': ['--sandbox', 'read-only', '--ask-for-approval', 'on-request'],
+        'auto': ['--sandbox', 'workspace-write', '--ask-for-approval', 'on-request'],
+        'fullAccess': ['--sandbox', 'danger-full-access', '--ask-for-approval', 'never'],
+    }
+    if not isinstance(mode, str) or mode not in presets:
+        raise ValueError('Choose a valid Codex sandbox and approvals preset in Settings.')
+    return presets[mode]
+
+
 def thread_title_prefix(terminal):
     # Our launches opt into thread-id-only titles. The title follows /new and /resume,
     # unlike an argv or label which would keep showing the old conversation.
@@ -58,6 +77,8 @@ def resumed_thread(terminal):
 def launch(project, thread=None, title="New conversation"):
     if not Path(project['path']).is_dir():
         raise ValueError('This project folder is no longer available.')
+    preferences = Path(os.environ.get('OVIS_STATE_DIR', str(Path.home()/'.local/state/medo-ovis')))
+    permissions = codex_permission_args(preferences) if thread is None else []
     # All web instances using this catalog share launch ownership, even when
     # their device preferences and cookies live in separate OVIS_STATE_DIRs.
     state = sidebar.ROOT
@@ -83,7 +104,7 @@ def launch(project, thread=None, title="New conversation"):
         key = uuid.uuid4().hex[:20]
         args = [sidebar.CODEX, '--remote', 'unix://' + str(os.environ.get('ST_OVIS_CODEX_SOCKET') or sidebar.CODEX_HOME/'app-server-control/app-server-control.sock'), '-c', 'tui.terminal_title=["thread-id"]']
         if thread: args += ['resume', '--cd', project['path'], thread]
-        else: args += ['--cd', project['path']]
+        else: args += [*permissions, '--cd', project['path']]
         launch_labels = ['--label', 'medo.ovis.starting=1']
         if thread: launch_labels += ['--label', 'medo.ovis.resume='+thread]
         result = sidebar.hc('run', '--bg', '--keep', '--no-parent', '--json', '--name', 'ovis-'+key,
@@ -126,6 +147,24 @@ def history(thread, p):
 
 def handle(p):
     op = p['operation']
+    if op == 'rename':
+        name = p.get('name')
+        if not isinstance(name, str): raise ValueError('Enter a conversation name.')
+        name = ' '.join(name.split())
+        if not name or len(name) > 140 or any(ord(c) < 32 or ord(c) == 127 for c in name):
+            raise ValueError('Use a conversation name between 1 and 140 characters.')
+        thread = p.get('threadId')
+        if not isinstance(thread, str): raise ValueError('Choose a saved conversation.')
+        uuid.UUID(thread)
+        row = next((row for row in sidebar.read_rows() if row['id'] == thread), None)
+        if not row: raise ValueError('Conversation not found in the Steam Machine history.')
+        if row.get('archived'): raise ValueError('Unarchive this conversation in Codex before renaming it.')
+        client = Bridge()
+        try:
+            client.rpc('thread/name/set', {'threadId':thread, 'name':name})
+        finally:
+            client.process.terminate()
+        return {'ok':True, 'title':name}
     if op == 'index':
         rows = sidebar.read_rows()
         result = sidebar.catalog(rows=rows)
@@ -168,7 +207,7 @@ def handle(p):
         return launch(project)
     if op == 'organize':
         cfg = sidebar.config()
-        return organization.update(root, {x['id'] for x in cfg['projects']} | {'other'},
+        return organization.update(root, [x['id'] for x in cfg['projects']] + ['other'],
             {x['id']: sidebar.project_for(x, cfg) for x in sidebar.read_rows()}, p['change'])
     if op == 'style': return sidebar.save_style(p['projectId'], p['style'])
     if op == 'icon-put': return sidebar.put_icon(p['base64'])

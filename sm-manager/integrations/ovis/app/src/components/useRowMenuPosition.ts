@@ -22,7 +22,30 @@ export function useRowMenuPosition({ anchor, surface, point, align, sheet, onClo
     if (sheet) return;
     const menu = surface.current;
     if (menu === null || !anchor.isConnected) { close(); return; }
-    const origin = anchor.getBoundingClientRect();
+    // A contained host (ST) is the fixed menu's containing block and supplies its
+    // viewport dimensions. DOM rectangles still use browser coordinates, so move
+    // anchors and clipping edges into that same local space before comparing them.
+    const offset = (): { x: number; y: number } => {
+      let parent = menu.offsetParent;
+      if (!parent) {
+        // Older Chromium leaves offsetParent null for fixed elements even inside
+        // a layout/paint containment block. Locate that ancestor directly: the
+        // menu's integer layout offsets lose subpixel precision and can oscillate.
+        for (let ancestor = menu.parentElement; ancestor; ancestor = ancestor.parentElement) {
+          if (/\b(layout|paint|strict|content)\b/.test(getComputedStyle(ancestor).contain)) { parent = ancestor; break; }
+        }
+      }
+      if (!parent) return { x: 0, y: 0 };
+      const bounds = parent.getBoundingClientRect();
+      return { x: bounds.left + parent.clientLeft - parent.scrollLeft, y: bounds.top + parent.clientTop - parent.scrollTop };
+    };
+    type Rect = Pick<DOMRect, "left" | "right" | "top" | "bottom">;
+    const rectOf = (element: Element): Rect => {
+      const rect = element.getBoundingClientRect(), { x, y } = offset();
+      return { left: rect.left - x, right: rect.right - x, top: rect.top - y, bottom: rect.bottom - y };
+    };
+    const origin = rectOf(anchor);
+    const originOffset = offset();
     const clips: { readonly parent: HTMLElement; readonly x: boolean; readonly y: boolean }[] = [];
     for (let parent = anchor.parentElement; parent && parent !== document.documentElement; parent = parent.parentElement) {
       const { overflowX, overflowY } = getComputedStyle(parent);
@@ -38,7 +61,7 @@ export function useRowMenuPosition({ anchor, surface, point, align, sheet, onClo
     let menuWidth = menu.offsetWidth;
     let menuHeight = fullMenuHeight();
 
-    const position = (rect: DOMRect): void => {
+    const position = (rect: Rect): void => {
       const safe = safeAreaInsets();
       const minX = safe.left + EDGE;
       const maxX = width - safe.right - EDGE;
@@ -46,8 +69,8 @@ export function useRowMenuPosition({ anchor, surface, point, align, sheet, onClo
       const maxY = height - safe.bottom - EDGE;
       if (point) {
         setPlace({
-          left: Math.max(minX, Math.min(point.x + rect.left - origin.left, maxX - menuWidth)),
-          top: Math.max(minY, Math.min(point.y + rect.top - origin.top, maxY - menuHeight)),
+          left: Math.max(minX, Math.min(point.x - originOffset.x + rect.left - origin.left, maxX - menuWidth)),
+          top: Math.max(minY, Math.min(point.y - originOffset.y + rect.top - origin.top, maxY - menuHeight)),
           maxHeight: maxY - minY,
         });
         return;
@@ -64,11 +87,11 @@ export function useRowMenuPosition({ anchor, surface, point, align, sheet, onClo
     // Sample while open: a row can move when a badge appears without either resizing or scrolling.
     const follow = (): void => {
       if (!anchor.isConnected) { close(); return; }
-      const rect = anchor.getBoundingClientRect();
+      const rect = rectOf(anchor);
       let left = Math.max(0, rect.left), right = Math.min(window.innerWidth, rect.right);
       let top = Math.max(0, rect.top), bottom = Math.min(window.innerHeight, rect.bottom);
       for (const { parent, x, y } of clips) {
-        const bounds = parent.getBoundingClientRect();
+        const bounds = rectOf(parent);
         if (x) {
           const edge = bounds.left + parent.clientLeft;
           left = Math.max(left, edge);
