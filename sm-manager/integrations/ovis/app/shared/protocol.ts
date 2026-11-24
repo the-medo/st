@@ -691,6 +691,9 @@ export type { PushAction, PushDeliveryFailure, PushKey, PushPayload, PushSubscri
 export interface ConversationTurn {
   role: "user" | "assistant";
   ts: string | null;
+  /** Native user item and enclosing exchange, when several user messages share a turn timestamp. */
+  message_id?: string;
+  turn_id?: string;
   /** Last recorded assistant activity, never the next user's timestamp. */
   end_ts?: string;
   /**

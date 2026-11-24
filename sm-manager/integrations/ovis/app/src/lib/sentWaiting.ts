@@ -23,7 +23,7 @@ export interface WaitingSend {
   herdr?: string;
 }
 
-type Turn = Pick<ConversationTurn, "role" | "parts" | "ts">;
+type Turn = Pick<ConversationTurn, "role" | "parts" | "ts" | "message_id" | "turn_id">;
 
 export const WAITING_SEND_MS = 60_000;
 
@@ -59,7 +59,7 @@ const CLOCK_DRIFT = 0.001;
 
 const SLEEP_SLACK_MS = 2_000;
 
-function newerThanSend(send: WaitingSend, at: number, key: string, answeredAt: number, last: boolean): boolean {
+function newerThanSend(send: WaitingSend, at: number, key: string, answeredAt: number, last: boolean, turn: Turn): boolean {
   const after = send.after;
   // the send's own turn is written after its `at`, which is taken before submitting; a transcript
   // that keeps whole seconds (Grok's) may record it up to a second early
@@ -72,6 +72,19 @@ function newerThanSend(send: WaitingSend, at: number, key: string, answeredAt: n
     return coarse > 0 && at + coarse > send.at && (last || answeredAt >= at + coarse);
   }
   if (after.keys.has(key)) return false;
+  // Managed Codex history returns complete exchanges. A new native user item in an
+  // exchange already read before Send is a follow-up, even though it inherits the
+  // exchange's older startedAt. Existing items (including identical text) stay barred.
+  if (turn.message_id && turn.turn_id) {
+    const known = [...after.keys].flatMap((before) => {
+      try {
+        const [, , turnId, messageId] = JSON.parse(before.slice(0, before.lastIndexOf(":")));
+        return turnId === turn.turn_id && typeof messageId === "string" ? [messageId] : [];
+      } catch { return []; }
+    });
+    if (known.includes(turn.message_id)) return false;
+    if (known.length > 0) return true;
+  }
   if (after.latest !== null && at < after.latest) return false;
   if (after.pcFloor !== null) {
     if (at >= after.pcFloor) return true;
@@ -87,7 +100,7 @@ const keySaid = (key: string): string => turnSaid((JSON.parse(key.slice(0, key.l
 
 function turnMatches(send: WaitingSend, turn: Turn, key: string, answeredAt: number, last: boolean, words: (text: string) => string): boolean {
   const at = turnTime(turn);
-  if (turn.role !== "user" || !Number.isFinite(at) || !newerThanSend(send, at, key, answeredAt, last)) return false;
+  if (turn.role !== "user" || !Number.isFinite(at) || !newerThanSend(send, at, key, answeredAt, last, turn)) return false;
   return turnSaid(turn.parts, words) === words(send.text);
 }
 
@@ -107,21 +120,29 @@ let nextId = 0;
 /** Two PCs may reuse a pane id. */
 export const waitingKey = (machineId: string, paneId: string): string => `${machineId}:${paneId}`;
 
-function userTurns(turns: readonly Turn[]): { turn: Turn; key: string; answeredAt: number; last: boolean }[] {
+function userTurns(turns: readonly Turn[], source?: ConversationResponse["source"]): { turn: Turn; key: string; answeredAt: number; last: boolean }[] {
   const occurrences = new Map<string, number>();
   const laterTimes = new Array<number>(turns.length);
+  // The managed Codex adapter timestamps every row of an exchange with its turn's
+  // second-resolution startedAt. Its assistant activity is still part of that last
+  // exchange, not evidence of an older answer. Otherwise a first send made before
+  // the initial read keeps its waiting copy for the entire turn.
+  let lastUser = -1;
   let newest = Number.NaN;
   for (let index = turns.length - 1; index >= 0; index--) {
+    if (lastUser < 0 && turns[index]!.role === "user") lastUser = index;
     laterTimes[index] = newest;
     const time = turnTime(turns[index]!);
     if (Number.isFinite(time) && !(time <= newest)) newest = time;
   }
+  const sharedCodexTime = source === "codex-transcript" && lastUser >= 0
+    && turns.slice(lastUser + 1).every((turn) => turn.ts === turns[lastUser]!.ts);
   return turns.flatMap((turn, index) => {
     if (turn.role !== "user") return [];
-    const identity = JSON.stringify([turn.ts, turn.parts]);
+    const identity = JSON.stringify([turn.ts, turn.parts, ...(turn.message_id && turn.turn_id ? [turn.turn_id, turn.message_id] : [])]);
     const occurrence = occurrences.get(identity) ?? 0;
     occurrences.set(identity, occurrence + 1);
-    return [{ turn, key: `${identity}:${occurrence}`, answeredAt: laterTimes[index]!, last: index === turns.length - 1 }];
+    return [{ turn, key: `${identity}:${occurrence}`, answeredAt: laterTimes[index]!, last: index === turns.length - 1 || sharedCodexTime && index === lastUser }];
   });
 }
 
@@ -289,7 +310,7 @@ export function currentWaitingSends(key: string): readonly WaitingSend[] {
 }
 
 export function settleWaitingSends(key: string, turns: readonly Turn[], now = Date.now(), loaded = turns.length > 0, source?: ConversationResponse["source"]): void {
-  const candidates = userTurns(turns);
+  const candidates = userTurns(turns, source);
   if (loaded) {
     const times = turns.map(turnTime).filter(Number.isFinite);
     const latest = times.length > 0 ? Math.max(...times) : null;

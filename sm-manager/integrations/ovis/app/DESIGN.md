@@ -884,6 +884,8 @@ floor of `--fs-meta` holds at scale 1 and only grows with it.
   `fullAccess`, each a `--sandbox` and `--ask-for-approval` pair) become the `agent.args` the new
   workspace, tab and worktree dialogs send (src/lib/agentLaunchMode.ts). `default` (the default)
   adds nothing, so the agent's own configuration decides. Both are shared across devices.
+  The ST project sidebar's New conversation action also applies the saved Codex permission
+  preset. Resuming a conversation preserves that conversation's existing permissions.
   Beside each mode, the same agent's row has a model and an effort (`claudeLaunchModel`,
   `claudeLaunchEffort`, `codexLaunchModel`, `codexLaunchEffort`, shared too). They fill the new
   workspace and tab dialogs' Model and Effort fields as the dialog opens on that agent or the
@@ -1367,6 +1369,10 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
 - Hover or `aria-selected` uses `--bg-hover`. Headings are dim uppercase micro labels.
 - The sidebar's row menu (`.row-menu`) is a `.menu` drawn through a portal at fixed coordinates,
   under its `⋯` with right edges aligned, above it when the screen ends first, and over the drawer.
+  Like [T3 Code's anchored menus](https://github.com/pingdotgg/t3code/blob/main/apps/web/src/components/ui/menu.tsx),
+  positioning and visibility use the menu's own viewport. In ST, the contained host supplies that
+  viewport; browser rectangles and right-click coordinates are translated into it. The header's
+  More button stays visible to the positioning loop even beside ST's outer sidebar.
   Both the button and right-click offer the same native workspace actions: Rename workspace,
   Close workspace/group, New/Open worktree for repository roots, Delete worktree checkout for
   linked worktrees, and Expand/Collapse for a group. Pane renaming stays in the pane menu. The
@@ -1444,6 +1450,29 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   A desktop (`pointer: fine` wider than 768px, the tab strip's rule) draws no row `⋯`: a
   right-click or the context-menu key opens the menu, at the pointer or at the row, and dismissal
   returns the focus where it was.
+
+- ST's project sidebar distinguishes working conversations with a small rotating ring and
+  unread updates with a heavier title and colored dot. This follows the distinction between
+  active work and unseen completions in [T3 Code's thread rows](https://github.com/pingdotgg/t3code/blob/main/apps/web/src/components/sidebar/SidebarThreadRow.tsx),
+  with the owner's requested spinner rather than a text badge. Reduced motion keeps the ring
+  still. The private catalogue exposes status and update timestamps, so the browser seeds
+  existing history quietly and remembers subsequent changes and working-to-idle/done transitions
+  by stable thread ID. Viewing an uncovered conversation in the visible Agents page marks its
+  activity read; hidden pages and project dialogs do not. Read state is local to this browser,
+  unlike project appearance, which continues to sync through the private sidebar bridge.
+  Background and border colors are independent. Hover and selected fills mix the project
+  background with its border color (or neutral text when no border is set), so the global blue
+  hover no longer overrides colored sections. The appearance dialog previews working, unread,
+  selected, and hovered rows before saving, alongside the existing title and icon colors.
+  Each conversation's menu also offers Rename, Move to folder, and Read saved conversation.
+  Rename follows T3 Code's thread action and preselected name field, using a small dialog to
+  keep the same Save/Cancel interaction on desktop and phones. Enter saves; Escape cancels.
+  The bridge validates a saved human thread and a nonempty name of at most 140 characters,
+  then calls Codex's `thread/name/set`. It neither resumes the thread nor starts a model turn.
+  The native name is read back by the existing catalogue and its terminal-label refresh.
+  An older in-flight catalogue response cannot overwrite the acknowledged name. Failed saves
+  retain the draft in the dialog. Codex excludes archived threads from this name operation,
+  so their Rename action explains that they must first be unarchived.
 
 - Close follows herdr's `ui.confirm_close`: a workspace close, or a pane close that takes its
   workspace with it, asks in a confirm first. A busy pane also asks before it stops. After a
@@ -3638,6 +3667,12 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
 - Space separates exchanges, not a rule: the transcript's gap is `--space-3`, so an answer sits
   close under its prompt, and a user turn that follows an assistant turn takes `--space-5` more.
   The one rule of an exchange is the hairline under each of its folded work blocks.
+- A sent message's temporary bubble leaves when its recorded user turn appears, including
+  the first Codex exchange whose user and assistant rows share the same second-level start
+  timestamp. It must not remain below **Working…** as a second copy. Existing turns in the
+  pre-send baseline and turns already matched to another send remain excluded. This follows
+  [T3 Code's reconciliation of temporary user rows with committed messages](https://github.com/pingdotgg/t3code/blob/main/apps/web/src/components/ChatView.tsx);
+  Ovis uses transcript text and timestamps where its terminal bridge has no shared message ID.
 - Each pane keeps its reading row and viewport offset when returning from another tab, workspace
   or the terminal lens. A remounted chat loads earlier pages when needed to find that row in the
   same history, only until the loaded turns reach back past the row's time (ten pages for a row
@@ -4357,6 +4392,14 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   Sending disables that item's actions; errors stay inline. Uncertain messages offer Copy and
   Discard saved copy, with no retry action. Desktop and phones share this flow.
 - Accepted pending messages clear only the draft prefix acknowledged by the bridge. For agents
+  in ST's managed Codex conversations, Send now also checks for a newly recorded user item in the
+  same active exchange. This follows the Codex app's item-based confirmation: steering appends a
+  user message without starting another turn ([Codex app-server](https://learn.chatgpt.com/docs/app-server)).
+  A message already accepted while Codex keeps working needs no Escape and no temporary native
+  queue panel. The bound thread, turn and pre-send item IDs exclude old or unrelated messages;
+  unavailable confirmation retains the existing uncertainty handling. The chat also keeps those
+  IDs so a follow-up sharing its exchange's old timestamp clears its temporary bubble once recorded.
+  For agents
   other than Pi, actual Enter delivery removes the pending row and refreshes the transcript. For
   a message submitted from Ovis Chat to Pi, Enter changes it to a read-only **Sent to Pi ·
   waiting for transcript** user bubble. What Pi runs itself gets no bubble, as Pi's submit handler

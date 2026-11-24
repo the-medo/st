@@ -110,12 +110,16 @@ class SidebarTests(unittest.TestCase):
 
     def test_styles_persist_and_keep_other_projects(self):
         with patch.object(server,'ROOT',self.root),patch.object(server,'config',return_value=self.cfg):
-            server.save_style('a',{'iconText':'AB','titleColor':'#123456','sectionColor':''})
+            server.save_style('a',{'iconText':'AB','titleColor':'#123456','sectionColor':'','borderColor':'#438a75'})
             server.save_style('root',{'iconText':'R','titleColor':'#abcdef'})
             data=server.catalog(self.cfg,[])
             self.assertEqual(data['projects'][1]['appearance']['titleColor'],'#123456')
+            self.assertEqual(data['projects'][1]['appearance']['borderColor'],'#438a75')
             self.assertEqual(data['projects'][0]['appearance']['iconText'],'R')
             with self.assertRaises(ValueError): server.save_style('a',{'titleColor':'red;anything'})
+            with self.assertRaises(ValueError): server.save_style('a',{'borderColor':'red;anything'})
+            server.save_style('a',{'borderColor':''})
+            self.assertEqual(server.catalog(self.cfg,[])['projects'][1]['appearance']['borderColor'],'')
             with self.assertRaises(ValueError): server.save_style('unknown',{})
             with self.assertRaises(ValueError): server.save_style('a',{'image':'../../secret'})
 

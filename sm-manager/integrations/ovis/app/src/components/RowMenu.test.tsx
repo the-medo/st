@@ -138,4 +138,32 @@ describe("how the row menu closes from outside it", () => {
     await frame();
     expect(top()).toBe(96);
   });
+
+  it("keeps the rightmost header menu open inside an offset host viewport", async () => {
+    const host = Object.assign(node(), {
+      clientLeft: 0, clientTop: 0, scrollLeft: 0, scrollTop: 0,
+      getBoundingClientRect: () => ({ left: 240, top: 50 }),
+    });
+    const row = Object.assign(node(), {
+      getBoundingClientRect: () => ({ left: 1470, right: 1500, top: 60, bottom: 90 }),
+    });
+    await draw(false, row, { menuNode: Object.assign(node(), { offsetParent: host }) });
+    await frame();
+    expect(closes).toBe(0);
+    expect(renderer?.root.findByProps({ role: "menu" }).props.style).toMatchObject({ left: 1060, top: 44 });
+  });
+
+  it("positions a context menu's pointer in the same coordinates as its contained host", async () => {
+    const host = Object.assign(node(), {
+      clientLeft: 0, clientTop: 0, scrollLeft: 0, scrollTop: 0,
+      getBoundingClientRect: () => ({ left: 240, top: 50 }),
+    });
+    const row = Object.assign(node(), {
+      getBoundingClientRect: () => ({ left: 450, right: 550, top: 100, bottom: 130 }),
+    });
+    await draw(false, row, { point: { x: 500, y: 110 }, menuNode: Object.assign(node(), { offsetParent: host }) });
+    await frame();
+    expect(closes).toBe(0);
+    expect(renderer?.root.findByProps({ role: "menu" }).props.style).toMatchObject({ left: 260, top: 60 });
+  });
 });

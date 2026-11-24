@@ -95,6 +95,19 @@ function fixture(contexts: CodexSteeringContext[] = [working]) {
 }
 
 describe("explicit Codex Send now", () => {
+  it("confirms a recorded follow-up while Codex keeps working without a pending panel or Escape", async () => {
+    const f = fixture([{ ...working, screen: frame().replace(`• ${hint}\n  ↳ send this now\n`, "") }]);
+    await interruptCodexSteering(true, "send this now", working, { ...f.io, confirmed: async () => true });
+    expect(f.effects).toEqual([]);
+    expect(f.reads()).toBe(1);
+  });
+
+  it("still requires the native panel when the recorded message cannot be confirmed", async () => {
+    const f = fixture([{ ...working, screen: frame("Queued follow-up inputs") }]);
+    await expect(interruptCodexSteering(true, "send this now", working, { ...f.io, confirmed: async () => false })).rejects.toThrow("not confirmed");
+    expect(f.effects).toEqual([]);
+  });
+
   it("arms the restart gate before one Escape on a freshly checked native panel", async () => {
     const f = fixture(); await interruptCodexSteering(true, "send this now", working, f.io);
     expect(f.effects).toEqual(["restart gate", "Escape"]);

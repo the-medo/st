@@ -6,6 +6,8 @@ interface SteeringIO {
   /** presses `key`; `fresh` is asked again when herdr is reached, and a stale write is withheld */
   press: (key: string, fresh: () => boolean) => Promise<void>;
   restarting: () => void;
+  /** A new user item in the bound Codex turn proves Enter was accepted without an interrupt. */
+  confirmed?: () => Promise<boolean>;
   now?: () => number;
   wait?: (ms: number) => Promise<void>;
 }
@@ -93,6 +95,7 @@ export async function interruptCodexSteering(explicit: boolean, text: string, su
     // The caller rechecks live identity, lease, authority and interactive prompts in this read.
     const current = await io.read();
     if (current.agent !== agent) throw unconfirmed();
+    if (agent === "codex" && await io.confirmed?.()) return;
     if (now() >= deadline) break;
     if (!current.working) return;
     if (steer.pending(current.screen, text)) {

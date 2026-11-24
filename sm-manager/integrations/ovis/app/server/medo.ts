@@ -6,11 +6,11 @@ import { badRequest, jsonResponse, readJsonObject, setRequestRoute } from './htt
 import { HistoryChanged, type ConversationPage, type RecognizedConversation } from './conversation-shared.ts';
 
 const script = fileURLToPath(new URL('./medo-bridge.py', import.meta.url));
-export async function medoCall(payload: Record<string, unknown>): Promise<any> {
+export async function medoCall(payload: Record<string, unknown>, timeoutMs = 75_000): Promise<any> {
   const child = Bun.spawn(['python3', script], { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
   child.stdin.write(JSON.stringify(payload));
   child.stdin.end();
-  const timeout = setTimeout(() => child.kill(), 75_000);
+  const timeout = setTimeout(() => child.kill(), timeoutMs);
   try {
     const [output, , status] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
     if (!output) throw new Error('The project bridge did not respond.');
@@ -38,7 +38,8 @@ export function medoConversation(data: any): RecognizedConversation {
         const userText = mentioned.reduce((text, file) => text.replace(`@${file.path}`, ''), String(item.text)).trim();
         const attachments = files.map((f: any) => /\.(png|jpe?g|webp|gif)$/i.test(f.path)
           ? `![${f.name}](<${f.path}>)` : `[${f.name}](<${f.path}>)`).join('\n');
-        turns.push({ role: 'user', ts: time(turn.startedAt), parts: [{ kind: 'text', text: [userText, attachments].filter(Boolean).join('\n\n') }] });
+        turns.push({ role: 'user', ts: time(turn.startedAt), message_id: item.id, turn_id: turn.id,
+          parts: [{ kind: 'text', text: [userText, attachments].filter(Boolean).join('\n\n') }] });
       } else if (item.role === 'assistant') {
         assistant.push({ kind: 'text', text: item.text, ...(item.phase === 'commentary' || item.phase === 'final_answer' ? { phase: item.phase } : {}) });
       } else if (item.kind === 'reasoning') assistant.push({ kind: 'thinking', text: item.text });
@@ -80,7 +81,7 @@ export async function handleMedoRequest(request: Request, url: URL, readOnly: bo
     if (request.method !== 'POST') return badRequest('method_not_allowed', 'Use POST for this action.');
     const payload = await readJsonObject(request);
     if (payload instanceof Response) return payload;
-    const operations: Record<string, string> = { '/api/medo/models': 'models', '/api/medo/settings': 'settings', '/api/medo/open': 'open', '/api/medo/new': 'new', '/api/medo/organize': 'organize', '/api/medo/style': 'style', '/api/medo/icon': 'icon-put' };
+    const operations: Record<string, string> = { '/api/medo/models': 'models', '/api/medo/settings': 'settings', '/api/medo/open': 'open', '/api/medo/new': 'new', '/api/medo/rename': 'rename', '/api/medo/organize': 'organize', '/api/medo/style': 'style', '/api/medo/icon': 'icon-put' };
     const operation = operations[url.pathname];
     if (!operation) return badRequest('unknown_action', 'Unknown project action.');
     return jsonResponse(await medoCall({ ...payload, operation }));

@@ -11,6 +11,7 @@ describe('Steam Machine history adapter', () => {
     ] }] });
     expect(result.turns.map((turn) => turn.role)).toEqual(['user', 'assistant']);
     expect(result.turns[0]?.parts[0]).toEqual({ kind: 'text', text: 'Please inspect\n\n![test.png](</demo/test.png>)' });
+    expect(result.turns[0]).toMatchObject({ message_id: 'user', turn_id: 'turn' });
     expect(result.turns[1]?.parts.map((part) => part.kind)).toEqual(['text', 'tool', 'text']);
     expect(result.turns[1]?.end_ts).toBe('1970-01-01T00:01:44.000Z');
     expect(result).toMatchObject({ history_id: 'medo:demo', cursor: 'older', metadata: { model: 'model-a', reasoning_effort: 'high' }, activity: 'idle' });

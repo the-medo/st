@@ -1,0 +1,1 @@
+ST project conversations show a rotating indicator while working and bold titles for unread updates. Read state is remembered in this browser. Project appearance now has a separate border color, matching hover and selected rows, and a live preview.

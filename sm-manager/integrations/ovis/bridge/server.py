@@ -142,7 +142,7 @@ def catalog(cfg=None, rows=None):
 def save_style(project_id, style):
     if not any(p['id'] == project_id for p in config()['projects']):
         raise ValueError('Unknown project.')
-    if not isinstance(style, dict) or set(style) - {'iconText','titleColor','sectionColor','iconColor','image'}:
+    if not isinstance(style, dict) or set(style) - {'iconText','titleColor','sectionColor','borderColor','iconColor','image'}:
         raise ValueError('Invalid project appearance.')
     clean = {}
     for key, value in style.items():

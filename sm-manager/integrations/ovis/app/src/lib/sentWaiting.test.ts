@@ -8,6 +8,26 @@ import { paneLifetimes } from "./paneLifetime.ts";
 const user = (text: string, at = 2): ConversationTurn => ({ role: "user", ts: new Date(at).toISOString(), parts: [{ kind: "text", text }] });
 const assistant = (text: string): ConversationTurn => ({ ...user(text), role: "assistant" });
 
+it("settles a managed Codex follow-up within an older active exchange using its new user item", () => {
+  const key = waitingKey("local", "managed-steering");
+  const original = { ...user("follow up", 1000), turn_id: "active", message_id: "first" };
+  const followup = { ...original, message_id: "second" };
+  try {
+    settleWaitingSends(key, [original], 1001, true, "codex-transcript");
+    const baseline = stampedBaseline(waitingBaseline(key), new Date(151000).toISOString());
+    rememberWaitingSend(key, "follow up", 151000, baseline);
+    rememberWaitingSend(key, "follow up", 151000, baseline);
+    settleWaitingSends(key, [original], 151001, true, "codex-transcript");
+    expect(currentWaitingSends(key)).toHaveLength(2);
+    settleWaitingSends(key, [original, { ...followup, turn_id: "other" }], 151002, true, "codex-transcript");
+    expect(currentWaitingSends(key)).toHaveLength(2);
+    settleWaitingSends(key, [original, followup], 151003, true, "codex-transcript");
+    expect(currentWaitingSends(key)).toHaveLength(1);
+    settleWaitingSends(key, [original, followup, { ...followup, message_id: "third" }], 151004, true, "codex-transcript");
+    expect(currentWaitingSends(key)).toHaveLength(0);
+  } finally { forgetWaitingSends(key); }
+});
+
 let probes = 0;
 function transcriptHolds(send: { text: string; at: number }, turns: readonly ConversationTurn[]): boolean {
   const key = waitingKey("local", `probe-${++probes}`);
@@ -673,6 +693,50 @@ describe("waitingText", () => {
       settleWaitingSends(key, older, second + 800, true);
       expect(currentWaitingSends(key).map((send) => send.text)).toEqual(["repeat"]);
       settleWaitingSends(key, [...older, user("repeat", second), { ...assistant("ok"), ts: new Date(second + 1_000).toISOString() }], second + 1_400, true);
+      expect(currentWaitingSends(key)).toEqual([]);
+    } finally { forgetWaitingSends(key); }
+  });
+
+  it.each([false, true])("settles the latest Codex exchange with a shared second timestamp (stamped: %s)", (stamped) => {
+    const key = waitingKey("local", `codex-first-${stamped}`);
+    const second = Date.parse("2026-11-24T20:00:02Z");
+    const sent = second + 400;
+    const turn = [user("first message", second), { ...assistant("Checking the project."), ts: new Date(second).toISOString() }];
+    try {
+      rememberWaitingSend(key, "first message", sent, stamped ? stampedBaseline(null, new Date(sent).toISOString(), sent) : null);
+      settleWaitingSends(key, turn, sent + 100, true, "codex-transcript");
+      expect(currentWaitingSends(key)).toEqual([]);
+    } finally { forgetWaitingSends(key); }
+  });
+
+  it("does not let a recorded Codex exchange consume an identical follow-up", () => {
+    const key = waitingKey("local", "codex-identical-follow-up");
+    const second = Date.parse("2026-11-24T20:00:02Z");
+    const turn = [user("repeat", second), { ...assistant("Checking."), ts: new Date(second).toISOString() }];
+    try {
+      settleWaitingSends(key, turn, second + 100, true, "codex-transcript");
+      rememberWaitingSend(key, "repeat", second + 400, stampedBaseline(waitingBaseline(key), new Date(second + 400).toISOString()));
+      settleWaitingSends(key, turn, second + 500, true, "codex-transcript");
+      expect(currentWaitingSends(key).map((send) => send.text)).toEqual(["repeat"]);
+      settleWaitingSends(key, [...turn, ...turn], second + 800, true, "codex-transcript");
+      expect(currentWaitingSends(key)).toEqual([]);
+    } finally { forgetWaitingSends(key); }
+  });
+
+  it("lets one Codex exchange settle only one send and rejects turns from an earlier second", () => {
+    const key = waitingKey("local", "codex-identical-first-sends");
+    const second = Date.parse("2026-11-24T20:00:02Z");
+    const turn = [user("repeat", second), { ...assistant("Checking."), ts: new Date(second).toISOString() }];
+    try {
+      for (const at of [second + 400, second + 500]) rememberWaitingSend(key, "repeat", at, stampedBaseline(null, new Date(at).toISOString(), at));
+      settleWaitingSends(key, turn.map((row) => ({ ...row, ts: new Date(second - 1000).toISOString() })), second + 600, true, "codex-transcript");
+      expect(currentWaitingSends(key)).toHaveLength(2);
+      settleWaitingSends(key, turn, second + 700, true, "codex-transcript");
+      const remaining = currentWaitingSends(key);
+      expect(remaining).toHaveLength(1);
+      settleWaitingSends(key, turn, second + 800, true, "codex-transcript");
+      expect(currentWaitingSends(key)).toBe(remaining);
+      settleWaitingSends(key, [...turn, ...turn], second + 900, true, "codex-transcript");
       expect(currentWaitingSends(key)).toEqual([]);
     } finally { forgetWaitingSends(key); }
   });
