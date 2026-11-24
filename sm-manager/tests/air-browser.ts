@@ -290,7 +290,13 @@ export async function verifyAirQuality(page: Page, base: string) {
     );
     mode = "empty";
     await page.reload();
-    await page.locator(".chart-placeholder").nth(1).waitFor();
+    // The two sections fetch independently; a loading placeholder is not an empty result.
+    await page
+      .getByText("No readings for this section in this range yet.", {
+        exact: true,
+      })
+      .nth(1)
+      .waitFor();
     assert.equal(
       await page
         .getByText("No readings for this section in this range yet.", {
@@ -306,6 +312,11 @@ export async function verifyAirQuality(page: Page, base: string) {
     await page.reload();
     await page
       .getByText("Air quality unavailable. Retrying shortly…", { exact: true })
+      .waitFor();
+    await page
+      .locator(".air-load")
+      .filter({ hasText: "Retrying shortly" })
+      .nth(1)
       .waitFor();
     assert.equal(
       await page
