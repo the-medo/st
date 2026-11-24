@@ -19,10 +19,10 @@ import { isLoopbackAddress } from "./access.ts";
 import { PAGE_MEDIA_ROUTE } from "./file-view.ts";
 import { badRequest, jsonResponse } from "./http.ts";
 
-const configuredPrefix = process.env["ST_OVIS_COOKIE_PREFIX"];
+export const configuredPrefix = process.env["ST_OVIS_COOKIE_PREFIX"];
 if (configuredPrefix && !/^[a-z0-9_]{1,64}$/.test(configuredPrefix)) throw new Error("Invalid ST_OVIS_COOKIE_PREFIX");
 const cookiePrefix = configuredPrefix || (process.env["MEDO_PROJECTS"] === "1" ? "medo_ovis" : "ovis");
-const cookiePath = process.env["ST_OVIS_BASE_PATH"] === "/ovis" ? "/ovis" : "/";
+export const cookiePath = process.env["ST_OVIS_BASE_PATH"] === "/ovis" ? "/ovis" : "/";
 export const TOKEN_COOKIE = `${cookiePrefix}_token`;
 /** a paired device's own credential; the same flags as the token cookie */
 export const DEVICE_COOKIE = `${cookiePrefix}_device`;

@@ -13,9 +13,9 @@ Upstream MIT and third-party notices are retained. `bridge/` contains the custom
 sidebar/chat service source; its live project catalogs and account data are not
 part of the repository.
 
-This first import is a preservation step. The bridge still needs explicit data
-paths, and the Ovis source still assumes its standalone layout. Follow
-`../../ST_V2_IMPLEMENTATION.md` for the integration sequence. Never start tests
+The original import is preserved in the source manifest. The bridge now uses
+explicit data paths and the native frontend uses the host in `frontend/src/features/ovis`.
+Follow `../../ST_V2_IMPLEMENTATION.md` for the integration sequence. Never start tests
 against the owner's Herdr session or Codex database. Existing production Ovis
 and the shared chat bridge remain independently managed.
 
@@ -32,11 +32,13 @@ these variables in a private service environment file:
 | `ST_OVIS_CHAT_SOCKET` | Existing shared chat-bridge socket. Defaults to the user's runtime directory. |
 | `ST_OVIS_HC_BIN`, `ST_OVIS_CODEX_BIN` | Explicit installed executable paths when needed. |
 | `ST_OVIS_ATTACHMENTS` | Existing bridge attachment directory. |
-| `OVIS_STATE_DIR` | Ovis state and launch lock; preserve the same lock directory when sharing a Herdr session. |
+| `OVIS_STATE_DIR` | Ovis preferences/device state, separate per deployment. |
 | `HC_SESSION` | Dedicated test session for tests/previews; leave production session configuration intact. |
 
 The catalog, organization IDs, atomic writes, managed-daemon protocol, and launch
-ownership rules are unchanged. To install the packaged chat service later, use
+ownership rules are unchanged. Standalone and integrated launchers share
+`~/.local/state/herdr-codex-sidebar/launch.lock`; separate Ovis state directories
+do not split the launch lock. To install the packaged chat service later, use
 `python3 -m integrations.ovis.bridge.chat_service` from `sm-manager`. Do not run
 a second service on the existing socket. The integrated client initially uses
 the already-running shared service.

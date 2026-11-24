@@ -1,5 +1,5 @@
 import { chromium } from "playwright-core";
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import assert from "node:assert/strict";
@@ -33,7 +33,12 @@ const folder = readdirSync(cache)
   .at(-1);
 const executable =
   process.env.BROWSER_EXECUTABLE ??
-  (folder ? join(cache, folder, "chrome-linux64/chrome") : undefined);
+  (folder
+    ? [
+        join(cache, folder, "chrome-linux64/chrome"),
+        join(cache, folder, "chrome-linux/chrome"),
+      ].find(existsSync)
+    : undefined);
 const browser = await chromium.launch({
   headless: true,
   executablePath: executable,

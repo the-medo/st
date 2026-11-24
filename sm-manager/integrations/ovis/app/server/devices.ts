@@ -33,10 +33,10 @@ import type { BlockReceipt } from "../shared/account-devices-api.ts";
 import { verifyRelayProof } from "./relay/auth-proof.ts";
 import { logAccess } from "./connection-diagnostics.ts";
 import { type AccountPairing, type AccountPairingEnd, type AccountPairingState, type AccountPairingTurnedAway, type DevicePairedEvent, type DeviceRemovedEvent, type DevicePairToken, type DeviceRole, type DevicesRevokedAll, type PairedDevice, type DeviceConnection, STREAM_COOKIE_PREFIX as DEFAULT_STREAM_COOKIE_PREFIX } from "../shared/protocol.ts";
-const STREAM_COOKIE_PREFIX = process.env["MEDO_PROJECTS"] === "1" ? "medo_ovis_stream_" : DEFAULT_STREAM_COOKIE_PREFIX;
+const STREAM_COOKIE_PREFIX = configuredPrefix ? `${configuredPrefix}_stream_` : process.env["MEDO_PROJECTS"] === "1" ? "medo_ovis_stream_" : DEFAULT_STREAM_COOKIE_PREFIX;
 import type { MuxClock } from "../shared/relay-mux-engine.ts";
 import { ownerAccess, type Access } from "./access.ts";
-import { CLEAR_LEGACY_DEVICE_COOKIE, COOKIE_MAX_AGE_SECONDS, DEVICE_COOKIE_CLEARED, deviceCookie, isSecureRequest, noContent, parseCookies } from "./auth.ts";
+import { configuredPrefix, cookiePath, CLEAR_LEGACY_DEVICE_COOKIE, COOKIE_MAX_AGE_SECONDS, DEVICE_COOKIE_CLEARED, deviceCookie, isSecureRequest, noContent, parseCookies } from "./auth.ts";
 import { badRequest, isJsonObject, jsonResponse, setRequestRoute } from "./http.ts";
 import { sameOrigin } from "./machine-security.ts";
 import { privateStateRefusal, writePrivateState } from "./private-state.ts";
@@ -280,7 +280,7 @@ export function newStreamKey(): string {
 }
 
 export function streamCookie(key: string, secure: boolean): string {
-  return `${STREAM_COOKIE_PREFIX}${key}=1; Path=/; HttpOnly; SameSite=Strict; Max-Age=${COOKIE_MAX_AGE_SECONDS}${secure ? "; Secure" : ""}`;
+  return `${STREAM_COOKIE_PREFIX}${key}=1; Path=${cookiePath}; HttpOnly; SameSite=Strict; Max-Age=${COOKIE_MAX_AGE_SECONDS}${secure ? "; Secure" : ""}`;
 }
 
 export function sameBrowser(a: readonly string[], b: readonly string[]): boolean {

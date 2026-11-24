@@ -1,19 +1,37 @@
 import { chromium } from "playwright-core";
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert/strict";
 import { fixtureApi, ui } from "./v2-fixtures";
 import panes from "../integrations/ovis/app/site/demo/fixtures/panes.json";
 ui.ovis = true;
-const fixture = Bun.spawn(["python3", "tests/serve_v2_fixture.py"], {stdin:"pipe",stdout:"pipe",stderr:"inherit"});
-fixture.stdin.write(JSON.stringify(Object.fromEntries(["ui-config","snapshot","history","zed","dbs"].map(name=>[`/api/${name}`,fixtureApi(new URL(`http://fixture/api/${name}`),"GET")])))+"\n");
+const fixture = Bun.spawn(["python3", "tests/serve_v2_fixture.py"], {
+  stdin: "pipe",
+  stdout: "pipe",
+  stderr: "inherit",
+});
+fixture.stdin.write(
+  JSON.stringify(
+    Object.fromEntries(
+      ["ui-config", "snapshot", "history", "zed", "dbs"].map((name) => [
+        `/api/${name}`,
+        fixtureApi(new URL(`http://fixture/api/${name}`), "GET"),
+      ]),
+    ),
+  ) + "\n",
+);
 fixture.stdin.end();
 const reader = fixture.stdout.getReader();
 const first = await reader.read();
 const port = Number(new TextDecoder().decode(first.value).trim());
-if(!port)throw new Error("Fixture server did not start");
-const server={port,stop(_force:boolean){fixture.kill();}};
+if (!port) throw new Error("Fixture server did not start");
+const server = {
+  port,
+  stop(_force: boolean) {
+    fixture.kill();
+  },
+};
 const demo = await Bun.build({
   entrypoints: ["integrations/ovis/app/site/demo/transport.ts"],
   target: "browser",
@@ -40,7 +58,12 @@ const browser = await chromium.launch({
   headless: true,
   executablePath:
     process.env.BROWSER_EXECUTABLE ??
-    (folder ? join(cache, folder, "chrome-linux64/chrome") : undefined),
+    (folder
+      ? [
+          join(cache, folder, "chrome-linux64/chrome"),
+          join(cache, folder, "chrome-linux/chrome"),
+        ].find(existsSync)
+      : undefined),
   args: ["--no-sandbox"],
 });
 try {
@@ -48,7 +71,9 @@ try {
     viewport: { width: 1600, height: 1000 },
   });
   page.setDefaultTimeout(15000);
-  page.on("response",r=>{if(r.status()>=400)console.error("HTTP",r.status(),r.url())});
+  page.on("response", (r) => {
+    if (r.status() >= 400) console.error("HTTP", r.status(), r.url());
+  });
   const errors: string[] = [];
   page.on("console", (m) => {
     if (m.type() === "error") console.error(m.text());
@@ -66,12 +91,10 @@ try {
   const base = `http://127.0.0.1:${server.port}`;
   await page.goto(base);
   await page.getByRole("heading", { name: "Your services" }).waitFor();
-  const before = await page
-    .locator(".st-sidebar")
-    .evaluate((el) => ({
-      bg: getComputedStyle(el).backgroundColor,
-      width: el.getBoundingClientRect().width,
-    }));
+  const before = await page.locator(".st-sidebar").evaluate((el) => ({
+    bg: getComputedStyle(el).backgroundColor,
+    width: el.getBoundingClientRect().width,
+  }));
   await page.getByRole("link", { name: "Ovis", exact: true }).click();
   await page
     .getByRole("button", { name: "Fixture conversation", exact: true })
@@ -86,12 +109,10 @@ try {
     "Ovis shares the React tree",
   );
   assert.deepEqual(
-    await page
-      .locator(".st-sidebar")
-      .evaluate((el) => ({
-        bg: getComputedStyle(el).backgroundColor,
-        width: el.getBoundingClientRect().width,
-      })),
+    await page.locator(".st-sidebar").evaluate((el) => ({
+      bg: getComputedStyle(el).backgroundColor,
+      width: el.getBoundingClientRect().width,
+    })),
     before,
     "Ovis does not restyle ST",
   );
@@ -112,7 +133,30 @@ try {
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.locator(".settings-dialog:visible").waitFor();
   await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Terminal", exact: true }).click();
+  await page.locator(".xterm:visible").waitFor();
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
+  await page.locator(".composer-text:visible").waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Toggle S.T. navigation" }).click();
+  await page.getByRole("link", { name: "Home", exact: true }).click();
+  await page.getByRole("heading", { name: "Your services" }).waitFor();
+  await page.getByRole("button", { name: "Toggle S.T. navigation" }).click();
+  await page.getByRole("link", { name: "Ovis", exact: true }).click();
+  await page.locator(".composer-text:visible").waitFor();
+  assert(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+    "Mobile viewport does not overflow",
+  );
   const evidence = process.env.ST_V2_EVIDENCE;
+  if (evidence)
+    await page.screenshot({
+      path: evidence.replace(/\.png$/, "-mobile.png"),
+      fullPage: true,
+    });
+  await page.setViewportSize({ width: 1600, height: 1000 });
   if (evidence) await page.screenshot({ path: evidence, fullPage: true });
   assert(
     (

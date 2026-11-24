@@ -132,7 +132,7 @@ def install(private, auto_update=False):
     UNIT.parent.mkdir(parents=True, exist_ok=True)
     save(config)
     service_path = ":".join(dict.fromkeys([
-        *(str(Path(executable).parent) for name in ("git", "ss", "tailscale") if (executable := shutil.which(name))),
+        *(str(Path(executable).parent) for name in ("git", "ss", "tailscale", "bun", "node") if (executable := shutil.which(name))),
         "/usr/local/bin", "/usr/bin", "/bin",
     ]))
     prepare = (f"ExecStartPre={unit_quote(sys.executable)} {unit_quote(deployment / 'updater.py')} prepare\n"
