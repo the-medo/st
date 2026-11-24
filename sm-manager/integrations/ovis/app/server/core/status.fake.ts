@@ -1,0 +1,159 @@
+import { afterAll, afterEach, mock, spyOn } from "bun:test";
+import { Database } from "bun:sqlite";
+import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import type { HerdrPane } from "../../shared/protocol.ts";
+import * as collector from "../collector.ts";
+import * as conversation from "../conversation.ts";
+import * as herdr from "../herdr/client.ts";
+import * as service from "../opencode-service.ts";
+import { PendingInputs } from "../pending-input.ts";
+import type { AlertTiming } from "../push.ts";
+import { connectionData, type Client } from "./connections.ts";
+
+type Handlers = { onStatus: collector.StatusCollectorHandlers["onStatus"]; onBaseline: (panes: readonly unknown[]) => void; onReconciled: (panes: readonly HerdrPane[]) => void; onResync: NonNullable<collector.StatusCollectorHandlers["onResync"]>; onPaneEnded: (paneId: string) => void; onPaneClosed: (paneId: string) => void; onPaneMoved: (from: string, to: string) => void; herdrLive?: { identity: () => string | null; onChange: (identity: string | null) => void } };
+export let handlers: Handlers;
+export let collectorSnapshot: () => Promise<{ panes: HerdrPane[] }>;
+export const originalCollector = collector.startStatusCollector;
+/**
+ * The hubs here take a collector that only hands them its handlers. It is put in place for each hub and taken away as
+ * soon as the hub is built: this module is loaded once per process, so a fake put in place at load and taken away at the
+ * end of the first file that loaded it left a later file in the same bun test run to start real collectors that retried
+ * herdr for ever.
+ */
+function fakeCollector(): void {
+  mock.module("../collector.ts", () => ({
+    ...collector,
+    startStatusCollector: (seen: Handlers, deps: { snapshot: typeof collectorSnapshot }) => {
+      collectorSnapshot = deps.snapshot;
+      handlers = seen;
+      return { ready: Promise.resolve(), structureReady: Promise.resolve(), focusReady: Promise.resolve(), trackPane() {}, refresh() {}, stop() {} };
+    },
+  }));
+}
+const realCollector = (): void => { mock.module("../collector.ts", () => ({ ...collector, startStatusCollector: originalCollector })); };
+const { createStatusHub } = await import("./status.ts");
+
+export const root = mkdtempSync(join(tmpdir(), "herdr-status-hub-"));
+afterAll(() => { rmSync(root, { recursive: true, force: true }); });
+const stubs: { mockRestore(): void }[] = [];
+afterEach(() => { for (const stub of stubs.splice(0)) stub.mockRestore(); });
+
+export const at = Date.now() - 10_000;
+const store = join(root, "opencode.db");
+{
+  const db = new Database(store, { create: true });
+  db.exec(`CREATE TABLE session_v2 (id text PRIMARY KEY, parent_id text, time_created integer);
+    CREATE TABLE session_message (id text PRIMARY KEY, session_id text, type text, seq integer, time_created integer, time_updated integer, data text)`);
+  db.query("INSERT INTO session_v2 VALUES ('ses_child', 'ses_parent', ?)").run(at + 1000);
+  const row = db.query("INSERT INTO session_message VALUES (?, ?, 'user', 1, ?, ?, ?)");
+  row.run("msg_parent", "ses_parent", at, at, JSON.stringify({ time: { created: at } }));
+  row.run("msg_child", "ses_child", at + 1000, at + 1000, JSON.stringify({ time: { created: at + 1000 } }));
+  db.close();
+}
+const CLAUDE = "11111111-1111-4111-8111-111111111111";
+const transcript = join(root, `${CLAUDE}.jsonl`);
+{
+  const line = (value: unknown) => `${JSON.stringify(value)}\n`;
+  mkdirSync(join(root, CLAUDE, "subagents"), { recursive: true });
+  writeFileSync(transcript, line({ type: "user", origin: { kind: "human" }, timestamp: new Date(at - 1000).toISOString(), permissionMode: "default", message: { role: "user", content: "go" } }));
+  writeFileSync(join(root, CLAUDE, "subagents", "agent-a1.meta.json"), JSON.stringify({ agentType: "reviewer", description: "review", toolUseId: "toolu_a1", requestShape: "background" }));
+  writeFileSync(join(root, CLAUDE, "subagents", "agent-a1.jsonl"), line({ isSidechain: true, sessionId: CLAUDE, agentId: "a1", type: "user", timestamp: new Date(at).toISOString(), message: { role: "user", content: "review" } }));
+}
+
+const base = { pane_id: "w1:p1", workspace_id: "w1", tab_id: "w1:t1", agent_status: "idle" };
+export const opencode = (session: string | null) => ({ ...base, agent: "opencode", ...(session ? { agent_session: { agent: "opencode", source: "herdr:opencode", kind: "id", value: session } } : {}) });
+export const claude = { ...base, agent: "claude", agent_session: { agent: "claude", source: "hook", kind: "id", value: CLAUDE } };
+
+let hubs = 0;
+export function hub<Owner = unknown, Lease = unknown>(path = transcript, queued?: PendingInputs<Owner, Lease>, drain?: (paneId: string) => void, herdrIdentity?: () => string | null, alertTiming?: Partial<AlertTiming>, paneVacated?: (paneId: string) => void) {
+  let panes: unknown[] = [];
+  let gate: Promise<void> | null = null;
+  let reading: (() => void) | undefined;
+  const lookups: Promise<unknown>[] = [];
+  const polls: Promise<void>[] = [];
+  const answer = () => ({ agents: [], layouts: [], panes: structuredClone(panes), protocol: 1, tabs: [], version: "test", workspaces: [] });
+  stubs.push(
+    spyOn(herdr, "sessionSnapshot").mockImplementation(async () => { const read = answer(); reading?.(); if (gate) await gate; return read as never; }),
+    spyOn(herdr, "paneGet").mockImplementation(() => { const read = Promise.resolve(structuredClone(panes[0]) as never); lookups.push(read); return read; }),
+    spyOn(herdr, "paneProcessInfo").mockResolvedValue(undefined),
+    spyOn(service, "readOpenCodeService").mockReturnValue(null),
+    spyOn(conversation, "claudePaneSession").mockResolvedValue({ path, startedAt: null, pid: null } as never),
+    spyOn(conversation, "claudePanePid").mockResolvedValue(null as never),
+    spyOn(conversation, "stoppedAgentJob").mockResolvedValue(false),
+  );
+  const frames: { type: string; agent_status?: string; background_tasks?: number; background_wait?: boolean }[] = [];
+  const client: Client = { data: connectionData({ deviceId: undefined, readOnly: false }), readyState: WebSocket.OPEN, getBufferedAmount: () => 0, send: (encoded: string) => { frames.push(JSON.parse(encoded)); return 1; }, close: () => {} };
+  /** the connections whose page is in use (visible and focused): none until a test adds the client */
+  const present = new Set<Client>();
+  let cardTick: () => Promise<void> = () => Promise.resolve();
+  const pending = queued ?? new PendingInputs<Owner, Lease>(() => {});
+  const held: { paneId: string; code: string }[] = [];
+  fakeCollector();
+  // put back at once: the hub takes its collector as it is built, and this module's afterEach runs only in the first file
+  // that loads it
+  const status = (() => { try { return createStatusHub({
+    options: { stateDir: join(root, `state${++hubs}`), opencodeDb: store, machines: false, ...(herdrIdentity ? { herdrIdentity } : {}), cardTimer: (tick) => { cardTick = tick; return () => {}; }, ...(alertTiming ? { alertTiming } : {}), ...(paneVacated ? { paneVacated } : {}) },
+    devices: { gated: false, has: () => true, onPaired: () => {} } as never, preferences: { get: () => ({ revision: 0, settings: {}, muted_panes: [] }), subscribe: () => () => {} } as never,
+    clients: new Set([client]), present, pending, drainPending: drain ?? (() => {}), holdPendingPane: (paneId, fault) => { held.push({ paneId, code: fault.code }); },
+    usage: { invalidate() {} } as never, usageLogin: { ended: () => false } as never,
+  }); } finally { realCollector(); } })();
+  const alerts: string[] = [];
+  const poll = status.opencodeAgents.poll.bind(status.opencodeAgents);
+  stubs.push(spyOn(status.opencodeAgents, "poll").mockImplementation((only) => { const read = poll(only); polls.push(read); return read; }));
+  stubs.push(spyOn(status.push, "onStatus").mockImplementation(async (_paneId: string, alert: string) => { alerts.push(alert); }));
+  stubs.push({ mockRestore: () => { status.collector.stop(); status.omo.stop(); status.gjc.stop(); status.letta.stop(); status.claudeAgents.stop(); status.opencodeAgents.stop(); status.taskAgents.stop(); status.plans.stop(); clearInterval(status.waitTimer); } });
+  const ended: string[] = [];
+  stubs.push(spyOn(status.push, "onEnded").mockImplementation(async (paneId: string) => { ended.push(paneId); }));
+  return {
+    alerts, pending, status, held, client, present,
+    tickCards: () => cardTick(),
+    ended: () => ({ push: [...ended], frames: frames.filter((seen) => seen.type === "pane-exited").length }),
+    herdrSays: (...shown: unknown[]) => { panes = shown; },
+    snapshot: async () => { const snapshot = await status.clientSnapshot(); await status.claudeAgents.refresh(panes as HerdrPane[]); return snapshot; },
+    heldSnapshot: async () => {
+      const opened = Promise.withResolvers<void>();
+      const started = Promise.withResolvers<void>();
+      gate = opened.promise;
+      reading = started.resolve;
+      const read = status.clientSnapshot();
+      await started.promise;
+      gate = null;
+      reading = undefined;
+      return async () => { opened.resolve(); await read; };
+    },
+    last: () => {
+      const frame = frames.filter((seen) => seen.type === "pane-status").at(-1);
+      return { status: frame?.agent_status, tasks: frame?.background_tasks ?? 0, bg: frame?.background_wait === true };
+    },
+    poll: () => status.claudeAgents.poll(),
+    settle: async () => { await Promise.all(lookups); await Promise.all(polls); },
+  };
+}
+
+export const line = (value: unknown) => `${JSON.stringify(value)}\n`;
+const ts = (ms: number) => new Date(at + ms).toISOString();
+let fixtures = 0;
+export async function workingClaude<Owner = unknown, Lease = unknown>(queued?: PendingInputs<Owner, Lease>, drain?: (paneId: string) => void) {
+  const id = `33333333-3333-4333-8333-${String(++fixtures).padStart(12, "0")}`;
+  const path = join(root, `${id}.jsonl`);
+  const dir = join(root, id, "subagents");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path, line({ type: "user", origin: { kind: "human" }, timestamp: ts(-1000), message: { role: "user", content: "go" } }));
+  const child = join(dir, "agent-b1.jsonl");
+  writeFileSync(join(dir, "agent-b1.meta.json"), JSON.stringify({ agentType: "reviewer", toolUseId: "toolu_b1", requestShape: "background" }));
+  writeFileSync(child, line({ isSidechain: true, sessionId: id, agentId: "b1", type: "user", timestamp: ts(0), message: { role: "user", content: "review" } }));
+  const pane = { ...claude, agent_session: { ...claude.agent_session, value: id } };
+  const h = hub(path, queued, drain);
+  h.herdrSays(pane);
+  handlers.onBaseline([pane]);
+  await h.snapshot();
+  h.herdrSays({ ...pane, agent_status: "working" });
+  handlers.onStatus(pane.pane_id, "working", "claude");
+  return { ...h, path, pane, child,
+    rest: () => appendFileSync(path, line({ type: "system", subtype: "turn_duration", timestamp: ts(300) })),
+    next: () => appendFileSync(path, line({ type: "user", origin: { kind: "human" }, timestamp: ts(5000), message: { role: "user", content: "next" } })),
+  };
+}

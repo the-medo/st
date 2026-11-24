@@ -1,0 +1,34 @@
+.file-panel-resizer {
+  position: absolute;
+  top: 0;
+  left: calc(var(--space-1) * -1);
+  bottom: 0;
+  z-index: var(--z-banner);
+  width: var(--space-2);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.file-panel-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(50% - var(--hairline));
+  width: calc(var(--hairline) * 2);
+  background: transparent;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.file-panel-resizer:focus-visible { outline: none; }
+
+@media (hover: hover) {
+  .file-panel-resizer:hover::after { background: var(--accent); }
+}
+
+.file-panel-resizer.is-dragging::after,
+.file-panel-resizer:focus-visible::after { background: var(--accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .file-panel-resizer::after { transition: none; }
+}

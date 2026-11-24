@@ -1,0 +1,692 @@
+import { describe, expect, it } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+type Selection = { type: string; pane_id: string; machine_id: string; view?: "chat" | "terminal"; workspace_id?: string };
+type SelectedPane = Omit<Selection, "view">;
+type WindowClient = { url: string; focused: boolean; postMessage: (data: Selection) => void; focus: () => Promise<void> };
+
+function deferred() {
+  let resolve!: () => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<void>((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+}
+
+const APP = "https://herdr.test/";
+
+function loadWorker(self: unknown): { isAppWindow: (url: string) => boolean } {
+  return new Function("self", `${readFileSync(join(import.meta.dir, "..", "public", "sw.js"), "utf8")}\nreturn { isAppWindow };`)(self);
+}
+
+type AlertData = { pane_id: string | null; machine_id: string; workspace_id: string | null; alert_id?: string };
+type Delivered = { title: string; tag: string; data: AlertData; close: () => void };
+
+/**
+ * The notification centre a worker's registration shows into. `ios`: every notification is
+ * its own, whatever its tag (webpushd), and close() removes the one it is called on.
+ * `tagged`: a tag replaces the last notification with it (Android, desktop), and a
+ * notification is named after its tag, so closing any handle of a tag closes what shows now.
+ */
+function notificationCentre(platform: "ios" | "tagged", options: { getNotifications?: (filter?: { tag?: string }) => Promise<Delivered[]>; refuseClose?: (notification: Delivered) => boolean } = {}) {
+  let delivered: Delivered[] = [];
+  const make = (title: string, tag: string, data: AlertData): Delivered => {
+    const notification: Delivered = {
+      title,
+      tag,
+      data,
+      close: () => {
+        // iOS within 30 s of showing: a console error, and the notification stays
+        if (options.refuseClose?.(notification)) return;
+        delivered = delivered.filter((other) => (platform === "tagged" ? other.tag !== tag : other !== notification));
+      },
+    };
+    return notification;
+  };
+  return {
+    shown: () => delivered.map((notification) => ({ title: notification.title, ...notification.data })),
+    add: (title: string, tag: string, data: AlertData) => { delivered.push(make(title, tag, data)); },
+    showNotification: async (title: string, shown: { tag: string; data: AlertData }) => {
+      if (platform === "tagged") delivered = delivered.filter((other) => other.tag !== shown.tag);
+      delivered.push(make(title, shown.tag, shown.data));
+    },
+    getNotifications: options.getNotifications ?? (async (filter?: { tag?: string }) => delivered.filter((notification) => !filter?.tag || notification.tag === filter.tag)),
+  };
+}
+
+function notifications(
+  windows: WindowClient[],
+  matchAll = async () => windows,
+  openWindow: (url: string) => Promise<WindowClient | null> = async () => null,
+  scope?: string,
+  centre: Partial<ReturnType<typeof notificationCentre>> = {},
+) {
+  const listeners = new Map<string, (event: unknown) => void>();
+  const opened: string[] = [];
+  const shown: Array<{ title: string; options: { data: unknown } }> = [];
+  let closed = 0;
+  const self = {
+    addEventListener: (type: string, listener: (event: unknown) => void) => listeners.set(type, listener),
+    clients: { matchAll, openWindow: async (url: string) => { opened.push(url); return openWindow(url); } },
+    registration: {
+      scope,
+      showNotification: async (title: string, options: { tag: string; data: AlertData }) => { shown.push({ title, options }); await centre.showNotification?.(title, options); },
+      ...(centre.getNotifications ? { getNotifications: centre.getNotifications } : {}),
+    },
+  };
+  loadWorker(self);
+  const push = (payload: unknown): Promise<void> => {
+    let completion!: Promise<void>;
+    listeners.get("push")!({ data: { json: () => payload, text: () => JSON.stringify(payload) }, waitUntil: (promise: Promise<void>) => { completion = promise; } });
+    return completion;
+  };
+  const click = (paneId: string | null = "pane-a", machineId = "local", workspaceId?: string): Promise<void> => {
+    let completion!: Promise<void>;
+    listeners.get("notificationclick")!({
+      notification: { data: { pane_id: paneId, machine_id: machineId, ...(workspaceId ? { workspace_id: workspaceId } : {}) }, close: () => { closed++; } },
+      waitUntil: (promise: Promise<void>) => { completion = promise; },
+    });
+    return completion;
+  };
+  return { click, push, shown, opened, closed: () => closed };
+}
+
+function client(focus = async () => {}, focused = false, url = APP) {
+  const selected: SelectedPane[] = [];
+  const views: Array<Selection["view"]> = [];
+  return {
+    url,
+    focused,
+    focus,
+    selected,
+    views,
+    postMessage: (data: Selection) => {
+      const { view, ...pane } = data;
+      selected.push(pane);
+      views.push(view);
+    },
+  };
+}
+
+describe("notification clicks", () => {
+  it("counts a tapped pane alert with the server only while its counts are on and their notice was shown", async () => {
+    const listeners = new Map<string, (event: unknown) => void>();
+    const requests: Array<{ url: string; init: RequestInit }> = [];
+    let status: Response | Error = new Error("signed out");
+    loadWorker({
+      addEventListener: (type: string, listener: (event: unknown) => void) => listeners.set(type, listener),
+      clients: { matchAll: async () => [], openWindow: async () => null },
+      fetch: async (url: string, init: RequestInit = {}) => {
+        requests.push({ url, init });
+        if ((init.method ?? "GET") !== "GET") return new Response(null, { status: 200 });
+        if (status instanceof Error) throw status;
+        return status.clone();
+      },
+    });
+    const tap = async (paneId: string | null) => {
+      requests.length = 0;
+      const waits: Promise<unknown>[] = [];
+      listeners.get("notificationclick")!({ notification: { data: { pane_id: paneId, machine_id: "local" }, close: () => {} }, waitUntil: (promise: Promise<unknown>) => waits.push(promise) });
+      await Promise.all(waits);
+      return requests.map((request) => [request.url, request.init.method ?? "GET", request.init.body ?? null, (request.init.headers as Record<string, string> | undefined)?.["x-herdr-update"] ?? null]);
+    };
+    const asked = ["/api/telemetry", "GET", null, null];
+    // signed out, off, blocked by the environment or before the notice: asked, never told
+    expect(await tap("w1:p1")).toEqual([asked]);
+    for (const counts of [{ enabled: false, blocked_by_env: false, notice_seen: true }, { enabled: true, blocked_by_env: true, notice_seen: true }, { enabled: true, blocked_by_env: false, notice_seen: false }]) {
+      status = Response.json(counts);
+      expect(await tap("w1:p1")).toEqual([asked]);
+    }
+    status = Response.json({ enabled: true, blocked_by_env: false, notice_seen: true });
+    expect(await tap("w1:p1")).toEqual([asked, ["/api/telemetry", "POST", JSON.stringify({ alert_opened: true }), "1"]]);
+    expect(await tap(null)).toEqual([]);
+  });
+
+  it("tells app windows from the reader, raw file and static tabs the app also opens", () => {
+    const { isAppWindow } = loadWorker({ addEventListener: () => {} });
+    expect(isAppWindow(APP)).toBe(true);
+    expect(isAppWindow(`${APP}?machine=pc2&pane=w1%3Ap1&view=chat`)).toBe(true);
+    expect(isAppWindow(`${APP}?settings=general`)).toBe(true);
+    expect(isAppWindow(`${APP}index.html`)).toBe(true);
+    expect(isAppWindow(`${APP}?read=docs%2Fguide.md&machine=local`)).toBe(false);
+    expect(isAppWindow(`${APP}?read=%20`)).toBe(true);
+    expect(isAppWindow(`${APP}api/fs/file?path=notes.md&pane=w1%3Ap1`)).toBe(false);
+    expect(isAppWindow(`${APP}api/machines/pc2/fs/file?path=index.html&render=1`)).toBe(false);
+    expect(isAppWindow(`${APP}icons/icon-192.png`)).toBe(false);
+    expect(isAppWindow(`${APP}assets/index-abc.js`)).toBe(false);
+    expect(isAppWindow(`${APP}social-preview.png`)).toBe(false);
+    expect(isAppWindow(`${APP}THIRD_PARTY_NOTICES.md`)).toBe(false);
+    expect(isAppWindow(`${APP}manifest.webmanifest`)).toBe(false);
+    expect(isAppWindow(`${APP}sw.js`)).toBe(false);
+    expect(isAppWindow(`${APP}favicon.ico`)).toBe(false);
+    expect(isAppWindow("not a url")).toBe(false);
+  });
+
+  it("never focuses a markdown reader tab: the app window takes the pane, else it opens", async () => {
+    const reader = client(undefined, false, `${APP}?read=notes.md&machine=local`);
+    const app = client();
+    // matchAll lists the most recently focused first: the reader was used last
+    const worker = notifications([reader, app]);
+    await worker.click("pane-a");
+    expect(reader.selected).toEqual([]);
+    expect(app.selected).toHaveLength(2);
+    expect(worker.opened).toEqual([]);
+
+    let focused = 0;
+    const lone = client(async () => { focused++; }, true, `${APP}?read=notes.md&machine=local`);
+    const raw = client(undefined, false, `${APP}api/fs/file?path=notes.md`);
+    const cold = notifications([lone, raw]);
+    await cold.click("pane-b", "pc2");
+    expect(focused).toBe(0);
+    expect(lone.selected).toEqual([]);
+    expect(raw.selected).toEqual([]);
+    expect(cold.opened).toEqual(["/?machine=pc2&pane=pane-b&view=chat"]);
+  });
+
+  it("keeps a PC's pane out of the hosted shell's request: a cold start names it in the fragment, and a reader there is no app window", async () => {
+    const shell = "https://app.example";
+    const scope = `/s/${"ab".repeat(16)}/`;
+    const reader = client(undefined, true, `${shell}${scope}#read=notes.md&machine=local`);
+    const cold = notifications([reader], undefined, undefined, `${shell}${scope}`);
+    await cold.click("w1:p9", "pc2", "w1");
+    expect(reader.selected).toEqual([]);
+    expect(cold.opened).toEqual([`${scope}#machine=pc2&ws=w1&pane=w1%3Ap9&view=chat`]);
+    const { isAppWindow } = loadWorker({ addEventListener: () => {}, registration: { scope: `${shell}${scope}` } });
+    expect(isAppWindow(`${shell}${scope}#read=notes.md&machine=local`)).toBe(false);
+    expect(isAppWindow(`${shell}${scope}#machine=pc2&pane=w1%3Ap9`)).toBe(true);
+  });
+
+  it("names the workspace an alert's pane was last seen in, to an open window and a cold start", async () => {
+    const quiet = notifications([]);
+    await quiet.push({ pane_id: "w1:p9", workspace_id: "w1", title: "t", body: "terminal ended", tag: "x" });
+    await quiet.push({ pane_id: "w1:p9", title: "t", body: "b", tag: "y" });
+    expect(quiet.shown.map((shown) => shown.options.data)).toEqual([
+      { pane_id: "w1:p9", machine_id: "local", workspace_id: "w1", alert_id: expect.any(String) },
+      { pane_id: "w1:p9", machine_id: "local", workspace_id: null, alert_id: expect.any(String) },
+    ]);
+
+    const app = client();
+    const worker = notifications([app]);
+    await worker.click("w1:p9", "pc2", "w1");
+    expect(app.selected).toEqual([
+      { type: "select-pane", pane_id: "w1:p9", machine_id: "pc2", workspace_id: "w1" },
+      { type: "select-pane", pane_id: "w1:p9", machine_id: "pc2", workspace_id: "w1" },
+    ]);
+    const cold = notifications([]);
+    await cold.click("w1:p9", "pc2", "w1");
+    expect(cold.opened).toEqual(["/?machine=pc2&ws=w1&pane=w1%3Ap9&view=chat"]);
+  });
+
+  it("selects the pane before a delayed focus and repeats after the page resumes", async () => {
+    const pending = deferred();
+    const target = client(() => pending.promise);
+    const worker = notifications([target]);
+    const done = worker.click("remote pane/?", "remote&pc");
+    await Promise.resolve();
+    const selection = { type: "select-pane", pane_id: "remote pane/?", machine_id: "remote&pc" };
+    expect(target.selected).toEqual([selection]);
+    expect(worker.opened).toEqual([]);
+    pending.resolve();
+    await done;
+    expect(target.selected).toEqual([selection, selection]);
+    expect(worker.opened).toEqual([]);
+    expect(worker.closed()).toBe(1);
+  });
+
+  it("keeps selection on focus rejection and opens the exact remote pane once", async () => {
+    const target = client(async () => { throw new Error("NotAllowedError"); });
+    const worker = notifications([target]);
+    await worker.click("remote pane/?", "remote&pc");
+    expect(target.selected).toEqual([{ type: "select-pane", pane_id: "remote pane/?", machine_id: "remote&pc" }]);
+    expect(worker.opened).toEqual(["/?machine=remote%26pc&pane=remote%20pane%2F%3F&view=chat"]);
+  });
+
+  it("chooses the focused window and does not open another after a successful focus", async () => {
+    const background = client();
+    const foreground = client(undefined, true);
+    const worker = notifications([background, foreground]);
+    await worker.click();
+    expect(background.selected).toEqual([]);
+    expect(foreground.selected).toHaveLength(2);
+    expect(worker.opened).toEqual([]);
+  });
+
+  it("opens a pane URL when no app window exists, and root when no pane was supplied", async () => {
+    const worker = notifications([]);
+    await worker.click("pane-b", "remote");
+    await worker.click(null);
+    expect(worker.opened).toEqual(["/?machine=remote&pane=pane-b&view=chat", "/"]);
+  });
+
+  it("opens a pane notification in the Agent chat view in existing and cold windows", async () => {
+    const existing = client();
+    const openWorker = notifications([existing]);
+    await openWorker.click("pi-pane", "local");
+    expect(existing.views).toEqual(["chat", "chat"]);
+    expect(openWorker.opened).toEqual([]);
+
+    const coldWorker = notifications([]);
+    await coldWorker.click("pi-pane", "local");
+    expect(coldWorker.opened).toEqual(["/?machine=local&pane=pi-pane&view=chat"]);
+  });
+
+  it("focuses a generic notification without sending an empty pane selection", async () => {
+    let focused = 0;
+    const target = client(async () => { focused++; });
+    const worker = notifications([target]);
+    await worker.click(null);
+    expect(focused).toBe(1);
+    expect(target.selected).toEqual([]);
+    expect(worker.opened).toEqual([]);
+  });
+
+  it("a late focus cannot switch away from a more recently tapped notification", async () => {
+    const pending = deferred();
+    let focuses = 0;
+    const target = client(() => ++focuses === 1 ? pending.promise : Promise.resolve());
+    const worker = notifications([target]);
+    const first = worker.click("pane-a");
+    await Promise.resolve();
+    await worker.click("pane-b");
+    pending.resolve();
+    await first;
+    expect(target.selected.map((selection) => selection.pane_id)).toEqual(["pane-a", "pane-b", "pane-b", "pane-b"]);
+    expect(worker.opened).toEqual([]);
+  });
+
+  it("a superseded focus rejection cannot open a stale duplicate window", async () => {
+    const pending = deferred();
+    let focuses = 0;
+    const target = client(() => ++focuses === 1 ? pending.promise : Promise.resolve());
+    const worker = notifications([target]);
+    const first = worker.click("pane-a");
+    await Promise.resolve();
+    await worker.click("pane-b");
+    pending.reject(new Error("NotAllowedError"));
+    await first;
+    expect(target.selected.map((selection) => selection.pane_id)).toEqual(["pane-a", "pane-b", "pane-b"]);
+    expect(worker.opened).toEqual([]);
+  });
+
+  it("a slow client lookup cannot deliver an older tap after the newer one", async () => {
+    const pending = deferred();
+    let lookups = 0;
+    const target = client();
+    const worker = notifications([target], async () => {
+      if (++lookups === 1) await pending.promise;
+      return [target];
+    });
+    const first = worker.click("pane-a");
+    await worker.click("pane-b");
+    pending.resolve();
+    await first;
+    expect(target.selected.map((selection) => selection.pane_id)).toEqual(["pane-b", "pane-b"]);
+    expect(worker.opened).toEqual([]);
+  });
+
+  it("an older client foregrounded last shows the newest notification's exact PC and pane", async () => {
+    const pending = deferred();
+    let foreground = "";
+    let focuses = 0;
+    const older = client(async () => { focuses++; await pending.promise; foreground = "older"; });
+    const newer = client(async () => { focuses++; foreground = "newer"; }, true);
+    let lookups = 0;
+    const worker = notifications([older], async () => ++lookups === 1 ? [older] : [newer, older]);
+    const first = worker.click("pane-a", "local");
+    await Promise.resolve();
+    const selection = { type: "select-pane", pane_id: "latest pane/?", machine_id: "remote&pc" };
+    await worker.click(selection.pane_id, selection.machine_id);
+    expect(foreground).toBe("newer");
+    pending.resolve();
+    await first;
+    expect(foreground).toBe("older");
+    expect(older.selected.at(-1)).toEqual(selection);
+    expect(newer.selected.at(-1)).toEqual(selection);
+    expect(focuses).toBe(2);
+    expect(worker.opened).toEqual([]);
+  });
+
+  it("repairs an old focused client while the newest notification's lookup is still pending", async () => {
+    const focus = deferred();
+    const lookup = deferred();
+    let foreground = "";
+    const older = client(async () => { await focus.promise; foreground = "older"; });
+    const newer = client(async () => { foreground = "newer"; }, true);
+    let lookups = 0;
+    const worker = notifications([older], async () => {
+      if (++lookups === 1) return [older];
+      await lookup.promise;
+      return [newer, older];
+    });
+    const first = worker.click("pane-a");
+    await Promise.resolve();
+    const selection = { type: "select-pane", pane_id: "pane-b", machine_id: "second/pc" };
+    const second = worker.click(selection.pane_id, selection.machine_id);
+    focus.resolve();
+    await first;
+    expect(foreground).toBe("older");
+    expect(older.selected.at(-1)).toEqual(selection);
+    expect(newer.selected).toEqual([]);
+    lookup.resolve();
+    await second;
+    expect(foreground).toBe("newer");
+    expect(newer.selected.at(-1)).toEqual(selection);
+    expect(worker.opened).toEqual([]);
+  });
+
+  it("a rejected old client does not reopen its pane after another client was focused", async () => {
+    const pending = deferred();
+    let foreground = "";
+    const older = client(() => pending.promise);
+    const newer = client(async () => { foreground = "newer"; }, true);
+    let lookups = 0;
+    const worker = notifications([older], async () => ++lookups === 1 ? [older] : [newer, older]);
+    const first = worker.click("pane-a");
+    await Promise.resolve();
+    await worker.click("pane-b", "remote");
+    pending.reject(new Error("NotAllowedError"));
+    await first;
+    expect(foreground).toBe("newer");
+    expect(newer.selected.at(-1)).toEqual({ type: "select-pane", pane_id: "pane-b", machine_id: "remote" });
+    expect(older.selected).toEqual([{ type: "select-pane", pane_id: "pane-a", machine_id: "local" }]);
+    expect(worker.opened).toEqual([]);
+  });
+
+  for (const fallback of [false, true]) {
+    it(`a delayed ${fallback ? "focus fallback" : "cold app"} window shows the latest tap when it opens last`, async () => {
+      const opening = deferred();
+      const ready = deferred();
+      let foreground = "";
+      let focuses = 0;
+      const refused = client(async () => { focuses++; throw new Error("NotAllowedError"); });
+      const newer = client(async () => { focuses++; foreground = "newer"; }, true);
+      const opened = client();
+      let lookups = 0;
+      const worker = notifications([], async () => {
+        if (++lookups > 1) return [newer];
+        return fallback ? [refused] : [];
+      }, async () => {
+        opening.resolve();
+        await ready.promise;
+        foreground = "opened";
+        return opened;
+      });
+      const first = worker.click("older pane/?", "first&pc");
+      await opening.promise;
+      const selection = { type: "select-pane", pane_id: "latest pane/?", machine_id: "remote&pc" };
+      await worker.click(selection.pane_id, selection.machine_id);
+      expect(foreground).toBe("newer");
+      ready.resolve();
+      await first;
+      expect(foreground).toBe("opened");
+      expect(opened.selected.at(-1)).toEqual(selection);
+      expect(newer.selected.at(-1)).toEqual(selection);
+      expect(worker.opened).toEqual(["/?machine=first%26pc&pane=older%20pane%2F%3F&view=chat"]);
+      expect(focuses).toBe(fallback ? 2 : 1);
+    });
+  }
+
+  it("repairs an opened window while the newest notification's client lookup is still pending", async () => {
+    const opening = deferred();
+    const ready = deferred();
+    const lookup = deferred();
+    const opened = client();
+    const newer = client();
+    let lookups = 0;
+    const worker = notifications([], async () => {
+      if (++lookups === 1) return [];
+      await lookup.promise;
+      return [newer];
+    }, async () => {
+      opening.resolve();
+      await ready.promise;
+      return opened;
+    });
+    const first = worker.click("pane-a");
+    await opening.promise;
+    const selection = { type: "select-pane", pane_id: "pane-b", machine_id: "second/pc" };
+    const second = worker.click(selection.pane_id, selection.machine_id);
+    ready.resolve();
+    await first;
+    expect(opened.selected.at(-1)).toEqual(selection);
+    expect(newer.selected).toEqual([]);
+    lookup.resolve();
+    await second;
+    expect(newer.selected.at(-1)).toEqual(selection);
+    expect(worker.opened).toEqual(["/?machine=local&pane=pane-a&view=chat"]);
+  });
+});
+
+describe("one alert per pane", () => {
+  const alert = (pane: string, machine = "local", workspace = "w1") => ({
+    pane_id: pane,
+    workspace_id: workspace,
+    ...(machine === "local" ? {} : { machine_id: machine }),
+    title: `${machine} ${pane}`,
+    body: "needs input",
+    tag: machine === "local" ? `herdr-pane-${pane}` : `herdr-remote-${machine}-${pane}`,
+  });
+
+  it("closes the pane's earlier alert on iOS, where the tag replaces nothing", async () => {
+    const centre = notificationCentre("ios");
+    const worker = notifications([], undefined, undefined, undefined, centre);
+    await worker.push(alert("w1:p1"));
+    await worker.push(alert("w1:p1"));
+    expect(centre.shown().map((shown) => shown.pane_id)).toEqual(["w1:p1"]);
+    expect(centre.shown()[0]!.alert_id).toBe((worker.shown[1]!.options.data as AlertData).alert_id);
+  });
+
+  it("keeps the new alert where the tag already replaced the old one", async () => {
+    // closing a handle taken before showing would close the new alert here: same tag, same notification
+    const centre = notificationCentre("tagged");
+    const worker = notifications([], undefined, undefined, undefined, centre);
+    await worker.push(alert("w1:p1"));
+    await worker.push({ ...alert("w1:p1"), title: "newer" });
+    expect(centre.shown().map((shown) => shown.title)).toEqual(["newer"]);
+  });
+
+  it("never lets an earlier alert's slower clean-up close a newer alert", async () => {
+    for (const platform of ["ios", "tagged"] as const) {
+      const centre = notificationCentre(platform);
+      centre.add("old", "herdr-pane-w1:p1", { pane_id: "w1:p1", machine_id: "local", workspace_id: "w1", alert_id: "old" });
+      const held = deferred();
+      const holding = deferred();
+      let earlierShown = false;
+      let holds = 0;
+      const worker = notifications([], undefined, undefined, undefined, {
+        ...centre,
+        showNotification: async (title, options) => {
+          await centre.showNotification(title, options);
+          if (title === "earlier") earlierShown = true;
+        },
+        getNotifications: async (filter) => {
+          if (earlierShown && holds++ === 0) {
+            holding.resolve();
+            await held.promise;
+          }
+          return centre.getNotifications(filter);
+        },
+      });
+      const earlier = worker.push({ ...alert("w1:p1"), title: "earlier" });
+      await holding.promise;
+      await worker.push({ ...alert("w1:p1"), title: "newer" });
+      held.resolve();
+      await earlier;
+      expect(centre.shown().map((shown) => shown.title)).toEqual(["newer"]);
+    }
+  });
+
+  it("leaves other panes' and other PCs' alerts alone", async () => {
+    const centre = notificationCentre("ios");
+    const worker = notifications([], undefined, undefined, undefined, centre);
+    await worker.push(alert("w1:p1"));
+    await worker.push(alert("w1:p2"));
+    await worker.push(alert("w1:p1", "mac"));
+    await worker.push(alert("w1:p1"));
+    expect(centre.shown().map((shown) => `${shown.machine_id} ${shown.pane_id}`)).toEqual(["local w1:p2", "mac w1:p1", "local w1:p1"]);
+  });
+
+  it("shows the new alert when the clean-up fails", async () => {
+    const listing = notifications([], undefined, undefined, undefined, { ...notificationCentre("ios"), getNotifications: async () => { throw new Error("not supported"); } });
+    await listing.push(alert("w1:p1"));
+    expect(listing.shown).toHaveLength(1);
+
+    // iOS will not close one shown in the last 30 s: the others still go, and the new one stays
+    const centre = notificationCentre("ios", { refuseClose: (notification) => notification.data.workspace_id === "recent" });
+    centre.add("recent", "herdr-pane-w1:p1", { pane_id: "w1:p1", machine_id: "local", workspace_id: "recent" });
+    centre.add("older", "herdr-pane-w1:p1", { pane_id: "w1:p1", machine_id: "local", workspace_id: "w1" });
+    const refused = notifications([], undefined, undefined, undefined, centre);
+    await refused.push({ ...alert("w1:p1"), title: "new" });
+    expect(centre.shown().map((shown) => shown.title)).toEqual(["recent", "new"]);
+
+    // a worker with no getNotifications at all (an older browser) shows it as before
+    const bare = notifications([]);
+    await bare.push(alert("w1:p1"));
+    expect(bare.shown).toHaveLength(1);
+  });
+});
+
+describe("answer buttons (#2916)", () => {
+  type Shown = { title: string; options: { body?: string; tag: string; actions?: Array<{ action: string; title: string }>; data: Record<string, unknown> } };
+  const alert = {
+    pane_id: "w1:p1", workspace_id: "w1", title: "omp", body: "needs your permission", tag: "herdr-pane-w1:p1", kind: "permission",
+    prompt_id: "prompt-1", actions: [{ option_index: 0, label: "Allow once" }, { option_index: 1, label: "Deny" }],
+  };
+  function worker(answer: () => Promise<Response> = async () => Response.json({ ok: true }), scope?: string) {
+    const listeners = new Map<string, (event: unknown) => void>();
+    const shown: Shown[] = [];
+    const opened: string[] = [];
+    const posted: Array<{ url: string; body: unknown; headers: Record<string, string> }> = [];
+    loadWorker({
+      addEventListener: (type: string, listener: (event: unknown) => void) => listeners.set(type, listener),
+      clients: { matchAll: async () => [], openWindow: async (url: string) => { opened.push(url); return null; } },
+      registration: { scope, showNotification: async (title: string, options: Shown["options"]) => { shown.push({ title, options }); } },
+      fetch: async (url: string, init: RequestInit = {}) => {
+        if ((init.method ?? "GET") === "GET") return new Response(null, { status: 401 });
+        posted.push({ url, body: JSON.parse(String(init.body)), headers: init.headers as Record<string, string> });
+        return answer();
+      },
+    });
+    const run = async (type: string, event: Record<string, unknown>) => {
+      const waits: Promise<unknown>[] = [];
+      listeners.get(type)!({ ...event, waitUntil: (promise: Promise<unknown>) => waits.push(promise) });
+      await Promise.all(waits);
+    };
+    const push = (payload: unknown) => run("push", { data: { json: () => payload, text: () => JSON.stringify(payload) } });
+    const click = (action = "") => run("notificationclick", { action, notification: { data: shown.at(-1)!.options.data, close: () => {} } });
+    return { push, click, shown, opened, posted };
+  }
+
+  it("shows the prompt's options as the alert's buttons", async () => {
+    const local = worker();
+    await local.push(alert);
+    expect(local.shown[0]!.options.actions).toEqual([{ action: "answer-0", title: "Allow once" }, { action: "answer-1", title: "Deny" }]);
+    // the hosted shell's worker cannot reach its PC (only a window holds the relay channel): no buttons there
+    const hosted = worker(undefined, `https://app.ovis.test/s/${"a".repeat(32)}/`);
+    await hosted.push(alert);
+    expect(hosted.shown[0]!.options.actions).toBeUndefined();
+    const plain = worker();
+    await plain.push({ ...alert, prompt_id: undefined, actions: undefined });
+    expect(plain.shown[0]!.options.actions).toBeUndefined();
+  });
+
+  it("answers through the prompt answer route with the prompt's identity, without opening the app", async () => {
+    const w = worker();
+    await w.push(alert);
+    await w.click("answer-1");
+    expect(w.posted.map(({ url, body, headers }) => [url, body, headers["x-herdr-machine"]]))
+      .toEqual([["/api/pane/prompt/answer", { pane_id: "w1:p1", prompt_id: "prompt-1", option_index: 1 }, "1"]]);
+    expect(w.opened).toEqual([]);
+    expect(w.shown).toHaveLength(1);
+  });
+
+  it("says so in a new alert when the prompt changed, or the answer did not get through", async () => {
+    for (const answer of [
+      async () => Response.json({ error: { code: "prompt_changed" } }, { status: 409 }),
+      async () => new Response(null, { status: 403 }),
+      async () => { throw new TypeError("Failed to fetch"); },
+    ]) {
+      const w = worker(answer);
+      await w.push(alert);
+      await w.click("answer-0");
+      expect(w.opened).toEqual([]);
+      expect(w.shown).toHaveLength(2);
+      const followUp = w.shown[1]!;
+      expect(followUp.options.actions).toBeUndefined();
+      expect(followUp.options.tag).toBe(alert.tag);
+      expect(followUp.options.data).toMatchObject({ pane_id: "w1:p1", machine_id: "local", workspace_id: "w1" });
+      expect(followUp.options.data.prompt_id).toBeUndefined();
+    }
+  });
+
+  it("leaves the pane's newer alert alone when an earlier answer comes back refused", async () => {
+    const answered = deferred();
+    const posted = deferred();
+    const listeners = new Map<string, (event: unknown) => void>();
+    const centre = notificationCentre("tagged");
+    loadWorker({
+      addEventListener: (type: string, listener: (event: unknown) => void) => listeners.set(type, listener),
+      clients: { matchAll: async () => [], openWindow: async () => null },
+      registration: centre,
+      fetch: async () => { posted.resolve(); await answered.promise; return Response.json({ error: { code: "prompt_changed" } }, { status: 409 }); },
+    });
+    const run = (type: string, event: Record<string, unknown>) => {
+      let completion!: Promise<unknown>;
+      listeners.get(type)!({ ...event, waitUntil: (promise: Promise<unknown>) => { completion = promise; } });
+      return completion;
+    };
+    const push = (payload: unknown) => run("push", { data: { json: () => payload, text: () => JSON.stringify(payload) } });
+    await push(alert);
+    const first = centre.shown()[0]!;
+    const tapped = run("notificationclick", { action: "answer-0", notification: { data: first, close: () => centre.getNotifications().then((all) => all[0]?.close()) } });
+    await posted.promise;
+    await push({ ...alert, title: "newer", prompt_id: "prompt-2" });
+    answered.resolve();
+    await tapped;
+    expect(centre.shown().map((shown) => shown.title)).toEqual(["newer"]);
+  });
+
+  it("leaves a newer alert alone when its push comes in while the worker looks for one", async () => {
+    const listing = deferred();
+    const listed = deferred();
+    const listeners = new Map<string, (event: unknown) => void>();
+    const centre = notificationCentre("tagged");
+    let holdListing = false;
+    loadWorker({
+      addEventListener: (type: string, listener: (event: unknown) => void) => listeners.set(type, listener),
+      clients: { matchAll: async () => [], openWindow: async () => null },
+      registration: {
+        ...centre,
+        getNotifications: async (filter?: { tag?: string }) => {
+          const now = await centre.getNotifications(filter);
+          if (holdListing) { holdListing = false; listing.resolve(); await listed.promise; }
+          return now;
+        },
+      },
+      fetch: async () => Response.json({ error: { code: "prompt_changed" } }, { status: 409 }),
+    });
+    const run = (type: string, event: Record<string, unknown>) => {
+      let completion!: Promise<unknown>;
+      listeners.get(type)!({ ...event, waitUntil: (promise: Promise<unknown>) => { completion = promise; } });
+      return completion;
+    };
+    const push = (payload: unknown) => run("push", { data: { json: () => payload, text: () => JSON.stringify(payload) } });
+    await push(alert);
+    const first = centre.shown()[0]!;
+    holdListing = true;
+    const tapped = run("notificationclick", { action: "answer-0", notification: { data: first, close: () => centre.getNotifications().then((all) => all[0]?.close()) } });
+    await listing.promise;
+    await push({ ...alert, title: "newer", prompt_id: "prompt-2" });
+    listed.resolve();
+    await tapped;
+    expect(centre.shown().map((shown) => shown.title)).toEqual(["newer"]);
+  });
+
+  it("opens the pane on a tap of the alert itself, as before", async () => {
+    const w = worker();
+    await w.push(alert);
+    await w.click();
+    expect(w.posted).toEqual([]);
+    expect(w.opened).toEqual(["/?machine=local&ws=w1&pane=w1%3Ap1&view=chat"]);
+  });
+});

@@ -1,0 +1,121 @@
+import type { Translate } from "./i18n.ts";
+
+export type SettingsPageId = "appearance" | "chat" | "terminal" | "alerts" | "agents" | "memory" | "shortcuts" | "devices" | "experimental" | "about";
+
+export interface SettingsPageEntry {
+  id: SettingsPageId;
+  section?: string;
+  label: string;
+  aliases: string;
+}
+
+/**
+ * After the pages come the groups a setting is looked for by but whose page's words do not say it,
+ * as Zed's settings search lands on the setting: each is found by its heading and the labels of the
+ * settings it holds, a touch screen's and a desktop's alike.
+ */
+export function settingsPageEntries(t: Translate): SettingsPageEntry[] {
+  return [
+    { id: "appearance", label: t("Appearance"), aliases: t("theme themes palette dark light mode colors density language sidebar logos") },
+    { id: "chat", label: t("Chat"), aliases: `${t("chat message width composer enter send thinking code")} ${t("Expand thinking")} ${t("Collapse work")}` },
+    { id: "terminal", label: t("Terminal"), aliases: t("terminal key bar keyboard clipboard") },
+    { id: "alerts", label: t("Alerts"), aliases: t("notifications sound push bell needs input finished") },
+    { id: "agents", label: t("Agents"), aliases: [t("agents hooks claude codex install"), t("plan limits quota meters"), t("Subscription usage"), t("Agent integrations"), t("Permission mode"), t("Sandbox and approvals"), t("Browser tool")].join(" ") },
+    { id: "memory", label: t("Memory|notes"), aliases: t("notes remember agents confirm") },
+    { id: "shortcuts", label: t("Shortcuts"), aliases: t("keyboard keys bindings hotkeys") },
+    { id: "devices", label: t("Devices and PCs"), aliases: t("phone install keep screen on app") },
+    { id: "experimental", label: t("Experimental"), aliases: `${t("Start a replaced server again")} ${t("Named agent groups")} ${t("Lock pinned agents")} ${t("Codex panes: let Codex select and scroll")} ${t("OMP: side conversations chip")}` },
+    { id: "about", label: t("About"), aliases: t("version update release herdr") },
+    { id: "chat", section: "voice", label: t("Voice input"), aliases: t("dictation microphone speech openai") },
+    { id: "chat", section: "voice-more", label: t("Dictation language"), aliases: "" },
+    { id: "devices", section: "devices", label: t("Connected to this PC"), aliases: t("machines computers ssh bridge plugins phone pair relay QR code Remote PCs") },
+    { id: "agents", section: "guide", label: t("Setup guide"), aliases: t("onboarding first run getting started welcome") },
+    { id: "appearance", section: "typography", label: t("Typography"), aliases: [t("Interface font size"), t("Interface font"), t("Terminal font"), t("Terminal font size"), t("Chat font"), t("Chat font size")].join(" ") },
+    { id: "appearance", section: "typography-more", label: `${t("Typography")} · ${t("More settings")}`, aliases: "" },
+    { id: "chat", section: "composer", label: t("Composer"), aliases: [t("Enter sends"), t("Return inserts a new line"), t("Composer buttons"), t("Paste and send button"), t("Artifacts chip"), t("Suggestion chip")].join(" ") },
+    { id: "chat", section: "composer-more", label: `${t("Composer")} · ${t("More settings")}`, aliases: t("Send queued messages automatically") },
+    { id: "chat", section: "quick-replies", label: t("Quick replies"), aliases: t("Show above the message box") },
+    { id: "devices", section: "sidebar-pcs", label: t("Show in sidebar"), aliases: t("hide PCs on this device") },
+    { id: "chat", section: "openai-key", label: t("OpenAI API key"), aliases: "" },
+    { id: "agents", section: "plan-limits", label: t("Plan limits"), aliases: [t("Show plan limits"), t("Meters show"), t("Limit shown")].join(" ") },
+    { id: "agents", section: "other-accounts", label: t("Other accounts"), aliases: [t("Add account"), t("Hub")].join(" ") },
+  ];
+}
+
+export function actionAliases(t: Translate): Readonly<Record<string, string>> {
+  return {
+    new: t("create workspace session start"),
+    "new-tab": t("create tab add"),
+    "rename-tab": t("edit tab name title"),
+    "split-right": t("divide pane layout side"),
+    "split-down": t("divide pane layout below"),
+    "split-right-open": t("divide pane layout side"),
+    "split-down-open": t("divide pane layout below"),
+    zoom: t("maximize fullscreen full screen focus"),
+    "close-pane": t("kill stop end remove pane split"),
+    "close-tab": t("kill stop end remove tab"),
+    view: t("lens chat terminal conversation"),
+    sidebar: t("panel drawer hide show"),
+    "filter-sidebar": t("search find narrow sidebar"),
+    theme: t("dark light mode appearance colors"),
+    settings: t("preferences options config"),
+    "add-pc": t("remote machine computer connect ssh"),
+    notifications: t("alerts push bell"),
+    lock: t("logout log out lock"),
+    files: t("folder explorer open file"),
+    refresh: t("reload update sync"),
+    "local-page": t("web browser localhost port site address"),
+  };
+}
+
+export interface SearchableRow<T> {
+  item: T;
+  title: string;
+  aliases?: string;
+}
+
+function normalize(text: string): string {
+  return text.toLocaleLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Rows a query finds, best first. A title that holds every word of the query is a strong match
+ * (the whole title, then its start, then anywhere in it); a row found only through its aliases is a
+ * weak match and comes after every strong one, as T3 Code sorts a secondary hit last.
+ */
+export function rankByTitle<T>(query: string, rows: readonly SearchableRow<T>[]): T[] {
+  const needle = normalize(query);
+  if (needle === "") return rows.map((row) => row.item);
+  const words = needle.split(" ");
+  const found: { item: T; index: number; rank: number }[] = [];
+  rows.forEach((row, index) => {
+    const title = normalize(row.title);
+    const all = `${title} ${normalize(row.aliases ?? "")}`;
+    if (words.every((word) => title.includes(word))) {
+      found.push({ item: row.item, index, rank: title === needle ? 3 : title.startsWith(needle) ? 2 : 1 });
+    } else if (words.every((word) => all.includes(word))) {
+      found.push({ item: row.item, index, rank: 0 });
+    }
+  });
+  return found.sort((a, b) => b.rank - a.rank || a.index - b.index).map((entry) => entry.item);
+}
+
+export interface SettingsPageRequest {
+  page: SettingsPageId;
+  section?: string;
+}
+
+/**
+ * The page the palette asked Settings to open. The dialog mounts per opening and reads it when it
+ * mounts; it clears it once it has, and the palette clears it on its own opening, so a request the
+ * dialog never saw cannot steer a later opening.
+ */
+let requested: SettingsPageRequest | null = null;
+
+export function requestSettingsPage(request: SettingsPageRequest | null): void {
+  requested = request;
+}
+
+export function requestedSettingsPage(): SettingsPageRequest | null {
+  return requested;
+}

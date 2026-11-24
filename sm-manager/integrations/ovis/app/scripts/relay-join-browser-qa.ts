@@ -1,0 +1,122 @@
+/**
+ * A join of an account PC this device is not paired with starts from the PC's own page, reached from its row on Add a
+ * PC (the signed-in front page): one press of Ask to join on its sheet starts the pairing, which reaches connecting
+ * with focus and footer inside the sheet. The account service answers no device-key route (404, as one without device
+ * keys does), so the PC's page offers its join sheet instead of opening by the account's key; no relay or PC takes part.
+ */
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { chromium } from "playwright-core";
+import { FakeAccountService } from "../shared/account-service-fake.ts";
+import { chromePath } from "./chrome-path.ts";
+import { directoryOf, fleetOf } from "./relay-dashboard-fixtures.ts";
+import { servePagesSite } from "./pages-static.ts";
+import { closeMarked, whileOpen } from "./relay-qa-teardown.ts";
+
+const APP = "https://app.ovis.sh";
+const evidence = process.env["UI_EVIDENCE_DIR"];
+if (!evidence) throw new TypeError("UI_EVIDENCE_DIR is required");
+mkdirSync(evidence, { recursive: true });
+const root = join(import.meta.dir, "..");
+const built = mkdtempSync(join(tmpdir(), "ovis-relay-join-qa-"));
+const report: object[] = [];
+
+try {
+  const build = Bun.spawn([process.execPath, "--bun", join(root, "node_modules/.bin/vite"), "build", "--mode", "shell", "--outDir", built, "--emptyOutDir", "--logLevel", "warn"], {
+    cwd: root, env: process.env, stdin: "ignore", stdout: "inherit", stderr: "inherit",
+  });
+  if (await build.exited !== 0) throw new TypeError("Shell build failed");
+  const site = servePagesSite(built, 0, "127.0.0.1");
+  const browser = await chromium.launch({ executablePath: chromePath(), headless: true, args: ["--no-sandbox"] });
+  try {
+    for (const width of [390, 1440, 1920]) for (const theme of ["light", "dark"] as const) for (const language of ["en", "ko"]) for (const mode of ["new", "join"] as const) {
+      const name = `${mode}-${width}-${theme}-${language}`;
+      const context = await browser.newContext({
+        viewport: { width, height: width === 390 ? 844 : 900 }, colorScheme: theme,
+        isMobile: width === 390, hasTouch: width === 390, deviceScaleFactor: 1, serviceWorkers: "block",
+      });
+      try {
+        const fake = new FakeAccountService();
+        const errors: string[] = [];
+        await context.route(/.*/, async (route) => { errors.push(`Unexpected host: ${new URL(route.request().url()).host}`); await route.abort(); });
+        await context.route(/^https:\/\/app\.ovis\.sh\//, whileOpen(context, async (route) => {
+          const url = new URL(route.request().url());
+          await route.fulfill({ response: await route.fetch({ url: `http://127.0.0.1:${site.port}${url.pathname}${url.search}` }) });
+        }));
+        await context.route(/^https:\/\/account\.ovis\.sh\//, async (route) => {
+          const request = route.request();
+          const cors = { "access-control-allow-origin": APP, "access-control-allow-headers": "authorization, content-type", "access-control-allow-methods": "GET, POST, PUT, DELETE" };
+          if (request.method() === "OPTIONS") { await route.fulfill({ status: 204, headers: cors }); return; }
+          if (new URL(request.url()).pathname === "/v1/devices/challenge") { await route.fulfill({ status: 404, headers: cors }); return; }
+          if (new URL(request.url()).pathname === "/v1/pcs" && request.headers()["authorization"]) {
+            await route.fulfill({ status: 200, headers: cors, contentType: "application/json", body: JSON.stringify({ pcs: directoryOf(fleetOf("FREADY"), Date.now()) }) });
+            return;
+          }
+          const body = request.postDataBuffer();
+          const answer = await fake.fetch(new Request(request.url(), { method: request.method(), headers: request.headers(), ...(body === null ? {} : { body }) }));
+          const location = answer.headers.get("location");
+          if (answer.status === 302 && location?.startsWith(APP)) {
+            await route.fulfill({ status: 200, contentType: "text/html", body: `<!doctype html><meta http-equiv="refresh" content="0;url=${location.replaceAll("&", "&amp;").replaceAll('"', "&quot;")}">` });
+            return;
+          }
+          await route.fulfill({ status: answer.status, headers: { ...Object.fromEntries(answer.headers), ...cors }, body: Buffer.from(await answer.arrayBuffer()) });
+        });
+        await context.routeWebSocket(/.*/, () => {});
+        await context.addInitScript(({ theme, language }) => {
+          localStorage.setItem("ovis:settings", JSON.stringify({ theme, language }));
+        }, { theme, language });
+        const page = await context.newPage();
+        page.on("pageerror", (error) => errors.push(error.message));
+        await page.goto(APP);
+        await page.locator(".account-provider").first().click();
+        // a sign-in lands on My PCs, or on the join an account PC its launch picked asks by itself (#16)
+        await page.locator('main.relay-add-screen[data-account-state="signed-in"] [data-view="my-pcs"], [data-add-pc-mode], [data-approval-wait]').first().waitFor({ timeout: 45_000 });
+        // the tab's launch is past; a PC's More opens My PCs (/#add), which lists the account's PCs
+        await page.goto(`${APP}/#add`);
+        // from the front page that is a same-document hash change: the load draws My PCs
+        await page.reload();
+        const pc = mode === "new" ? "New mini PC" : "Old MacBook";
+        await page.locator('main.relay-add-screen[data-account-state="signed-in"] a.relay-add-saved-pc').filter({ hasText: pc }).click();
+        const sheet = page.locator(`[data-add-pc-mode="${mode}"][data-add-pc-phase="confirm"]`);
+        await sheet.waitFor();
+        await sheet.locator("[data-sheet-primary]").click();
+        await page.locator(`[data-add-pc-mode="${mode}"][data-add-pc-phase="connecting"]`).waitFor({ timeout: 15_000 });
+        await page.evaluate(() => document.fonts.ready);
+        await page.locator("[data-add-pc-phase]").evaluate(async (element) => {
+          await Promise.all(element.getAnimations({ subtree: true })
+            .filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
+            .map((animation) => animation.finished));
+        });
+        const geometry = await page.locator("[data-add-pc-phase]").evaluate((element) => ({
+          phase: element.getAttribute("data-add-pc-phase"),
+          name: element.querySelector(".modal-title")?.textContent,
+          visibleStatus: element.querySelector('[role="status"]')?.textContent,
+          overflow: document.documentElement.scrollWidth > innerWidth,
+          focusInside: element.contains(document.activeElement),
+          footerBottom: element.querySelector(".modal-footer")?.getBoundingClientRect().bottom,
+          viewportHeight: innerHeight,
+        }));
+        await page.screenshot({ path: join(evidence, `${name}.png`) });
+        if (geometry.overflow || !geometry.focusInside || !geometry.visibleStatus?.includes(pc)
+          || geometry.footerBottom === undefined || geometry.footerBottom > geometry.viewportHeight + 1) {
+          throw new TypeError(`${name}: ${JSON.stringify(geometry)}`);
+        }
+        if (errors.length) throw new TypeError(`${name}: ${errors.join("; ")}`);
+        report.push({ name, ...geometry });
+        console.log(`PASS ${name}: one confirmation reaches connecting; focus and footer contained`);
+        await page.keyboard.press("Escape");
+        await page.locator('main.relay-add-screen[data-account-state="signed-in"] [data-view="my-pcs"]').waitFor();
+        if (await page.locator("[data-add-pc-phase]").count() !== 0) throw new TypeError(`${name}: Cancel retained the sheet`);
+      } finally {
+        await closeMarked(context);
+      }
+    }
+  } finally {
+    await closeMarked(browser);
+    await site.stop(true);
+  }
+} finally {
+  writeFileSync(join(evidence, "results.json"), JSON.stringify(report, null, 2));
+  rmSync(built, { recursive: true, force: true });
+}

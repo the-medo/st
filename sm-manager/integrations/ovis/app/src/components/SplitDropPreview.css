@@ -1,0 +1,60 @@
+.split-drop {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-popover);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--dur-fast) var(--ease-out), visibility 0s var(--dur-fast);
+}
+
+.split-drop.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.split-drop-label {
+  padding: var(--space-1) var(--space-2);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+}
+
+.split-drop-slot {
+  position: absolute;
+  border: var(--hairline) dashed var(--border-strong);
+  border-radius: var(--radius-md);
+}
+
+.split-drop-zone {
+  position: absolute;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: var(--space-3);
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--accent-tint);
+  opacity: 0;
+  transition: left var(--dur-fast) var(--ease-out), top var(--dur-fast) var(--ease-out), width var(--dur-fast) var(--ease-out),
+    height var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
+}
+
+.split-drop[data-edge] .split-drop-zone {
+  opacity: 1;
+}
+
+.split-drop-zone .split-drop-label {
+  color: var(--text);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .split-drop,
+  .split-drop-zone {
+    transition: none;
+  }
+}

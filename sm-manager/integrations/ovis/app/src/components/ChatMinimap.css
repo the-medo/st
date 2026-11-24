@@ -1,0 +1,58 @@
+.chat-minimap {
+  position: absolute;
+  top: 50%;
+  left: var(--space-2);
+  z-index: var(--z-header);
+  width: var(--space-4);
+  transform: translateY(-50%);
+}
+
+.chat-minimap-tick {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: min(var(--space-2), calc(100% / var(--minimap-steps)));
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.chat-minimap-tick::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: var(--space-2);
+  height: var(--hairline);
+  background: var(--minimap-tick);
+  transform-origin: left center;
+  transition: transform var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .chat-minimap-tick:hover::before {
+    transform: scaleX(1.5);
+    background: var(--text);
+  }
+}
+
+.chat-minimap-tick[aria-current="true"]::before {
+  transform: scaleX(1.5);
+  background: var(--text-strong);
+}
+
+.chat-minimap-tick:focus-visible {
+  outline: var(--ring);
+  outline-offset: 0;
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-minimap-tick::before { transition: none; }
+}
+
+@media (max-width: 768px) {
+  .chat-minimap { display: none; }
+}

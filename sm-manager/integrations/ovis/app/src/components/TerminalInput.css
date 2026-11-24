@@ -1,0 +1,223 @@
+/* The slot PaneTerminal.tsx keeps above the key bar in the terminal lens: one row of the input
+   line in flow, whatever floats in it. The line grows to four rows (and a note under it) upward
+   over the grid's last rows instead of taking them: the grid's height is the pty's size, and each
+   change of it resizes the pane for every device on it. The masked input (SecretInput.css) takes
+   the line's place the same way. */
+.terminal-input-slot {
+  --terminal-input-pad-bottom: var(--space-1);
+  position: relative;
+  flex-shrink: 0;
+  height: calc(var(--hairline) + var(--space-1) + var(--terminal-input-pad-bottom) + var(--fs-chat) * var(--lh-tight) + var(--space-2)
+    + max(var(--touch-target), max(var(--fs-input), var(--fs-xl)) * var(--lh-base) + 2 * var(--space-2) + 2 * var(--hairline)));
+}
+
+.terminal-input-slot.is-at-screen-bottom {
+  --terminal-input-pad-bottom: max(var(--space-2), env(safe-area-inset-bottom, 0px));
+}
+
+.terminal-input-slot.is-empty {
+  height: 0;
+}
+
+.terminal-stack.is-chat:not(.is-peek) > .terminal-input-slot {
+  display: contents;
+}
+
+.terminal-input {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: var(--z-banner); /* over xterm's layers, like the banners */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
+  max-height: var(--terminal-input-room);
+  gap: var(--space-2);
+  align-items: end;
+  padding: var(--space-1) var(--space-2) var(--terminal-input-pad-bottom);
+  border-top: var(--hairline) solid var(--border);
+  background: var(--bg-panel);
+}
+
+.terminal-input.has-voice {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.terminal-input.has-key-controls {
+  grid-template-columns: minmax(min(8rem, 40%), 1fr) minmax(0, auto);
+}
+
+.terminal-input.has-key-controls.has-voice {
+  grid-template-columns: minmax(min(8rem, 40%), 1fr) auto minmax(0, auto);
+}
+
+.terminal-input.has-key-controls .terminal-input-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.terminal-input-label {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: end;
+  color: var(--text-dim);
+  font-size: var(--fs-chat);
+  line-height: var(--lh-tight);
+}
+
+.terminal-input-mic {
+  grid-row: 2;
+}
+
+.terminal-input-mic .voice-mic {
+  width: var(--touch-target);
+  height: var(--touch-target);
+}
+
+.terminal-input-mic .voice-mic:not([aria-pressed="true"]) {
+  border-color: var(--border);
+  background: var(--bg-elevated);
+}
+
+.terminal-input-text {
+  grid-column: 1;
+  grid-row: 2;
+  min-height: var(--touch-target);
+  max-height: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+  /* body text a phone reads at arm's length; never below 16px, where iOS zooms the page on focus */
+  font-size: max(var(--fs-input), var(--fs-xl));
+  line-height: var(--lh-base);
+  resize: none;
+}
+
+.terminal-input.has-key-controls .terminal-input-text::placeholder {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.terminal-input-text:focus:not(:focus-visible) {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.terminal-input-text:focus-visible {
+  outline: var(--ring);
+  outline-offset: var(--ring-offset);
+}
+
+.terminal-input-actions {
+  display: inline-flex;
+  grid-column: -2;
+  grid-row: 1 / span 2;
+  align-self: end;
+  gap: var(--space-2);
+}
+
+.terminal-input-action {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  min-width: var(--touch-target);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.terminal-input-caption {
+  font-size: var(--fs-chat);
+  line-height: var(--lh-tight);
+  white-space: nowrap;
+}
+
+.terminal-input-face {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  border: var(--hairline) solid transparent;
+  border-radius: var(--radius-pill);
+}
+
+.terminal-input-send .terminal-input-face {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* Insert is the quieter of the two: an outline on the elevated surface, so Send alone is the
+   filled one. The outline is the dim text colour, which holds 3:1 against the panel in every
+   theme (the hairline border colour does not); the pressed state is the key bar's. Attach (Settings >
+   Terminal, off by default) stands before it the same way */
+.terminal-input-insert .terminal-input-face,
+.terminal-input-attach .terminal-input-face,
+.terminal-input-keys .terminal-input-face {
+  border-color: var(--text-dim);
+  background: var(--bg-elevated);
+  color: var(--text);
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .terminal-input-insert:hover:not(:disabled) .terminal-input-face,
+  .terminal-input-attach:hover:not(:disabled) .terminal-input-face,
+  .terminal-input-keys:hover:not(:disabled) .terminal-input-face {
+    background: var(--bg-hover);
+  }
+}
+
+.terminal-input-insert:active:not(:disabled) .terminal-input-face,
+.terminal-input-attach:active:not(:disabled) .terminal-input-face,
+.terminal-input-keys:active:not(:disabled) .terminal-input-face {
+  border-color: var(--accent);
+  color: var(--text-strong);
+}
+
+.terminal-input-keys[aria-pressed="true"] .terminal-input-face {
+  border-color: var(--accent);
+  color: var(--text-strong);
+}
+
+.terminal-input-action:disabled {
+  color: var(--text-dim);
+  cursor: default;
+}
+
+.terminal-input-action:disabled .terminal-input-face {
+  border-style: dashed;
+  border-color: var(--text-dim);
+  background: transparent;
+  color: var(--text-dim);
+}
+
+.terminal-input-face svg {
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+
+.terminal-input-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--danger-text);
+  font-size: var(--fs-chat);
+  line-height: var(--lh-tight);
+}
+
+.terminal-input-note.is-pending {
+  color: var(--text-dim);
+}

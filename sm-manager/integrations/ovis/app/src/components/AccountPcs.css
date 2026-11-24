@@ -1,0 +1,401 @@
+.account-centered {
+  text-align: center;
+}
+
+.account-centered .relay-shell-mark {
+  margin-inline: auto;
+}
+
+.account-providers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.account-provider {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 100%; min-width: 0; height: auto; min-height: var(--touch-target);
+  padding-block: var(--space-2); padding-inline: calc(var(--space-4) + var(--icon-size) + var(--space-2));
+  background: var(--bg-elevated); border: var(--hairline) solid var(--border); color: var(--text-strong);
+  font-weight: var(--fw-medium); line-height: var(--lh-tight); text-align: center; white-space: normal; overflow-wrap: anywhere;
+}
+
+@media (hover: hover) {
+  .account-provider:hover:not(:disabled) { background: var(--bg-hover); border-color: var(--border-strong); color: var(--text-strong); }
+}
+
+.account-provider-mark { flex: none; width: var(--icon-size); height: var(--icon-size); }
+
+.btn.account-provider > svg.account-provider-mark,
+.account-provider > .account-provider-mark {
+  position: absolute; inset-inline-start: var(--space-4); width: var(--icon-size); height: var(--icon-size);
+}
+
+@media (max-width: 240px) {
+  .account-provider { padding-inline: calc(var(--space-3) + var(--icon-size) + var(--space-2)) var(--space-3); }
+  .btn.account-provider > svg.account-provider-mark, .account-provider > .account-provider-mark { inset-inline-start: var(--space-3); }
+}
+
+.account-provider-spinner {
+  border-width: 2px;
+}
+
+.account-error-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  text-align: start;
+}
+
+.account-error {
+  margin: var(--space-3) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--danger-text);
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.account-error-block > .account-error {
+  margin: 0;
+}
+
+.account-error-retry {
+  align-self: flex-start;
+}
+
+.account-link {
+  display: inline-flex; align-items: center; justify-content: center; width: 100%; min-width: 0;
+  height: auto; min-height: var(--touch-target); margin-top: var(--space-2); padding: var(--space-2) var(--space-3);
+  background: none; border: 0; border-radius: var(--radius-md); font: inherit; font-size: var(--fs-sm);
+  font-weight: var(--fw-medium); line-height: var(--lh-tight); color: var(--text-dim); text-align: center;
+  text-decoration: underline; text-underline-offset: 0.15em; white-space: normal; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; cursor: pointer;
+}
+
+.account-link.btn-ghost {
+  margin-top: 0;
+  color: var(--text);
+  text-decoration: none;
+}
+
+@media (hover: hover) {
+  .account-link:hover:not(:disabled) {
+    color: var(--text-strong);
+  }
+
+  .account-link.btn-ghost:hover:not(:disabled) {
+    background: var(--bg-hover);
+  }
+}
+
+.account-link:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.account-fineprint {
+  margin: var(--space-4) 0 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  color: var(--text-dim);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.account-fineprint a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.account-pc-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.account-pc-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-regular);
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.account-pc-join {
+  width: 100%;
+  background: none;
+  border: 0;
+  border-bottom: var(--hairline) solid var(--border);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.account-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: var(--hairline) solid var(--border);
+}
+
+.account-device {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.account-device-code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-pairing);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-code);
+  color: var(--text-strong);
+  user-select: all;
+}
+
+.account-device-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.settings-card > .settings-row.account-head {
+  gap: var(--space-3);
+  min-height: 0;
+}
+
+.account-who {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
+.account-plan {
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.account-head-actions {
+  display: flex;
+  flex: none;
+  gap: var(--space-2);
+}
+
+.account-manage-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.account-plan-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.account-manage-h {
+  margin: 0 0 var(--space-1);
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.account-manage-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.account-manage-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--pointer-target);
+  border-bottom: var(--hairline) solid var(--border);
+}
+
+.account-manage-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-manage-dim {
+  color: var(--text-dim);
+}
+
+.account-add-pc-button.btn {
+  width: 100%;
+  min-height: calc(var(--pointer-target) + var(--space-3));
+  font-size: var(--fs-md);
+}
+
+.account-add-pc-done {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--status-done-tint);
+  color: var(--status-done);
+  font-weight: 600;
+}
+
+.account-add-pc-done svg {
+  width: 16px;
+  height: 16px;
+}
+
+.btn.account-head-btn {
+  height: auto;
+  min-height: var(--pointer-target);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--fs-xs);
+}
+
+.account-method-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.account-method-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* a finger's 44px around a chip's remove x and the next chip's + stay apart, across a wrap too */
+@media (pointer: coarse) {
+  .account-method-list {
+    gap: calc(var(--touch-target) - var(--pointer-target)) var(--space-3);
+  }
+}
+
+.account-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--pointer-target);
+  padding: var(--space-half) var(--space-2);
+  background: var(--bg-elevated);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-strong);
+  font: inherit;
+}
+
+.account-chip .account-provider-mark {
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+}
+
+.account-chip-icon {
+  width: var(--icon-size-xs);
+  height: var(--icon-size-xs);
+  color: var(--text-dim);
+}
+
+.account-chip-add {
+  border-style: dashed;
+  cursor: pointer;
+}
+
+.account-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.account-chip-remove > svg {
+  width: var(--icon-size-xs);
+  height: var(--icon-size-xs);
+}
+
+@media (hover: hover) {
+  .account-chip-add:hover, .account-chip-remove:hover, .account-delete-link:hover:not(:disabled) {
+    color: var(--text-strong);
+  }
+}
+
+/* the compact controls keep their look and reach the hit area a pointer needs through an invisible ::before expander */
+.btn.account-head-btn, .account-chip-add, .account-chip-remove, .account-delete-link {
+  position: relative;
+  --account-hit: var(--pointer-target);
+}
+
+@media (pointer: coarse) {
+  .btn.account-head-btn, .account-chip-add, .account-chip-remove, .account-delete-link {
+    --account-hit: var(--touch-target);
+  }
+}
+
+.btn.account-head-btn::before, .account-chip-add::before, .account-chip-remove::before, .account-delete-link::before {
+  content: "";
+  position: absolute;
+  inset: min(0px, calc((100% - var(--account-hit)) / 2));
+}
+
+.account-delete-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.account-delete-link {
+  align-self: flex-start;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: var(--fs-xs);
+  list-style: none;
+  cursor: pointer;
+}
+
+.account-delete-link::-webkit-details-marker {
+  display: none;
+}
+
+.relay-shell-check {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.relay-shell-check-btn {
+  min-width: calc(var(--space-8) * 3);
+  font-variant-numeric: tabular-nums;
+}
+
+.account-no-pc {
+  padding-top: var(--space-2);
+}
+
