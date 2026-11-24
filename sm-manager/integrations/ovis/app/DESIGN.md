@@ -1473,6 +1473,15 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   An older in-flight catalogue response cannot overwrite the acknowledged name. Failed saves
   retain the draft in the dialog. Codex excludes archived threads from this name operation,
   so their Rename action explains that they must first be unarchived.
+  Project menus offer Customize project, Move up, and Move down. Manual project order follows
+  [VS Code's workspace folder order](https://code.visualstudio.com/docs/editing/workspaces/multi-root-workspaces#_drag-and-drop),
+  using explicit menu actions as requested so the same interaction works with a keyboard or
+  touch. Moves are relative to the neighboring visible project, including when searching;
+  the first and last available directions are disabled. The private organization store saves
+  stable project IDs under its existing lock alongside folders. Each move applies to the
+  latest saved order, preserves unrelated positions, and is idempotent on retry. Newly
+  configured projects append, removed IDs are ignored, and catalogue refreshes share the
+  order with other browsers without moving checkouts or conversations.
 
 - Close follows herdr's `ui.confirm_close`: a workspace close, or a pane close that takes its
   workspace with it, asks in a confirm first. A busy pane also asks before it stops. After a

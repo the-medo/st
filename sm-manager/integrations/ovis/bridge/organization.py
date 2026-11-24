@@ -1,4 +1,4 @@
-"""Project-scoped folders; never moves a checkout or changes Codex history."""
+"""Project order and scoped folders; never moves a checkout or changes Codex history."""
 import fcntl
 import json
 import uuid
@@ -9,7 +9,42 @@ def load(root):
     return json.loads(path.read_text()) if path.exists() else {'revision': 0, 'projects': {}}
 
 
+def project_order(data, projects):
+    """Keep known saved IDs first, then append newly configured projects."""
+    known = set(projects)
+    return list(dict.fromkeys([key for key in data.get('projectOrder', []) if key in known] + list(projects)))
+
+
+def save(root, data):
+    # Both callers hold organization.lock, including while reading the old state.
+    data['revision'] += 1
+    temporary = root / 'organization.json.tmp'
+    temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
+    temporary.chmod(0o600)
+    temporary.replace(root / 'organization.json')
+
+
+def move_project(root, projects, change):
+    project, relative, direction = change.get('projectId'), change.get('relativeTo'), change.get('direction')
+    if project not in projects or relative not in projects:
+        raise ValueError('That project no longer exists. Refresh and try again.')
+    if project == relative or direction not in ('up', 'down'):
+        raise ValueError('Choose a neighboring project and move up or down.')
+    with (root / 'organization.lock').open('w') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        data = load(root)
+        before = project_order(data, projects)
+        order = [key for key in before if key != project]
+        order.insert(order.index(relative) + (direction == 'down'), project)
+        if order != before:
+            data['projectOrder'] = order
+            save(root, data)
+        return {'ok': True, 'revision': data['revision'], 'projectOrder': order}
+
+
 def update(root, projects, chat_projects, change):
+    if change.get('operation') == 'move-project':
+        return move_project(root, projects, change)
     project = change.get('projectId')
     if project not in projects:
         raise ValueError('Unknown project.')
@@ -52,9 +87,5 @@ def update(root, projects, chat_projects, change):
                 group['chats'].pop(thread, None)
         else:
             raise ValueError('Unknown folder action.')
-        data['revision'] += 1
-        temporary = root / 'organization.json.tmp'
-        temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
-        temporary.chmod(0o600)
-        temporary.replace(root / 'organization.json')
+        save(root, data)
         return {'ok': True, 'revision': data['revision'], 'folder': folder}

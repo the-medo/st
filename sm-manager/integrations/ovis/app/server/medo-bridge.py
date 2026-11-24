@@ -207,7 +207,7 @@ def handle(p):
         return launch(project)
     if op == 'organize':
         cfg = sidebar.config()
-        return organization.update(root, {x['id'] for x in cfg['projects']} | {'other'},
+        return organization.update(root, [x['id'] for x in cfg['projects']] + ['other'],
             {x['id']: sidebar.project_for(x, cfg) for x in sidebar.read_rows()}, p['change'])
     if op == 'style': return sidebar.save_style(p['projectId'], p['style'])
     if op == 'icon-put': return sidebar.put_icon(p['base64'])

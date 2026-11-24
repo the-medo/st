@@ -127,6 +127,8 @@ def catalog(cfg=None, rows=None):
     if any(c['project'] == 'other' for c in chats):
         projects.append(dict(id='other', name='Other conversations', path=''))
     folders = organization.load(ROOT)
+    by_id = {project['id']: project for project in projects}
+    projects = [by_id[key] for key in organization.project_order(folders, list(by_id))]
     for project in projects:
         group = folders['projects'].get(project['id'], {})
         project['folders'] = group.get('folders', [])
@@ -261,7 +263,7 @@ def main():
         from . import organization
         cfg = config()
         rows = read_rows()
-        result = organization.update(ROOT, {p['id'] for p in cfg['projects']} | {'other'},
+        result = organization.update(ROOT, [p['id'] for p in cfg['projects']] + ['other'],
                                      {r['id']: project_for(r, cfg) for r in rows},
                                      json.loads(''.join([args.id or '', *args.payload])))
     elif args.command == 'chat':

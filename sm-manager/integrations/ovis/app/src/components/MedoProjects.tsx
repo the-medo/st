@@ -2,7 +2,7 @@ import { focusInOtherModal, useFocusTrap } from '../lib/useFocusTrap.ts';
 import { usePhoneSheetBack } from '../lib/sheetHistory.ts';
 import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { ChevronDown, ChevronRight, Circle, Ellipsis, Folder, LoaderCircle, MessageCircle, Pencil, Plus, RefreshCw, Search, Settings, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Circle, Ellipsis, Folder, LoaderCircle, MessageCircle, Pencil, Plus, RefreshCw, Search, Settings, X } from 'lucide-react';
 import type { MedoCatalog, MedoChat, MedoOpen, MedoProject, MedoStyle } from '../../shared/medo.ts';
 import { apiFetch } from '../lib/api-request-id.ts';
 import { ChatView } from './ChatView.tsx';
@@ -58,8 +58,11 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
   const [edit, setEdit] = useState<MedoProject | null>(null);
   const [reader, setReader] = useState<MedoChat | null>(null);
   const [chatMenu, setChatMenu] = useState<{ chat: MedoChat; anchor: HTMLElement } | null>(null);
+  const [projectMenu, setProjectMenu] = useState<{ project: MedoProject; anchor: HTMLElement } | null>(null);
+  const [reordering, setReordering] = useState(false);
+  const reorderPending = useRef(false);
   const [rename, setRename] = useState<MedoChat | null>(null);
-  const readState = useMedoReadState(catalog?.chats, selectedPaneId, Boolean(newProject || move || edit || reader || rename || chatMenu), reader?.id);
+  const readState = useMedoReadState(catalog?.chats, selectedPaneId, Boolean(newProject || move || edit || reader || rename || chatMenu || projectMenu), reader?.id);
   const pending = useRef<Promise<void> | null>(null);
   const revision = useRef(0);
   const mounted = useRef(false);
@@ -142,6 +145,15 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
   };
   const chats = catalog?.chats.filter((chat) => chat.archived === archived && (!query || chat.title.toLocaleLowerCase().includes(query.toLocaleLowerCase()))) ?? [];
   const drafts = archived ? [] : catalog?.drafts?.filter((draft) => !query || draft.title.toLocaleLowerCase().includes(query.toLocaleLowerCase())) ?? [];
+  const projects = catalog?.projects.filter((project) => !query || chats.some((chat) => chat.project === project.id) || drafts.some((draft) => draft.project === project.id)) ?? [];
+  const projectPosition = projectMenu ? projects.findIndex((project) => project.id === projectMenu.project.id) : -1;
+  const moveProject = async (direction: 'up' | 'down') => {
+    const relative = projects[projectPosition + (direction === 'up' ? -1 : 1)];
+    if (!projectMenu || !relative || reorderPending.current) return;
+    reorderPending.current = true; setReordering(true);
+    try { await action(() => organize({ operation: 'move-project', projectId: projectMenu.project.id, relativeTo: relative.id, direction })); }
+    finally { reorderPending.current = false; if (mounted.current) setReordering(false); }
+  };
   const rows = (project: MedoProject, folder: string | null) => {
     const key = `${project.id}/${folder ?? ''}`;
     const group = chats.filter((chat) => chat.project === project.id && chat.folder === folder).sort((a, b) => b.updated - a.updated);
@@ -164,7 +176,7 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
     <label className="medo-search"><Search size={15} /><input aria-label="Search conversations" placeholder="Search conversations" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
     {(error || catalogError) && <div className="medo-error" role="alert">{error || catalogError}<button onClick={() => { setError(''); void refresh(true); }}>Retry</button></div>}
     <div className="medo-project-scroll">{!catalog && !catalogError && <p className="medo-muted">Loading projects…</p>}
-      {catalog?.projects.map((project) => {
+      {projects.map((project) => {
         const style = project.appearance ?? {};
         const hidden = !query && closed.has(project.id);
         const projectDrafts = drafts.filter((draft) => draft.project === project.id);
@@ -176,7 +188,7 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
             <span className="medo-project-icon">{style.image ? <ProjectImage name={style.image} /> : style.iconText || <Folder size={16} />}</span>
             <span>{project.name}</span></button>
             {project.path && <button className="medo-row-action" disabled={creating} aria-label={`New conversation in ${project.name}`} onClick={() => void start(project)}><Plus size={15} /></button>}
-            <button className="medo-row-action" aria-label={`Customize ${project.name}`} onClick={() => setEdit(project)}><Ellipsis size={15} /></button>
+            <button className="medo-row-action" aria-label={`Actions for project ${project.name}`} aria-haspopup="menu" aria-expanded={projectMenu?.project.id === project.id} onClick={(event) => setProjectMenu(projectMenu?.project.id === project.id ? null : { project, anchor: event.currentTarget })}><Ellipsis size={15} /></button>
           </div>{!hidden && <div className="medo-project-chats">{projectDrafts.map((draft) => <div key={draft.address} className={`medo-chat${draft.address === selectedPaneId ? ' is-selected' : ''}`}><button className="medo-chat-open" onClick={() => void openDraft(draft.address)}><span className="medo-indicator"><Circle size={7} /></span><span>{draft.title}</span></button></div>)}{rows(project, null)}{project.folders.map((folder) => {
             const key = `${project.id}/${folder.id}`;
             const folded = !query && closed.has(key);
@@ -186,6 +198,11 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
       })}
     </div>
     <footer><button onClick={() => setArchived(!archived)} aria-pressed={archived}><MessageCircle size={15} />{archived ? 'Archived' : 'Active chats'}</button><button aria-label="Refresh projects" onClick={() => void refresh()}><RefreshCw size={15} /></button><button aria-label="Settings" onClick={onSettings}><Settings size={16} /></button></footer>
+    {projectMenu && <RowMenu anchor={projectMenu.anchor} title="Project actions" subtitle={projectMenu.project.name} onClose={() => setProjectMenu(null)} items={[
+      { id: 'customize', label: 'Customize project', icon: Settings, run: () => setEdit(projectMenu.project) },
+      { id: 'up', label: 'Move up', icon: ArrowUp, divider: true, disabled: reordering || projectPosition <= 0, run: () => void moveProject('up') },
+      { id: 'down', label: 'Move down', icon: ArrowDown, disabled: reordering || projectPosition < 0 || projectPosition >= projects.length - 1, run: () => void moveProject('down') },
+    ]} />}
     {chatMenu && <RowMenu anchor={chatMenu.anchor} title="Conversation actions" subtitle={chatMenu.chat.title} onClose={() => setChatMenu(null)} items={[
       { id: 'rename', label: 'Rename', icon: Pencil, disabled: chatMenu.chat.archived, ...(chatMenu.chat.archived ? { hint: 'Unarchive in Codex to rename' } : {}), run: () => setRename({ ...chatMenu.chat }) },
       { id: 'move', label: 'Move to folder', icon: Folder, run: () => setMove(chatMenu.chat) },

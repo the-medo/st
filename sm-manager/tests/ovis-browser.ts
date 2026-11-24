@@ -185,7 +185,8 @@ try {
   await page.evaluate(() => Object.assign(Reflect.get(window, "__stMedoState"), { status: "working", updated: 2 }));
   await page.getByRole("button", { name: "Refresh projects", exact: true }).click();
   await page.locator(".medo-chat .medo-spinner").waitFor();
-  await page.getByRole("button", { name: "Customize Garden" }).click();
+  await page.getByRole("button", { name: "Actions for project Garden", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Customize project", exact: true }).click();
   await page.locator(".st-ovis-root .medo-overlay").waitFor();
   // A completion behind a project dialog remains unread until the chat is visible again.
   await page.evaluate(() => {
@@ -201,7 +202,8 @@ try {
   await page.locator(".medo-overlay").waitFor({ state: "hidden" });
   await page.locator(".medo-chat.is-unread").waitFor({ state: "hidden" });
   assert.equal(await page.locator(".medo-project").evaluate((el) => getComputedStyle(el).borderTopColor), "rgb(113, 141, 98)");
-  await page.getByRole("button", { name: "Customize Garden" }).click();
+  await page.getByRole("button", { name: "Actions for project Garden", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Customize project", exact: true }).click();
   await page.locator(".st-ovis-root .medo-overlay").waitFor();
   await page.keyboard.press("Escape");
   await page.locator(".medo-overlay").waitFor({ state: "hidden" });
