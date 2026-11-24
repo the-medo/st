@@ -14,43 +14,83 @@ from integrations.ovis.bridge.chat_service import request, Bridge
 root = sidebar.ROOT
 
 
-def terminal_thread(terminal, rows):
-    if terminal.get('foreground', {}).get('name') != 'codex':
-        return None
+def thread_title_prefix(terminal):
     # Our launches opt into thread-id-only titles. The title follows /new and /resume,
     # unlike an argv or label which would keep showing the old conversation.
     title = (terminal.get('title') or '').strip()
     match = re.fullmatch(r'(?:[\u2800-\u28ff]\s+)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{5}(?:[0-9a-f]{7}|\.\.\.))', title)
-    if not match:
+    return match[1].removesuffix('...') if match else None
+
+
+def terminal_thread(terminal, rows, *, starting=False):
+    foreground = terminal.get('foreground', {}).get('name')
+    if foreground != 'codex' and not (starting and foreground is None):
         return None
-    prefix = match[1].removesuffix('...')
+    title = (terminal.get('title') or '').strip()
+    prefix = thread_title_prefix(terminal)
+    labels = terminal.get('labels', {})
+    if prefix and labels.get('medo.ovis.starting') == '1':
+        # Consume the launch hint once the TUI reports any thread. It must never
+        # bind a later /new or /resume back to the original conversation.
+        sidebar.hc('label', terminal['address'], 'medo.ovis.starting=0')
+        labels['medo.ovis.starting'] = '0'
+    if not prefix:
+        # This hint is only for sidebar identity / launch reuse, never history or
+        # model writes. An arbitrary title is not evidence of a starting TUI.
+        pending = labels.get('medo.ovis.resume')
+        if starting and title in ('', 'codex') and labels.get('medo.ovis.starting') == '1':
+            return pending if any(row['id'] == pending for row in rows) else None
+        return None
+    if foreground != 'codex': return None
     found = [row['id'] for row in rows if row['id'].startswith(prefix)]
     return found[0] if len(found) == 1 else None
+
+
+def resumed_thread(terminal):
+    """The launch target only classifies drafts; it never identifies live history."""
+    labels = terminal.get('labels', {})
+    if labels.get('medo.ovis.resume'): return labels['medo.ovis.resume']
+    # Terminals opened before launch hints were introduced are still around.
+    argv = terminal.get('foreground', {}).get('argv', [])
+    return argv[-1] if 'resume' in argv and argv else None
 
 
 def launch(project, thread=None, title="New conversation"):
     if not Path(project['path']).is_dir():
         raise ValueError('This project folder is no longer available.')
-    state = Path(os.environ.get('OVIS_STATE_DIR', str(Path.home()/'.local/state/medo-ovis')))
+    # All web instances using this catalog share launch ownership, even when
+    # their device preferences and cookies live in separate OVIS_STATE_DIRs.
+    state = sidebar.ROOT
     state.mkdir(parents=True, exist_ok=True)
-    with (state/'launch.lock').open('w') as lock:
+    with (state/'ovis-launch.lock').open('w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         if thread:
             rows = sidebar.read_rows()
             for terminal in sidebar.hc('ls', '--json')['terminals']:
                 if terminal.get('state') != 'live': continue
                 detail = sidebar.hc('get', terminal['address'], '--json')
-                if detail.get('labels', {}).get('medo.ovis.project') and terminal_thread(detail, rows) == thread:
+                if detail.get('labels', {}).get('medo.ovis.project') and terminal_thread(detail, rows, starting=True) == thread:
                     return {'address':terminal['address'], 'reused':True}
+            client = Bridge()
+            try:
+                client.rpc('thread/resume', {'threadId':thread, 'excludeTurns':True})
+            except Exception as error:
+                if 'active writer' in str(error):
+                    raise ValueError('This conversation is open in a standalone Codex terminal. Close that terminal first, then reopen the conversation here. Its saved history is kept.') from None
+                raise
+            finally:
+                client.process.terminate()
         key = uuid.uuid4().hex[:20]
         args = [sidebar.CODEX, '--remote', 'unix://' + str(os.environ.get('ST_OVIS_CODEX_SOCKET') or sidebar.CODEX_HOME/'app-server-control/app-server-control.sock'), '-c', 'tui.terminal_title=["thread-id"]']
         if thread: args += ['resume', '--cd', project['path'], thread]
         else: args += ['--cd', project['path']]
+        launch_labels = ['--label', 'medo.ovis.starting=1']
+        if thread: launch_labels += ['--label', 'medo.ovis.resume='+thread]
         result = sidebar.hc('run', '--bg', '--keep', '--no-parent', '--json', '--name', 'ovis-'+key,
             '--cwd', project['path'], '--label', 'herdr.space=medo-ovis-'+project['id'],
             '--label', 'herdr.tab=medo-ovis-'+key, '--label', 'ovis.tab='+title,
             '--label', 'ovis.workspace='+project['name'], '--label', 'medo.ovis.project='+project['id'],
-            '--label', 'where='+project['name'], '--', *map(str,args))
+            '--label', 'where='+project['name'], *launch_labels, '--', *map(str,args))
         return {'address':result['address'], 'reused':False}
 
 
@@ -87,8 +127,9 @@ def history(thread, p):
 def handle(p):
     op = p['operation']
     if op == 'index':
-        result = sidebar.catalog()
         rows = sidebar.read_rows()
+        result = sidebar.catalog(rows=rows)
+        saved = {chat['id'] for chat in result['chats']}
         by_thread = {}
         drafts = []
         for terminal in sidebar.hc('ls', '--json')['terminals']:
@@ -96,9 +137,17 @@ def handle(p):
             detail = sidebar.hc('get', terminal['address'], '--json')
             project = detail.get('labels', {}).get('medo.ovis.project')
             if not project: continue
-            thread = terminal_thread(detail, rows)
-            if thread: by_thread[thread] = detail
-            else: drafts.append({'address':detail['address'], 'project':project, 'title':'New conversation'})
+            thread = terminal_thread(detail, rows, starting=True)
+            if thread in saved:
+                # Match launch()'s first live terminal, not the last duplicate.
+                by_thread.setdefault(thread, detail)
+            elif detail.get('foreground', {}).get('name') == 'codex' and (
+                not resumed_thread(detail) or
+                (thread_title_prefix(detail) and not resumed_thread(detail).startswith(thread_title_prefix(detail)))
+            ):
+                # A resumed placeholder or a resume still starting is not a
+                # draft. An explicit new chat (also /new) remains reachable.
+                drafts.append({'address':detail['address'], 'project':project, 'title':'New conversation'})
         for chat in result['chats']:
             terminal = by_thread.get(chat['id'])
             if terminal:
@@ -112,15 +161,6 @@ def handle(p):
         row, item = sidebar.checked_thread(p['threadId'])
         if row.get('archived'): raise ValueError('Unarchive this conversation in Codex before continuing.')
         project = next((x for x in sidebar.config()['projects'] if x['id']==item['project']), {'id':'other','name':'Other'})
-        client = Bridge()
-        try:
-            client.rpc('thread/resume', {'threadId':p['threadId'], 'excludeTurns':True})
-        except Exception as error:
-            if 'active writer' in str(error):
-                raise ValueError('This conversation is open in a standalone Codex terminal. Close that terminal first, then reopen the conversation here. Its saved history is kept.') from None
-            raise
-        finally:
-            client.process.terminate()
         return launch({**project, 'path':item['cwd']}, p['threadId'], item['title'])
     if op == 'new':
         project = next((x for x in sidebar.config()['projects'] if x['id']==p['projectId']), None)

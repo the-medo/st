@@ -1181,7 +1181,7 @@ export function App() {
             <CrashProbe region="sidebar" />
             {import.meta.env.VITE_MEDO_PROJECTS === "1" ? <MedoProjects selectedPaneId={selectedPaneId}
               headerActions={stConversations ? (wideScreen ? (!sidebarCollapsed && sidebarToggle) : <button type="button" aria-label={t("Close workspace list")} title={t("Close workspace list")} onClick={() => setDrawerOpen(false)}><X size={18} /></button>) : undefined}
-              onOpen={async (paneId) => { await load(); selectTarget("local", paneId, "chat"); setDrawerOpen(false); }}
+              onOpen={async (paneId, isCurrent) => { await load(); if (!isCurrent()) return; selectTarget("local", paneId, "chat"); setDrawerOpen(false); }}
               onNew={(project) => { setNewPrefill(project ? { cwd: project.path, name: null, agent: "codex" } : null); openNewOn("local"); }}
               onSettings={actions.openSettings} /> : <ReorderContext.Provider value={reorderCoordinator}><MachineSidebar machines={sidebarMachines} allMachines={machines} watching={auth?.role === "watch"} appLayout={appLayoutOn} drawerOpen={drawerOpen} filterRequest={sidebarFilterRequest} selectedMachineId={selectedMachineId} selectedPaneId={selectedPaneId} activity={activity} actions={actions} onSelect={selectTarget} onUsageLogin={(paneId) => { selectTarget("local", paneId, "terminal"); void load(); }} onSetup={(machine, update = false) => { setUpdateRemote(update); setMachineDialog(machine); }} onNew={openNewOn}
               afterPcs={browserTabs !== null && filePanelAvailable ? <BrowserTabsGroup tabs={browserTabs} selected={browserTab} onSelect={openBrowserTab} /> : undefined}

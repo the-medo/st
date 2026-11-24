@@ -92,10 +92,36 @@ def display(row, cfg):
                 archived=bool(row.get('archived')), unavailable=missing)
 
 
+def empty_thread_ids(rows):
+    """Exclude only proven empty paginated placeholders, never deduplicate by name.
+
+    Desktop setup can persist a named thread before its first turn. Keep unknown
+    or legacy history visible if its store cannot be inspected.
+    """
+    candidates = [r['id'] for r in rows if r.get('history_mode') == 'paginated'
+                  and not (r.get('title') or '').strip()
+                  and not (r.get('first_user_message') or '').strip()]
+    if not candidates:
+        return set()
+    try:
+        db = CODEX_HOME / 'thread_history_1.sqlite'
+        with closing(sqlite3.connect(db.as_uri() + '?mode=ro', uri=True, timeout=4)) as conn:
+            conn.execute('PRAGMA query_only=ON')
+            return {thread for thread in candidates if not conn.execute('''
+                SELECT EXISTS(SELECT 1 FROM thread_turns WHERE thread_id=?)
+                    OR EXISTS(SELECT 1 FROM thread_items WHERE thread_id=?)
+                    OR EXISTS(SELECT 1 FROM thread_realtime_items WHERE thread_id=?)
+            ''', (thread, thread, thread)).fetchone()[0]}
+    except sqlite3.Error:
+        return set()
+
+
 def catalog(cfg=None, rows=None):
     from . import organization
     cfg = cfg or config()
-    chats = [display(r, cfg) for r in (rows if rows is not None else read_rows())]
+    rows = rows if rows is not None else read_rows()
+    empty = empty_thread_ids(rows)
+    chats = [display(r, cfg) for r in rows if r['id'] not in empty]
     saved = json.loads((ROOT / 'appearance.json').read_text()) if (ROOT / 'appearance.json').is_file() else {}
     projects = [dict(id=p['id'], name=p['name'], path=p['path'], appearance={**p.get('appearance', {}), **saved.get(p['id'], {})}) for p in cfg['projects']]
     if any(c['project'] == 'other' for c in chats):

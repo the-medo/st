@@ -14,6 +14,10 @@ class SidebarTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
+        for name in ('ROOT', 'CODEX_HOME'):
+            patched = patch.object(server, name, self.root)
+            patched.start()
+            self.addCleanup(patched.stop)
         self.cfg = {'coreId':'test', 'workspaceRoot':'/home/example/dev', 'projects':[
             {'id':'root','name':'Root','path':'/home/example/dev'},
             {'id':'a','name':'App','path':'/home/example/dev/app','origins':['github.com/me/app']},
@@ -52,6 +56,29 @@ class SidebarTests(unittest.TestCase):
         self.assertFalse(server.human(dict(self.row,source='exec')))
         self.assertFalse(server.human(dict(self.row,source='{"subagent":{}}')))
         self.assertFalse(server.human(dict(self.row,agent_path='/root/helper')))
+
+    def test_catalog_omits_only_verified_empty_placeholders(self):
+        db = self.root / 'thread_history_1.sqlite'
+        with closing(sqlite3.connect(db)) as conn:
+            for table in ('thread_turns', 'thread_items', 'thread_realtime_items'):
+                conn.execute(f'CREATE TABLE {table} (thread_id TEXT PRIMARY KEY)')
+            conn.execute("INSERT INTO thread_turns VALUES ('turn-only')")
+            conn.execute("INSERT INTO thread_items VALUES ('item-only')")
+            conn.execute("INSERT INTO thread_realtime_items VALUES ('realtime-only')")
+            conn.commit()
+        before = db.read_bytes()
+        empty = dict(self.row, id='empty', title='', first_user_message='')
+        rows = [self.row, empty, dict(empty, id='turn-only'), dict(empty, id='item-only'),
+                dict(empty, id='realtime-only'), dict(empty, id='prompt', first_user_message='hello'),
+                dict(empty, id='legacy', history_mode='jsonl')]
+        data = server.catalog(self.cfg, rows)
+        self.assertEqual([r['id'] for r in data['chats']], ['c', 'turn-only', 'item-only', 'realtime-only', 'prompt', 'legacy'])
+        self.assertEqual(db.read_bytes(), before)
+
+    def test_catalog_keeps_uncertain_history_and_does_not_create_a_store(self):
+        empty = dict(self.row, title='', first_user_message='')
+        self.assertEqual(len(server.catalog(self.cfg, [empty])['chats']), 1)
+        self.assertFalse((self.root / 'thread_history_1.sqlite').exists())
 
     def test_read_only_index_does_not_create_missing_database(self):
         db=self.root/'missing.sqlite'
