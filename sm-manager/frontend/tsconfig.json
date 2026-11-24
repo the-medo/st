@@ -18,10 +18,16 @@
       "vite/client"
     ],
     "allowImportingTsExtensions": true,
-    "noEmit": true
+    "noEmit": true,
+    "disableSourceOfProjectReferenceRedirect": true
   },
   "include": [
     "src",
     "vite.config.ts"
+  ],
+  "references": [
+    {
+      "path": "../integrations/ovis/app/shared/vendor/paseo-e2ee"
+    }
   ]
 }

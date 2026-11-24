@@ -13,7 +13,8 @@ export interface ResourceUrlState {
 export function useResourceUrlState(path: string | null, retry = 0): ResourceUrlState {
   const transport = getTransport();
   const target = useMemo(() => ({ path, transport }), [path, transport, retry]);
-  const direct = path === null || !path.startsWith("/api/") || transport.kind === "native";
+  const directUrl = path === null || !path.startsWith("/api/") ? path : transport.kind === "native" ? transport.resourceUrl(path) : null;
+  const direct = path === null || typeof directUrl === "string";
   const [resolved, setResolved] = useState<{ target: typeof target; state: ResourceUrlState } | null>(null);
   useEffect(() => {
     const path = target.path;
@@ -37,7 +38,7 @@ export function useResourceUrlState(path: string | null, retry = 0): ResourceUrl
     void load();
     return () => { live = false; abort.abort(); if (owned) URL.revokeObjectURL(owned); };
   }, [target, direct]);
-  if (direct) return { url: path, error: null };
+  if (direct) return { url: typeof directUrl === "string" ? directUrl : null, error: null };
   return resolved?.target === target ? resolved.state : { url: null, error: null };
 }
 

@@ -12,7 +12,8 @@
     "typecheck": "bun run --cwd frontend typecheck && bun run --cwd frontend typecheck:gateway",
     "test:unit": "bun test frontend/src services/web-gateway",
     "test:browser": "bun tests/v2-browser.ts",
-    "build:ovis": "cd integrations/ovis/app && VITE_MEDO_PROJECTS=1 bun run build"
+    "build:ovis": "cd integrations/ovis/app && VITE_MEDO_PROJECTS=1 bun run build",
+    "test:ovis-browser": "bun tests/ovis-browser.ts"
   },
   "devDependencies": {
     "@types/bun": "1.4.2",

@@ -7,6 +7,7 @@ import type { MedoCatalog, MedoChat, MedoOpen, MedoProject, MedoStyle } from '..
 import { apiFetch } from '../lib/api-request-id.ts';
 import { ChatView } from './ChatView.tsx';
 import './MedoProjects.css';
+import {useResourceUrl} from '../lib/useResourceUrl.ts';
 
 async function call<T>(path: string, body?: unknown): Promise<T> {
   const response = await apiFetch(`/api/medo/${path}`, body === undefined ? undefined : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -98,7 +99,7 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings }: {
         return <section key={project.id} className="medo-project" style={{ '--medo-section': style.sectionColor || 'transparent', '--medo-title': style.titleColor || 'var(--text-strong)', '--medo-icon': style.iconColor || 'var(--text-dim)' } as CSSProperties}>
           <div className="medo-project-head"><button className="medo-project-toggle" onClick={() => toggle(project.id)} aria-expanded={!hidden}>
             {hidden ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
-            <span className="medo-project-icon">{style.image ? <img src={`/api/medo/icon?name=${encodeURIComponent(style.image)}`} alt="" /> : style.iconText || <Folder size={16} />}</span>
+            <span className="medo-project-icon">{style.image ? <ProjectImage name={style.image} /> : style.iconText || <Folder size={16} />}</span>
             <span>{project.name}</span></button>
             {project.path && <button className="medo-row-action" aria-label={`New conversation in ${project.name}`} onClick={() => void start(project)}><Plus size={15} /></button>}
             <button className="medo-row-action" aria-label={`Customize ${project.name}`} onClick={() => setEdit(project)}><Ellipsis size={15} /></button>
@@ -136,3 +137,5 @@ function ProjectEditor({ project, onClose, onSave, onFolder }: { project: MedoPr
   </form><h3>Folders</h3>{project.folders.map((folder) => <div className="medo-folder-edit" key={folder.id}><input aria-label={`Rename ${folder.name}`} defaultValue={folder.name} key={folder.name} onBlur={(event) => { if (event.target.value !== folder.name) void onFolder({ operation: 'rename', folderId: folder.id, name: event.target.value }); }} /><button title="Remove folder; keep its conversations" aria-label={`Remove folder ${folder.name}`} onClick={() => void onFolder({ operation: 'delete', folderId: folder.id })}><X size={16} /></button></div>)}
     <form className="medo-folder-edit" onSubmit={(event) => { event.preventDefault(); void onFolder({ operation: 'create', name }).then((ok) => { if (ok) setName(''); }); }}><input aria-label="New folder name" placeholder="New folder" maxLength={60} value={name} onChange={(event) => setName(event.target.value)} /><button className="btn" disabled={!name.trim()}><Plus size={16} />Add</button></form><p className="medo-muted">Folders and appearance sync across your PCs. Removing a folder keeps its conversations.</p></MedoDialog>;
 }
+
+function ProjectImage({name}:{name:string}) { const url=useResourceUrl(`/api/medo/icon?name=${encodeURIComponent(name)}`);return url?<img src={url} alt=""/>:null; }
