@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "typecheck:gateway": "tsc -p ../services/web-gateway/tsconfig.json"
   },
   "dependencies": {
     "react": "19.3.0",
