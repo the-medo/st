@@ -669,3 +669,15 @@ bun run test:ovis-browser
 ```
 
 Install a Playwright Chromium first or set `BROWSER_EXECUTABLE` explicitly.
+
+The updated installer/updater stages frozen Bun dependencies, type checking,
+unit checks and the React build before stopping an installed service. It moves
+validated assets and dependencies together with source, restores both after a
+failed startup, and retains the preceding generated artifacts in its owned
+`previous-artifacts` folder. `release.json` records the source revision and Bun
+version. Set `SM_MANAGER_BUN` if Bun is outside the updater's PATH.
+
+This changes the updater source, not the already-installed updater copy. The
+existing production installation remains on its legacy profile until the v2
+release gates are met and its updater/units are explicitly upgraded. The v2
+preview's three-service deployment is independent of that production instance.

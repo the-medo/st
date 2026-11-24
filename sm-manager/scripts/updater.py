@@ -17,6 +17,9 @@ from pathlib import Path
 SERVICE = "sm-manager.service"
 OWNER = "sm-manager deployment v1"
 ERRORS = (RuntimeError, OSError, ValueError, subprocess.SubprocessError)
+BACKUP_OWNER = "sm-manager generated artifacts v1"
+GENERATED = ("sm-manager/sm_manager/web", "sm-manager/node_modules",
+             "sm-manager/frontend/node_modules", "sm-manager/integrations/ovis/app/node_modules")
 
 
 def run(args, *, cwd=None, check=True, env=None, timeout=45):
@@ -45,6 +48,56 @@ def validate(checkout):
             raise RuntimeError("The candidate is missing SM Manager or its tests")
         run([sys.executable, "-m", "unittest", "discover", "-s", "tests"],
             cwd=checkout, env=env, timeout=120)
+        if (checkout / "frontend/package.json").is_file():
+            bun = os.environ.get("SM_MANAGER_BUN") or shutil.which("bun")
+            if not bun:
+                raise RuntimeError("React updates require Bun; set SM_MANAGER_BUN to its executable")
+            env["PATH"] = str(Path(bun).parent) + os.pathsep + env.get("PATH", "")
+            version = run([bun, "--version"], env=env).stdout.strip()
+            expected = json.loads((checkout / "package.json").read_text())["packageManager"].split("@", 1)[1]
+            if version != expected:
+                raise RuntimeError(f"This release requires Bun {expected}, found {version}")
+            run([bun, "install", "--frozen-lockfile"], cwd=checkout, env=env, timeout=600)
+            for command in ("typecheck", "test:unit", "build"):
+                run([bun, "run", command], cwd=checkout, env=env, timeout=600)
+            web = checkout / "sm_manager/web"
+            if not (web / "index.html").is_file() or not (web / ".vite/manifest.json").is_file():
+                raise RuntimeError("The candidate produced no console build manifest")
+            (web / "release.json").write_text(json.dumps({
+                "revision": git(checkout, "rev-parse", "HEAD").stdout.strip(),
+                "bun": version, "built_at": time.time(),
+            }) + "\n")
+
+
+def exchange_artifacts(candidate, checkout, backup):
+    """Move validated artifacts on the same filesystem; record every move for recovery."""
+    moved = []
+    try:
+        for index, name in enumerate(GENERATED):
+            source, destination = candidate / name, checkout / name
+            if not source.exists():
+                continue
+            previous = backup / str(index)
+            had_previous = destination.exists()
+            if had_previous:
+                destination.rename(previous)
+            moved.append((destination, previous, had_previous))
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            source.rename(destination)
+        return moved
+    except BaseException:
+        restore_artifacts(moved)
+        raise
+
+
+def restore_artifacts(moved):
+    for destination, previous, had_previous in reversed(moved):
+        if destination.is_symlink() or destination.is_file():
+            destination.unlink()
+        elif destination.exists():
+            shutil.rmtree(destination)
+        if had_previous:
+            previous.rename(destination)
 
 
 def provision(directory, remote, config_path):
@@ -125,6 +178,11 @@ class Deployment:
             return self._refresh(prepare)
 
     def _refresh(self, prepare):
+        retained = self.directory / "previous-artifacts"
+        if retained.exists() or retained.is_symlink():
+            marker = retained / "release.json"
+            if retained.is_symlink() or not marker.is_file() or json.loads(marker.read_text()).get("owner") != BACKUP_OWNER:
+                raise RuntimeError("Refusing to replace unrelated previous-artifacts directory")
         previous = self.check_checkout()
         git(self.checkout, "fetch", "--no-tags", "origin", "+refs/heads/main:refs/remotes/origin/main")
         target = git(self.checkout, "rev-parse", "refs/remotes/origin/main").stdout.strip()
@@ -139,27 +197,38 @@ class Deployment:
             git(self.directory, "clone", "--shared", "--no-checkout", "--", str(self.checkout), str(candidate))
             git(candidate, "checkout", "--detach", target)
             validate(candidate)
-        if self.check_checkout() != previous:
-            raise RuntimeError("Runtime checkout changed during validation; update cancelled")
-        active = not prepare and self.service("is-active", check=False).returncode == 0
-        if active:
-            self.service("stop")
-        try:
-            git(self.checkout, "merge", "--ff-only", "--no-edit", target)
-            if active:
-                self.service("start")
-                if not self.healthy():
-                    raise RuntimeError("Updated service did not become healthy")
-        except ERRORS:
-            # This is exclusively our clean runtime clone, never a user's tree.
-            # Stop any failing new process before restoring the previously tested code.
+            if self.check_checkout() != previous:
+                raise RuntimeError("Runtime checkout changed during validation; update cancelled")
+            active = not prepare and self.service("is-active", check=False).returncode == 0
             if active:
                 self.service("stop")
-            git(self.checkout, "reset", "--hard", previous)
-            if active:
-                self.service("start")
-            print(f"Restored previous revision {previous[:12]}.", flush=True)
-            raise
+            backup = Path(temporary) / "previous-artifacts"
+            backup.mkdir()
+            moved = []
+            try:
+                git(self.checkout, "merge", "--ff-only", "--no-edit", target)
+                moved = exchange_artifacts(candidate, self.checkout, backup)
+                if active:
+                    self.service("start")
+                    if not self.healthy():
+                        raise RuntimeError("Updated service did not become healthy")
+            except ERRORS:
+                # Exclusively our clean runtime clone. Restore code and build together.
+                if active:
+                    self.service("stop")
+                restore_artifacts(moved)
+                git(self.checkout, "reset", "--hard", previous)
+                if active:
+                    self.service("start")
+                print(f"Restored previous revision {previous[:12]}.", flush=True)
+                raise
+            # Keep the previous generated artifacts, with the source commit still in
+            # this clone, until a later successful update. Never copy private state.
+            if retained.exists():
+                shutil.rmtree(retained)
+            backup.rename(retained)
+            (retained / "release.json").write_text(json.dumps({"owner": BACKUP_OWNER, "revision": previous,
+                "paths": {str(i): name for i, name in enumerate(GENERATED) if (retained / str(i)).exists()}}) + "\n")
         print(f"Installed main at {target[:12]}.", flush=True)
         return True
 
