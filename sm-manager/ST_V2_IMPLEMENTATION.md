@@ -821,3 +821,18 @@ Collapsed and phone layouts retain their open/close controls; standalone Ovis
 keeps its own header. Demo browser checks cover collapsing, reopening, mobile
 drawers, chat/terminal switching, settings and unsent draft retention. Private
 before/after screenshots were captured from synthetic demo conversations.
+
+## Planner appearance consolidated — 2026-11-24
+
+The shared theme adapter removes the duplicate Tasks & Calendar logo row while
+retaining global search, and gives planner navigation, inputs, task rows and
+calendar grids the ST surfaces, borders, selection colors and compact typography.
+Primary text now uses the readable accent rather than the dark button-fill color.
+Both console and Workmode palettes use the same rules; mobile touch sizing stays
+intact. The pinned DAVe backend/source is unchanged.
+
+Validated the real compiled planner UI with synthetic task/calendar APIs on a
+loopback fixture: desktop tasks/calendar, global search, task draft retention
+through a Workmode switch, phone calendar/menu, no page errors or overflow.
+Private before/after screenshots cover tasks, calendar and phone layouts.
+Theme generation checks, unit tests and console browser acceptance passed.

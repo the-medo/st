@@ -13,7 +13,7 @@
   --card-foreground: var(--st-ink);
   --popover: var(--st-paper);
   --popover-foreground: var(--st-ink);
-  --primary: var(--st-primary-bg);
+  --primary: var(--st-accent);
   --primary-foreground: var(--st-primary-ink);
   --secondary: var(--st-surface);
   --secondary-foreground: var(--st-ink);
@@ -26,7 +26,7 @@
   --ring: var(--st-accent);
   --destructive: var(--st-danger);
   --destructive-foreground: var(--st-bg);
-  --radius: var(--st-radius-dialog);
+  --radius: var(--st-radius-panel);
   --spacing: var(--st-space-1);
   --fc-border-color: var(--st-line);
   --fc-page-bg-color: var(--st-bg);
@@ -51,4 +51,176 @@
 }
 [data-st-theme-controls] > div {
   display: none;
+}
+
+/* Compact desktop density; phones retain DAVe's normal text and touch sizing. */
+@media (min-width: 768px) {
+  :root[data-st-theme] {
+    font-size: 14px;
+  }
+}
+@scope (:root[data-st-theme]) {
+  /* The host sidebar is the single home/brand destination. */
+  a[aria-label="ST home"] {
+    display: none;
+  }
+  aside:has(nav[aria-label="Planner navigation"]) {
+    background: var(--st-sidebar-bg);
+  }
+  nav[aria-label="Planner navigation"] a {
+    border: 1px solid transparent;
+    font-weight: 400;
+    border-radius: var(--st-radius-control);
+  }
+  nav[aria-label="Planner navigation"] a[aria-current="page"] {
+    color: var(--st-selected-ink);
+    background: var(--st-selected-bg);
+    border-color: var(--st-selected-line);
+  }
+  nav[aria-label="Planner navigation"] a:hover {
+    color: var(--st-ink);
+    background: var(--st-hover-bg);
+  }
+  aside h3 {
+    font-family: var(--st-font-mono);
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    color: var(--st-muted);
+  }
+  .bg-primary {
+    background: var(--st-primary-bg);
+    color: var(--st-primary-ink);
+  }
+  button.bg-primary {
+    box-shadow: inset 0 0 0 1px var(--st-primary-line);
+  }
+  button.bg-primary:hover:not(:disabled) {
+    background: var(--st-selected-line);
+  }
+  button:is([aria-label="Mark incomplete"], [aria-label="Deselect task"]) {
+    background: var(--st-accent);
+    border-color: var(--st-accent);
+  }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(
+      [type="color"]
+    ),
+  select,
+  textarea {
+    background-color: var(--st-surface);
+    border-color: var(--st-line);
+    border-radius: var(--st-radius-control);
+    color: var(--st-ink);
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--st-muted);
+  }
+  input[type="checkbox"] {
+    accent-color: var(--st-accent);
+  }
+  :is(button, a, input, select, textarea):focus-visible {
+    outline: 2px solid var(--st-accent);
+    outline-offset: 2px;
+  }
+  /* List rows use the same blue-gray surfaces and fine borders as ST projects. */
+  div[data-uid] {
+    margin: 6px 10px;
+    background: var(--st-row-bg);
+    border: 1px solid var(--st-line);
+    border-radius: var(--st-radius-panel);
+  }
+  div[data-uid]:hover {
+    background: var(--st-row-hover);
+    border-color: var(--st-hover-line);
+  }
+  div[data-uid]:is([class~="bg-primary/5"], [class~="bg-primary/10"]) {
+    background: var(--st-selected-bg);
+    border-color: var(--st-selected-line);
+  }
+  main .border-b:has(> button.bg-primary) {
+    background: var(--st-paper);
+  }
+  .fc .fc-toolbar-title {
+    font: 500 16px/1.5 var(--st-font-mono);
+    color: var(--st-ink);
+  }
+  .fc .fc-toolbar.fc-header-toolbar {
+    padding-bottom: var(--st-space-3);
+    margin-bottom: var(--st-space-3);
+    border-bottom: 1px solid var(--st-line);
+  }
+  .fc .fc-button {
+    font-family: var(--st-font-mono);
+    border-radius: var(--st-radius-control);
+  }
+  .fc .fc-col-header-cell {
+    padding-block: 4px;
+    background: var(--st-surface);
+    color: var(--st-muted);
+    font: 500 11px/1.5 var(--st-font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .fc .fc-daygrid-day {
+    background: var(--st-paper);
+  }
+  .fc .fc-daygrid-day:is(.fc-day-sat, .fc-day-sun) {
+    background: var(--st-table-bg);
+  }
+  .fc .fc-daygrid-day.fc-day-today {
+    background: var(--st-selected-bg);
+  }
+  .fc .fc-daygrid-day-number {
+    padding: 5px 8px;
+    font: 11px/1.5 var(--st-font-mono);
+    color: var(--st-muted);
+  }
+  .fc .fc-day-today .fc-daygrid-day-number {
+    color: var(--st-selected-ink);
+    font-weight: 700;
+  }
+  .fc .fc-timegrid-slot-label,
+  .fc .fc-timegrid-axis {
+    color: var(--st-muted);
+    font-family: var(--st-font-mono);
+  }
+}
+@media (min-width: 768px) {
+  @scope (:root[data-st-theme]) {
+    aside:has(nav[aria-label="Planner navigation"]) {
+      position: relative;
+    }
+    /* Keep global search beside the first destination without a brand row. */
+    aside > div:has(a[aria-label="ST home"]) {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1;
+      padding: 0;
+      border: 0;
+      gap: 4px;
+    }
+    aside > div:has(a[aria-label="ST home"]) > div {
+      display: none;
+    }
+    aside > div:has(a[aria-label="ST home"]) > button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: var(--st-radius-control);
+    }
+    aside > div:has(a[aria-label="ST home"]) > button:hover {
+      background: var(--st-hover-bg);
+    }
+    nav[aria-label="Planner navigation"] a:first-child {
+      padding-right: 54px;
+    }
+  }
+}
+@media (max-width: 767px) {
+  :root[data-st-theme] aside > div:has(a[aria-label="ST home"]) {
+    display: none;
+  }
 }

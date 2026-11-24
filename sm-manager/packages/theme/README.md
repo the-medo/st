@@ -40,3 +40,11 @@ palette and semantic role system were reviewed; the adapter keeps that role
 structure, chat density, status meaning and touch targets while using the host's
 established colors and shapes. Home service illustrations retain their distinct
 category accents. This package does not introduce a new light theme.
+
+The planner adapter also owns its hosted presentation: compact desktop text,
+ST task-row surfaces, calendar grid/toolbar treatment and primary controls.
+Its navigation uses the semantic `Planner navigation` label, and its duplicate
+`ST home` brand is hidden while global search stays beside the first destination.
+Those selectors match the pinned DAVe integration; review them when updating
+`integrations/dave/upstream.json`. Mobile menu/search controls retain their
+original sizing. Calendar/project colors remain user-selected accents.
