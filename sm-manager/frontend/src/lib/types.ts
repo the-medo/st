@@ -133,7 +133,7 @@ export type History = {
 };
 export type ZedTree = {
   path: string;
-  branch: string;
+  branch?: string;
   name?: string;
   is_main?: boolean;
   revision?: string;
@@ -155,8 +155,8 @@ export type Database = {
   name: string;
   database: string;
   engine: string;
-  host?: string;
-  port?: number;
+  host?: string | null;
+  port?: number | null;
   status: string;
   cloudbeaver_url?: string;
   group?: string;
@@ -167,8 +167,8 @@ export type Database = {
     primary_path: string;
     worktree_path: string;
     worktree: string;
-    branch: string;
-  };
+    branch: string | null;
+  } | null;
 };
 export type DbCatalog = {
   connections: Database[];

@@ -836,3 +836,25 @@ loopback fixture: desktop tasks/calendar, global search, task draft retention
 through a Workmode switch, phone calendar/menu, no page errors or overflow.
 Private before/after screenshots cover tasks, calendar and phone layouts.
 Theme generation checks, unit tests and console browser acceptance passed.
+
+## Zed and database catalog layout — 2026-11-24
+
+Zed and DB tables now share fixed column sizing across all project groups.
+Zed/CloudBeaver actions use their existing launch icons with descriptive accessible
+labels; database chooser rows retain names beside the icon. Database tables have
+an engine logo first, branch second, separate Connection and Database columns,
+endpoint, status badge and launch action. All worktrees stay in their repository's
+table; long values truncate without affecting column widths. The source catalog
+contains a connection label and database name, not a schema, so the UI preserves
+those actual field names.
+
+Branch details use a styled top-layer tooltip with full branch, worktree, path,
+connection/database names and endpoint. Hover, focus and tap open it; Escape or
+outside interaction dismiss it. Engine artwork is bundled from Devicon with its
+license. Available/configured/stopped/unreachable statuses use shared theme colors.
+
+TypeScript, production build, 12 unit tests and console browser acceptance passed.
+Synthetic browser checks cover different-length values across multiple projects,
+engine image loading, status colors, link destinations, stale/disabled launches,
+tooltip full values, keyboard dismissal, phone taps and viewport bounds.
+Private screenshots were captured from fixtures only.

@@ -1,9 +1,61 @@
 import { useState } from "react";
 import { api, bytes, ago, usePoll } from "../lib/api";
 import { Empty, Panel, Notice } from "../components/Ui";
-import { CheckoutActions, DbLink, useMonitor } from "./MonitorContext";
+import { CheckoutActions, DbLink, ZedLink, useMonitor } from "./MonitorContext";
+import { DetailsTooltip } from "../components/DetailsTooltip";
+import postgresIcon from "../assets/engines/postgresql.svg";
+import sqlserverIcon from "../assets/engines/sqlserver.svg";
 import { WorktreeDetail } from "./Resources";
-import type { Database, DiskUsage } from "../lib/types";
+import type { Database, DiskUsage, ZedTree } from "../lib/types";
+function ZedRows({ worktrees }: { worktrees: ZedTree[] }) {
+  return (
+    <div className="st-table-scroll">
+      <table className="st-catalog-table st-zed-table">
+        <colgroup>
+          <col className="st-col-checkout" />
+          <col />
+          <col className="st-col-open" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th scope="col">Checkout</th>
+            <th scope="col">Revision</th>
+            <th scope="col" className="st-catalog-icon-cell">
+              Open
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {worktrees.map((w) => (
+            <tr key={w.path}>
+              <td>
+                <span className="st-ellipsis" title={w.name ?? w.path}>
+                  {w.name ?? w.path}
+                  {w.is_main ? " [main]" : ""}
+                </span>
+                <code className="st-ellipsis" title={w.path}>
+                  {w.path}
+                </code>
+              </td>
+              <td>
+                <span className="st-ellipsis" title={w.revision ?? w.branch}>
+                  {w.revision ?? w.branch ?? "—"}
+                </span>
+              </td>
+              <td className="st-catalog-icon-cell">
+                {w.zed_url ? (
+                  <ZedLink url={w.zed_url} path={w.path} />
+                ) : (
+                  <span title="Zed launch unavailable">—</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 export function Zed() {
   const { zed, scope, workmode } = useMonitor();
   const groups = workmode ? scope.groups : (zed.data?.groups ?? []);
@@ -15,36 +67,7 @@ export function Zed() {
           {g.repositories.map((r) => (
             <section key={r.primary_path}>
               <h3>{r.name}</h3>
-              <div className="st-table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Checkout</th>
-                      <th>Revision</th>
-                      <th>Open</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {r.worktrees.map((w) => (
-                      <tr key={w.path}>
-                        <td>
-                          {w.name}
-                          {w.is_main ? " [main]" : ""}
-                          <code>{w.path}</code>
-                        </td>
-                        <td>{w.revision}</td>
-                        <td>
-                          {w.zed_url ? (
-                            <a href={w.zed_url}>Open in Zed ↗</a>
-                          ) : (
-                            "Unavailable"
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ZedRows worktrees={r.worktrees} />
             </section>
           ))}
         </Panel>
@@ -56,12 +79,7 @@ export function Zed() {
       )}
       {!workmode && !!zed.data?.monitor_only?.length && (
         <Panel title="Other discovered checkouts">
-          {zed.data.monitor_only.map((w) => (
-            <p key={w.path}>
-              <a href={w.zed_url}>{w.name} ↗</a>
-              <code>{w.path}</code>
-            </p>
-          ))}
+          <ZedRows worktrees={zed.data.monitor_only} />
         </Panel>
       )}
     </>
@@ -76,34 +94,121 @@ function groupBy<T>(values: T[], key: (v: T) => string) {
     }, new Map<string, T[]>()),
   ];
 }
+function EngineIcon({ engine }: { engine: string }) {
+  const key = engine.toLowerCase();
+  const src = /postgres/.test(key)
+    ? postgresIcon
+    : /microsoft sql|sql server|mssql|sqlserver/.test(key)
+      ? sqlserverIcon
+      : "/db.svg";
+  return (
+    <img
+      className="st-engine-icon"
+      src={src}
+      alt={engine}
+      title={engine}
+      width="22"
+      height="22"
+    />
+  );
+}
 function DbRows({ items, stale }: { items: Database[]; stale: boolean }) {
   return (
     <div className="st-table-scroll">
-      <table>
+      <table className="st-catalog-table st-db-table">
+        <colgroup>
+          <col className="st-col-engine" />
+          <col className="st-col-branch" />
+          <col className="st-col-connection" />
+          <col className="st-col-database" />
+          <col />
+          <col className="st-col-status" />
+          <col className="st-col-open" />
+        </colgroup>
         <thead>
           <tr>
-            <th>Database</th>
-            <th>Engine</th>
-            <th>Endpoint</th>
-            <th>Status</th>
-            <th>Open</th>
+            <th scope="col" aria-label="Engine">
+              <span className="st-sr-only">Engine</span>
+            </th>
+            <th scope="col">Branch</th>
+            <th scope="col">Connection</th>
+            <th scope="col">Database</th>
+            <th scope="col">Endpoint</th>
+            <th scope="col">Status</th>
+            <th scope="col" className="st-catalog-icon-cell">
+              Open
+            </th>
           </tr>
         </thead>
         <tbody>
-          {items.map((d, i) => (
-            <tr key={d.id ?? i}>
-              <td>
-                {d.name}
-                <small>{d.database}</small>
-              </td>
-              <td>{d.engine}</td>
-              <td>{[d.host, d.port].filter((v) => v != null).join(":")}</td>
-              <td>{d.status}</td>
-              <td>
-                {!stale && d.status === "available" ? <DbLink db={d} /> : null}
-              </td>
-            </tr>
-          ))}
+          {items.map((d) => {
+            const branch = d.owner?.branch || "—";
+            const host =
+              d.host?.includes(":") && !d.host.startsWith("[")
+                ? `[${d.host}]`
+                : d.host;
+            const endpoint =
+              [host, d.port].filter((v) => v != null).join(":") || "—";
+            return (
+              <tr key={d.id}>
+                <td className="st-catalog-icon-cell">
+                  <EngineIcon engine={d.engine} />
+                </td>
+                <td>
+                  <DetailsTooltip label={branch}>
+                    <strong className="st-details-title">
+                      Database connection
+                    </strong>
+                    <dl>
+                      <dt>Branch</dt>
+                      <dd>
+                        {d.owner
+                          ? d.owner.branch || "Branch unavailable"
+                          : "Not associated with a checkout"}
+                      </dd>
+                      <dt>Worktree</dt>
+                      <dd>{d.owner?.worktree || "—"}</dd>
+                      <dt>Path</dt>
+                      <dd>{d.owner?.worktree_path || "—"}</dd>
+                      <dt>Connection</dt>
+                      <dd>{d.name}</dd>
+                      <dt>Database</dt>
+                      <dd>{d.database}</dd>
+                      <dt>Engine</dt>
+                      <dd>{d.engine}</dd>
+                      <dt>Endpoint</dt>
+                      <dd>{endpoint}</dd>
+                    </dl>
+                  </DetailsTooltip>
+                </td>
+                <td>
+                  <span className="st-ellipsis" title={d.name}>
+                    {d.name}
+                  </span>
+                </td>
+                <td>
+                  <span className="st-ellipsis" title={d.database}>
+                    {d.database}
+                  </span>
+                </td>
+                <td>
+                  <span className="st-ellipsis" title={endpoint}>
+                    {endpoint}
+                  </span>
+                </td>
+                <td>
+                  <span className="st-db-status" data-status={d.status}>
+                    {d.status}
+                  </span>
+                </td>
+                <td className="st-catalog-icon-cell">
+                  {!stale && d.status === "available" ? (
+                    <DbLink db={d} />
+                  ) : null}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -133,22 +238,11 @@ export function Dbs() {
         (d) => d.owner?.group ?? d.group ?? "Unassigned",
       ).map(([group, items]) => (
         <Panel key={group} title={group}>
-          {groupBy(items, (d) => d.owner?.repository ?? "").map(
+          {groupBy(items, (d) => d.owner?.primary_path ?? "").map(
             ([repo, rows]) => (
               <section key={repo}>
-                {repo && <h3>{repo}</h3>}
-                {groupBy(rows, (d) => d.owner?.worktree_path ?? "").map(
-                  ([path, dbs]) => (
-                    <div key={path}>
-                      {path && (
-                        <h4 title={path}>
-                          {dbs[0]?.owner?.worktree} · {dbs[0]?.owner?.branch}
-                        </h4>
-                      )}
-                      <DbRows items={dbs} stale={stale} />
-                    </div>
-                  ),
-                )}
+                {repo && <h3>{rows[0]?.owner?.repository}</h3>}
+                <DbRows items={rows} stale={stale} />
               </section>
             ),
           )}

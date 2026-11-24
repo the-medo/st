@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { useLocation } from "react-router";
-import { api, bytes, percent, usePoll } from "../lib/api";
+import { api, bytes, percent, safeUrl, usePoll } from "../lib/api";
 import type { Snapshot, ZedCatalog, DbCatalog, Database } from "../lib/types";
 import { workScope, isWorkmode } from "../lib/workmode";
 import { Modal, Notice } from "../components/Ui";
@@ -65,16 +65,18 @@ export function CheckoutActions({
       );
   return (
     <span className="st-actions">
-      {tree?.zed_url && (
-        <a href={tree.zed_url} title={`Open ${path} in Zed`}>
-          Zed ↗
-        </a>
-      )}
+      {tree?.zed_url && <ZedLink url={tree.zed_url} path={path} />}
       {matches.length === 1 ? (
         <DbLink db={matches[0]!} />
       ) : matches.length > 1 ? (
-        <button onClick={() => setChoose(true)}>
-          Databases ({matches.length})
+        <button
+          className="st-launch"
+          onClick={() => setChoose(true)}
+          aria-haspopup="dialog"
+          aria-label={`Choose from ${matches.length} databases`}
+          title={`Choose from ${matches.length} databases`}
+        >
+          <img src="/db.svg" alt="" width="17" height="17" />
         </button>
       ) : null}
       {choose && (
@@ -83,7 +85,11 @@ export function CheckoutActions({
             <Notice>The catalog is stale. Waiting for a fresh check.</Notice>
           ) : (
             matches.map((d) => (
-              <p key={d.id}>
+              <p key={d.id} className="st-db-choice">
+                <span>
+                  <strong>{d.name}</strong>
+                  <small>{d.database}</small>
+                </span>
                 <DbLink db={d} />
               </p>
             ))
@@ -93,10 +99,28 @@ export function CheckoutActions({
     </span>
   );
 }
+export function ZedLink({ url, path }: { url: string; path: string }) {
+  const href = safeUrl(url, ["zed:"]);
+  const label = `Open ${path} in Zed`;
+  return href ? (
+    <a className="st-launch" href={href} aria-label={label} title={label}>
+      <img src="/zed.svg" alt="" width="17" height="17" />
+    </a>
+  ) : null;
+}
 export function DbLink({ db }: { db: Database }) {
-  return db.cloudbeaver_url ? (
-    <a href={db.cloudbeaver_url} target="_blank" rel="noopener noreferrer">
-      {db.name || db.database} ↗
+  const href = safeUrl(db.cloudbeaver_url, ["https:"]);
+  const label = `Open ${db.name} · ${db.database} in CloudBeaver`;
+  return href ? (
+    <a
+      className="st-launch"
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={label}
+      title={label}
+    >
+      <img src="/db.svg" alt="" width="17" height="17" />
     </a>
   ) : null;
 }

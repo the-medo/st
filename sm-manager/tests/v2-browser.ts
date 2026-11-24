@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import assert from "node:assert/strict";
 import { fixtureApi } from "./v2-fixtures";
+import { verifyCatalogs } from "./catalog-browser";
 const root = resolve("sm_manager/web");
 const planner = `<!doctype html><html><head><link rel="stylesheet" href="/st-theme.css"><link rel="stylesheet" href="/st-planner.css"><script src="/st-planner.js"></script></head><body><h1>Fixture planner</h1><input aria-label="Task title"><button id="home">ST home</button><script>document.querySelector('#home').onclick=()=>parent.postMessage({type:'st:home'},location.origin);parent.postMessage({type:'st:ready',path:'/planner/tasks'},location.origin);window.addEventListener('message',e=>{if(e.origin!==location.origin)return;if(e.data.type==='st:navigate')parent.postMessage({type:'st:navigated',path:e.data.path},location.origin);});</script></body></html>`;
 const server = Bun.serve({
@@ -105,6 +106,7 @@ try {
     );
     assert(!(await page.getByText("Page not found.").count()), route);
   }
+  await verifyCatalogs(page, base);
   await page.goto(`${base}/overview`);
   await page.getByRole("combobox", { name: /^Range/ }).selectOption("0.25");
   const overviewChart = page.locator(".st-chart").first();
@@ -331,7 +333,7 @@ try {
   }
   assert.deepEqual(errors, []);
   console.log(
-    "Console browser acceptance passed: routes, history, worktree detail, planner draft, night mode, mobile navigation, and mouse/keyboard/touch chart tooltips.",
+    "Console browser acceptance passed: routes, history, worktree detail, planner draft, night mode, mobile navigation, aligned catalogs, and mouse/keyboard/touch tooltips.",
   );
 } finally {
   await browser.close();
