@@ -31,6 +31,14 @@ def paths(config):
     return base, base / 'monitor.json', base / 'gateway.json', base / 'ovis.env'
 
 
+def unit_path(path):
+    # EnvironmentFile is one absolute path, not an ExecStart-style quoted word.
+    value = str(path)
+    if not Path(value).is_absolute() or any(ord(char) < 32 or ord(char) == 127 for char in value):
+        raise ValueError('Systemd environment files require an absolute path without control characters')
+    return value.replace('%', '%%')
+
+
 def render_units(config, runtime, service_path):
     settings = config['v2']
     base, monitor_path, gateway_path, environment = paths(config)
@@ -84,7 +92,7 @@ TimeoutStopSec=10
     monitor_unit = unit('ST resource monitor', [sys.executable, '-m', 'sm_manager', '--config', monitor_path, 'serve'],
                         child_relation, 'Restart=on-failure\nRestartSec=3\n')
     ovis_unit = unit('ST Agents web bridge', [bun, runtime / 'services/ovis/index.ts'], child_relation,
-        f'EnvironmentFile={manage.unit_quote(settings["env_file"])}\nEnvironmentFile={manage.unit_quote(environment)}\nRestart=on-failure\nRestartSec=3\n')
+        f'EnvironmentFile={unit_path(settings["env_file"])}\nEnvironmentFile={unit_path(environment)}\nRestart=on-failure\nRestartSec=3\n')
     prepare = unit('Prepare the installed ST release', [sys.executable, Path(config['deployment_dir']) / 'updater.py', 'prepare'],
                    f'Before={MONITOR} {OVIS} {manage.SERVICE}', kind='oneshot')
     return {manage.SERVICE: main, MONITOR: monitor_unit, OVIS: ovis_unit, PREPARE: prepare}
