@@ -15,10 +15,14 @@ import sys
 import time
 import uuid
 
-ROOT = Path(__file__).resolve().parent
-CODEX_HOME = Path.home() / '.codex'
-HC = str(Path.home() / '.local/bin/hc')
-CODEX = str(Path.home() / '.local/bin/codex')
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+    __package__ = 'integrations.ovis.bridge'
+
+ROOT = Path(os.environ.get('ST_OVIS_SIDEBAR_DATA', os.environ.get('MEDO_SIDEBAR_ROOT', str(Path.home()/'.local/share/st-ovis/sidebar')))).expanduser()
+CODEX_HOME = Path(os.environ.get('CODEX_HOME', str(Path.home()/'.codex'))).expanduser()
+HC = os.environ.get('ST_OVIS_HC_BIN', str(Path.home()/'.local/bin/hc'))
+CODEX = os.environ.get('ST_OVIS_CODEX_BIN', str(Path.home()/'.local/bin/codex'))
 
 
 def config():
@@ -49,7 +53,7 @@ def project_for(row, cfg):
     if len(aliases) == 1:
         return aliases[0]['id']
     matches = sorted((p for p in projects if inside(cwd, p['path'])), key=lambda p: len(p['path']), reverse=True)
-    if matches and matches[0]['path'] != '/home/medo/dev':
+    if matches and matches[0]['path'] != cfg.get('workspaceRoot', str(Path.home()/'dev')):
         return matches[0]['id']
     remote = origin(row.get('git_origin_url'))
     owners = [p for p in projects if remote and remote in p.get('origins', [])]
@@ -89,7 +93,7 @@ def display(row, cfg):
 
 
 def catalog(cfg=None, rows=None):
-    import organization
+    from . import organization
     cfg = cfg or config()
     chats = [display(r, cfg) for r in (rows if rows is not None else read_rows())]
     saved = json.loads((ROOT / 'appearance.json').read_text()) if (ROOT / 'appearance.json').is_file() else {}
@@ -189,7 +193,7 @@ def launch(thread_id):
     project_id = item['project']
     cwd, title = item['cwd'], item['title']
     token = thread_id.replace('-', '')[:28]
-    argv = [sys.executable, str(ROOT / 'server.py'), 'resume', thread_id]
+    argv = [sys.executable, str(Path(__file__).resolve()), 'resume', thread_id]
     name = 'cx-' + token
     space, tab = 'codex-' + project_id, 'codex-' + token
     state = Path.home() / '.local/state/herdr-codex-sidebar'
@@ -215,7 +219,7 @@ def main():
     if args.command == 'index':
         result = catalog()
         try:
-            from chat_service import request, SOCKET
+            from .chat_service import request, SOCKET
             result['activity'] = request({'operation': 'activity'}) if SOCKET.exists() else {}
         except Exception:
             result['activity'] = {}
@@ -228,14 +232,14 @@ def main():
     elif args.command == 'icon-get':
         result = get_icon(args.id)
     elif args.command == 'organize':
-        import organization
+        from . import organization
         cfg = config()
         rows = read_rows()
         result = organization.update(ROOT, {p['id'] for p in cfg['projects']} | {'other'},
                                      {r['id']: project_for(r, cfg) for r in rows},
                                      json.loads(''.join([args.id or '', *args.payload])))
     elif args.command == 'chat':
-        from chat_service import request
+        from .chat_service import request
         result = request(json.loads(''.join([args.id or '', *args.payload])))
     else:
         row, item = checked_thread(args.id)

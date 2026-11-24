@@ -8,11 +8,10 @@ import re
 import sys
 import uuid
 
-root = Path(os.environ.get('MEDO_SIDEBAR_ROOT', '/home/medo/dev/herdr-codex-sidebar'))
-sys.path.insert(0, str(root))
-import server as sidebar
-import organization
-from chat_service import request, Bridge
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+from integrations.ovis.bridge import server as sidebar, organization
+from integrations.ovis.bridge.chat_service import request, Bridge
+root = sidebar.ROOT
 
 
 def terminal_thread(terminal, rows):
@@ -44,7 +43,7 @@ def launch(project, thread=None, title="New conversation"):
                 if detail.get('labels', {}).get('medo.ovis.project') and terminal_thread(detail, rows) == thread:
                     return {'address':terminal['address'], 'reused':True}
         key = uuid.uuid4().hex[:20]
-        args = [sidebar.CODEX, '--remote', 'unix://' + str(Path.home()/'.codex/app-server-control/app-server-control.sock'), '-c', 'tui.terminal_title=["thread-id"]']
+        args = [sidebar.CODEX, '--remote', 'unix://' + str(os.environ.get('ST_OVIS_CODEX_SOCKET') or sidebar.CODEX_HOME/'app-server-control/app-server-control.sock'), '-c', 'tui.terminal_title=["thread-id"]']
         if thread: args += ['resume', '--cd', project['path'], thread]
         else: args += ['--cd', project['path']]
         result = sidebar.hc('run', '--bg', '--keep', '--no-parent', '--json', '--name', 'ovis-'+key,

@@ -24,7 +24,7 @@ class DaemonConnection:
         self.buffer = bytearray()
         self.stdin = self.stdout = self
         self.socket.settimeout(10)
-        self.socket.connect(str(path or Path.home()/'.codex/app-server-control/app-server-control.sock'))
+        self.socket.connect(str(path or os.environ.get('ST_OVIS_CODEX_SOCKET') or Path(os.environ.get('CODEX_HOME', str(Path.home()/'.codex')))/'app-server-control/app-server-control.sock'))
         if hasattr(socket, 'SO_PEERCRED'):
             _, uid, _ = struct.unpack('3i', self.socket.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
             if uid != os.getuid():

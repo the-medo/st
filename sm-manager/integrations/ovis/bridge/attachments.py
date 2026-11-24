@@ -1,4 +1,5 @@
 """Private, chunked attachments uploaded from the desktop that chose them."""
+import os
 import base64
 import fcntl
 import hashlib
@@ -7,7 +8,7 @@ from pathlib import Path
 import re
 import uuid
 
-ROOT = Path.home()/'.local/share/herdr-codex-attachments'
+ROOT = Path(os.environ.get('ST_OVIS_ATTACHMENTS', str(Path.home()/'.local/share/herdr-codex-attachments'))).expanduser()
 MAX_FILE = 20*1024*1024
 
 

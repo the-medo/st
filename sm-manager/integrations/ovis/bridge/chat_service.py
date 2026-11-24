@@ -21,11 +21,11 @@ import time
 import uuid
 from urllib.parse import unquote, urlsplit
 
-import server
-import attachments
-from daemon_transport import DaemonConnection
+from . import server
+from . import attachments
+from .daemon_transport import DaemonConnection
 
-SOCKET = Path(os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}')) / 'herdr-codex-chat.sock'
+SOCKET = Path(os.environ.get('ST_OVIS_CHAT_SOCKET', str(Path(os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}')) / 'herdr-codex-chat.sock')))
 MAX_REQUEST = 1024 * 1024
 
 

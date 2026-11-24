@@ -8,9 +8,9 @@ import threading
 import unittest
 from unittest.mock import Mock, patch
 
-import chat_service
-import attachments
-import organization
+from integrations.ovis.bridge import chat_service
+from integrations.ovis.bridge import attachments
+from integrations.ovis.bridge import organization
 
 
 class FolderTests(unittest.TestCase):
@@ -193,10 +193,10 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual([i['phase'] for i in turn['items']], ['commentary', 'final_answer'])
 
     def test_desktop_attachment_wrapper_becomes_file_chips(self):
-        text = '# Files mentioned by the user:\n\n## screenshot.png: /home/medo/screenshot.png\nImage attachment: true\n\n## My request:\nPlease compare these.\n[image]'
+        text = '# Files mentioned by the user:\n\n## screenshot.png: /home/example/screenshot.png\nImage attachment: true\n\n## My request:\nPlease compare these.\n[image]'
         item = chat_service.normalize_item({'id':'u','type':'userMessage','content':[{'type':'text','text':text}]})
         self.assertEqual(item['text'], 'Please compare these.')
-        self.assertEqual(item['attachments'], [{'name':'screenshot.png','path':'/home/medo/screenshot.png'}])
+        self.assertEqual(item['attachments'], [{'name':'screenshot.png','path':'/home/example/screenshot.png'}])
 
 
 class FilePreviewTests(unittest.TestCase):

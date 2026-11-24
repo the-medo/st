@@ -6,7 +6,7 @@ import sqlite3
 import tempfile
 import unittest
 from unittest.mock import patch
-import server
+from integrations.ovis.bridge import server
 
 
 class SidebarTests(unittest.TestCase):
@@ -14,18 +14,18 @@ class SidebarTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
-        self.cfg = {'coreId':'test', 'projects':[
-            {'id':'root','name':'Root','path':'/home/medo/dev'},
-            {'id':'a','name':'App','path':'/home/medo/dev/app','origins':['github.com/me/app']},
+        self.cfg = {'coreId':'test', 'workspaceRoot':'/home/example/dev', 'projects':[
+            {'id':'root','name':'Root','path':'/home/example/dev'},
+            {'id':'a','name':'App','path':'/home/example/dev/app','origins':['github.com/me/app']},
         ], 'threadProjects':{}}
         self.row = {'id':'c','name':'Renamed chat','title':'Original long prompt','cwd':str(self.root),
                     'rollout_path':str(self.root/'missing.jsonl'),'updated_at':10,'archived':0,
                     'source':'vscode','history_mode':'paginated'}
 
     def test_project_prefix_and_removed_worktree(self):
-        row = dict(self.row,cwd='/home/medo/dev/app/work')
+        row = dict(self.row,cwd='/home/example/dev/app/work')
         self.assertEqual(server.project_for(row,self.cfg),'a')
-        self.assertEqual(server.project_for(dict(row,cwd='/home/medo/dev/application'),self.cfg),'root')
+        self.assertEqual(server.project_for(dict(row,cwd='/home/example/dev/application'),self.cfg),'root')
         row.update(cwd='/missing/worktree/app',git_origin_url='git@github.com:me/app.git')
         self.assertEqual(server.project_for(row,self.cfg),'a')
         self.cfg['threadProjects']['c']='root'
