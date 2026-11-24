@@ -25,56 +25,103 @@ export function MedoDialog({ title, children, onClose, wide = false }: { title: 
 }
 export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, headerActions }: {
   headerActions?: ReactNode;
-  selectedPaneId: string | null; onOpen: (paneId: string) => Promise<void>; onNew: (project?: MedoProject) => void; onSettings: () => void;
+  selectedPaneId: string | null; onOpen: (paneId: string, isCurrent: () => boolean) => Promise<void>; onNew: (project?: MedoProject) => void; onSettings: () => void;
 }) {
   const [catalog, setCatalog] = useState<MedoCatalog | null>(null);
   const [error, setError] = useState('');
+  const [catalogError, setCatalogError] = useState('');
   const [query, setQuery] = useState('');
   const [archived, setArchived] = useState(false);
   const [closed, setClosed] = useState<Set<string>>(new Set());
   const [limits, setLimits] = useState<Record<string, number>>({});
   const [newProject, setNewProject] = useState(false);
   const [opening, setOpening] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const [move, setMove] = useState<MedoChat | null>(null);
   const [edit, setEdit] = useState<MedoProject | null>(null);
   const [reader, setReader] = useState<MedoChat | null>(null);
-  const pending = useRef(false);
+  const pending = useRef<Promise<void> | null>(null);
+  const revision = useRef(0);
+  const mounted = useRef(false);
+  const creatingRef = useRef(false);
+  const openingRef = useRef<string | null>(null);
   const selectionTicket = useRef(0);
-  const refresh = useCallback(async () => {
-    if (pending.current) return;
-    pending.current = true;
-    try { setCatalog(await call<MedoCatalog>('catalog')); setError(''); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not load projects.'); }
-    finally { pending.current = false; }
+  const refresh = useCallback(function refreshCatalog(changed = false): Promise<void> {
+    if (!mounted.current) return Promise.resolve();
+    if (changed) revision.current++;
+    if (pending.current) return pending.current;
+    let seen = revision.current;
+    pending.current = (async () => {
+      do {
+        seen = revision.current;
+        try {
+          const next = await call<MedoCatalog>('catalog');
+          if (mounted.current && seen === revision.current) { setCatalog(next); setCatalogError(''); }
+        } catch (cause) {
+          if (mounted.current && seen === revision.current) setCatalogError(cause instanceof Error ? cause.message : 'Could not load projects.');
+        }
+        // A mutation during a poll requires a fresh read; the old response may
+        // describe the terminal before it opened or the folder before it moved.
+      } while (mounted.current && seen !== revision.current);
+    })().finally(() => {
+      pending.current = null;
+      // A mutation's promise may settle between the final read and this cleanup.
+      if (mounted.current && seen !== revision.current) return refreshCatalog();
+    });
+    return pending.current;
   }, []);
   useEffect(() => {
+    mounted.current = true;
     void refresh();
     const timer = setInterval(() => { if (document.visibilityState === 'visible') void refresh(); }, 8000);
     const focus = () => void refresh(); window.addEventListener('focus', focus);
-    return () => { clearInterval(timer); window.removeEventListener('focus', focus); selectionTicket.current++; };
+    return () => { mounted.current = false; revision.current++; clearInterval(timer); window.removeEventListener('focus', focus); selectionTicket.current++; };
   }, [refresh]);
   const action = async (run: () => Promise<unknown>) => {
-    try { await run(); await refresh(); return true; }
+    try { await run(); setError(''); await refresh(true); return true; }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'The change could not be saved.'); return false; }
   };
   const organize = (change: Record<string, unknown>) => call('organize', { change });
   const toggle = (key: string) => setClosed((current) => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
   const open = async (chat: MedoChat) => {
+    if (openingRef.current === chat.id) return;
     const ticket = ++selectionTicket.current;
-    if (chat.archived || chat.unavailable) { setReader(chat); return; }
-    setOpening(chat.id); setError('');
+    openingRef.current = chat.id;
+    setError('');
+    if (chat.archived || chat.unavailable) { setOpening(null); openingRef.current = null; setReader(chat); return; }
+    setReader(null);
+    setOpening(chat.id);
     try {
       const result = await call<MedoOpen>('open', { threadId: chat.id });
-      if (ticket === selectionTicket.current) await onOpen(result.address);
-      await refresh();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'The conversation could not open.'); }
-    finally { if (ticket === selectionTicket.current) setOpening(null); }
+      void refresh(true);
+      if (ticket === selectionTicket.current) {
+        setCatalog((current) => current && { ...current, chats: current.chats.map((row) => row.id === chat.id ? { ...row, paneId: result.address } : row) });
+        await onOpen(result.address, () => ticket === selectionTicket.current);
+      }
+    } catch (cause) { if (ticket === selectionTicket.current) setError(cause instanceof Error ? cause.message : 'The conversation could not open.'); }
+    finally { if (ticket === selectionTicket.current) { setOpening(null); openingRef.current = null; } }
+  };
+  const openDraft = async (address: string) => {
+    const ticket = ++selectionTicket.current;
+    openingRef.current = null; setOpening(null); setReader(null); setError('');
+    try { await onOpen(address, () => ticket === selectionTicket.current); }
+    catch (cause) { if (ticket === selectionTicket.current) setError(cause instanceof Error ? cause.message : 'The conversation could not open.'); }
   };
   const start = async (project: MedoProject) => {
+    if (creatingRef.current) return;
+    creatingRef.current = true; setCreating(true);
+    const ticket = ++selectionTicket.current;
+    openingRef.current = null; setOpening(null); setReader(null); setError('');
     setNewProject(false);
-    await action(async () => { const result = await call<MedoOpen>('new', { projectId: project.id }); await onOpen(result.address); });
+    try {
+      const result = await call<MedoOpen>('new', { projectId: project.id });
+      void refresh(true);
+      if (ticket === selectionTicket.current) await onOpen(result.address, () => ticket === selectionTicket.current);
+    } catch (cause) { if (ticket === selectionTicket.current) setError(cause instanceof Error ? cause.message : 'The conversation could not open.'); }
+    finally { creatingRef.current = false; if (mounted.current) setCreating(false); }
   };
   const chats = catalog?.chats.filter((chat) => chat.archived === archived && (!query || chat.title.toLocaleLowerCase().includes(query.toLocaleLowerCase()))) ?? [];
+  const drafts = archived ? [] : catalog?.drafts?.filter((draft) => !query || draft.title.toLocaleLowerCase().includes(query.toLocaleLowerCase())) ?? [];
   const rows = (project: MedoProject, folder: string | null) => {
     const key = `${project.id}/${folder ?? ''}`;
     const group = chats.filter((chat) => chat.project === project.id && chat.folder === folder).sort((a, b) => b.updated - a.updated);
@@ -82,7 +129,7 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
     return <>{group.slice(0, limit).map((chat) => <div key={chat.id} className={`medo-chat${chat.paneId && chat.paneId === selectedPaneId ? ' is-selected' : ''}`}>
       <button className="medo-chat-open" disabled={opening === chat.id} onClick={() => void open(chat)} title={chat.title} aria-busy={opening === chat.id}>
         <span className={`medo-indicator${chat.status === 'working' || opening === chat.id ? ' is-working' : ''}`} title={chat.paneId ? 'Open session' : 'Saved conversation'}><Circle size={7} fill={chat.paneId ? 'currentColor' : 'none'} /></span>
-        <span>{opening === chat.id ? 'Opening…' : chat.title || 'Untitled conversation'}</span>
+        <span>{chat.title || 'Untitled conversation'}</span>
       </button><button className="medo-row-action" aria-label={`Move ${chat.title} to folder`} onClick={() => setMove(chat)}><Ellipsis size={15} /></button>
     </div>)}{group.length > limit && <button className="medo-more" onClick={() => setLimits((value) => ({ ...value, [key]: limit + 5 }))}>Show more ({group.length - limit})</button>}</>;
   };
@@ -90,21 +137,22 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
   return <div className="medo-projects">
     <div className="medo-sidebar-head"><strong>Conversations</strong><div className="medo-sidebar-actions">{headerActions}<button aria-label="New conversation" title="New conversation" onClick={() => setNewProject(true)}><Plus size={18} /></button></div></div>
     <label className="medo-search"><Search size={15} /><input aria-label="Search conversations" placeholder="Search conversations" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
-    {error && <div className="medo-error" role="alert">{error}<button onClick={() => void refresh()}>Retry</button></div>}
-    <div className="medo-project-scroll">{!catalog && !error && <p className="medo-muted">Loading projects…</p>}
+    {(error || catalogError) && <div className="medo-error" role="alert">{error || catalogError}<button onClick={() => { setError(''); void refresh(true); }}>Retry</button></div>}
+    <div className="medo-project-scroll">{!catalog && !catalogError && <p className="medo-muted">Loading projects…</p>}
       {catalog?.projects.map((project) => {
         const style = project.appearance ?? {};
         const hidden = !query && closed.has(project.id);
-        const matching = chats.filter((chat) => chat.project === project.id).length;
+        const projectDrafts = drafts.filter((draft) => draft.project === project.id);
+        const matching = chats.filter((chat) => chat.project === project.id).length + projectDrafts.length;
         if (query && !matching) return null;
         return <section key={project.id} className="medo-project" style={{ '--medo-section': style.sectionColor || 'transparent', '--medo-title': style.titleColor || 'var(--text-strong)', '--medo-icon': style.iconColor || 'var(--text-dim)' } as CSSProperties}>
           <div className="medo-project-head"><button className="medo-project-toggle" onClick={() => toggle(project.id)} aria-expanded={!hidden}>
             {hidden ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
             <span className="medo-project-icon">{style.image ? <ProjectImage name={style.image} /> : style.iconText || <Folder size={16} />}</span>
             <span>{project.name}</span></button>
-            {project.path && <button className="medo-row-action" aria-label={`New conversation in ${project.name}`} onClick={() => void start(project)}><Plus size={15} /></button>}
+            {project.path && <button className="medo-row-action" disabled={creating} aria-label={`New conversation in ${project.name}`} onClick={() => void start(project)}><Plus size={15} /></button>}
             <button className="medo-row-action" aria-label={`Customize ${project.name}`} onClick={() => setEdit(project)}><Ellipsis size={15} /></button>
-          </div>{!hidden && <div className="medo-project-chats">{catalog.drafts?.filter((draft) => draft.project === project.id).map((draft) => <button key={draft.address} className="medo-chat-open" onClick={() => void onOpen(draft.address)}><span className="medo-indicator"><Circle size={7} /></span><span>{draft.title}</span></button>)}{rows(project, null)}{project.folders.map((folder) => {
+          </div>{!hidden && <div className="medo-project-chats">{projectDrafts.map((draft) => <div key={draft.address} className={`medo-chat${draft.address === selectedPaneId ? ' is-selected' : ''}`}><button className="medo-chat-open" onClick={() => void openDraft(draft.address)}><span className="medo-indicator"><Circle size={7} /></span><span>{draft.title}</span></button></div>)}{rows(project, null)}{project.folders.map((folder) => {
             const key = `${project.id}/${folder.id}`;
             const folded = !query && closed.has(key);
             return <div className="medo-folder" key={folder.id}><button className="medo-folder-head" aria-expanded={!folded} onClick={() => toggle(key)}>{folded ? <ChevronRight size={12} /> : <ChevronDown size={12} />}<Folder size={13} /><span>{folder.name}</span></button>{!folded && rows(project, folder.id)}</div>;

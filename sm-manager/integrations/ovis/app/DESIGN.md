@@ -6456,6 +6456,20 @@ The dedicated loopback service is exposed only through private Tailscale HTTPS; 
 auth and origin gates remain in front of custom routes. Cookie names and private state
 are isolated. All interactive tests use an isolated hc core and an owned demo chat.
 
+## S.T. conversation identity and navigation
+
+The S.T. conversation list follows [T3 Code's thread sidebar](https://github.com/pingdotgg/t3code/blob/main/docs/user/thread-sidebar.md)
+in treating an unsent draft as its own navigable row. Opening a saved conversation
+keeps its title and identity visible; loading is expressed by the existing busy
+state, and only the latest selection may finish navigation. Drafts use the same
+selection, search and archive rules as saved chats. No code or visual assets are
+copied. Confirmed empty imported metadata records are omitted without deleting
+them or combining unrelated conversations that happen to have the same title.
+An Ovis launch hint associates a starting resume with its existing row until the
+live thread title takes over; history and model changes always require that live
+identity. All web instances sharing the catalog serialize launches through its
+`ovis-launch.lock` file.
+
 ## Hosted S.T. appearance
 
 The S.T. integration supplies an optional host appearance to SettingsProvider.

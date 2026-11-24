@@ -36,9 +36,10 @@ these variables in a private service environment file:
 | `HC_SESSION` | Dedicated test session for tests/previews; leave production session configuration intact. |
 
 The catalog, organization IDs, atomic writes, managed-daemon protocol, and launch
-ownership rules are unchanged. Standalone and integrated launchers share
-`~/.local/state/herdr-codex-sidebar/launch.lock`; separate Ovis state directories
-do not split the launch lock. To install the packaged chat service later, use
+ownership rules are unchanged. Ovis web instances sharing a sidebar data directory
+serialize launches through its `ovis-launch.lock`; separate Ovis state directories
+do not split that lock. The legacy sidebar launcher retains its independent
+`~/.local/state/herdr-codex-sidebar/launch.lock`. To install the packaged chat service later, use
 `python3 -m integrations.ovis.bridge.chat_service` from `sm-manager`. Do not run
 a second service on the existing socket. The integrated client initially uses
 the already-running shared service.
