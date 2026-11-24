@@ -3,7 +3,14 @@
 ## Scope and architecture
 
 This is a local Linux resource monitor with optional faceplate power control. Keep it lightweight: Python
-standard library backend, SQLite 30-day history, buildless browser UI.
+standard library backend and SQLite 30-day history. The v2 console uses React 19,
+TypeScript and Vite with the pinned Bun workspace. The legacy UI remains available
+during migration. All commands below run from `sm-manager`.
+
+Build v2 with `bun install --frozen-lockfile`, `bun run typecheck`, and
+`bun run build`. Use `frontend: "react"` in a private preview configuration.
+Never restart production to preview branch work. Imported Ovis source lives in
+`integrations/ovis`; preserve its notices, dependency patches and session safety.
 
 - `sm_manager/discovery.py`: Git/Codex discovery and container ownership.
 - `sm_manager/metrics.py`: `/proc`, Docker GET requests, and private app URLs.

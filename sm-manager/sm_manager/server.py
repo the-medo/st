@@ -17,7 +17,8 @@ from .collector import Collector, cleanup_plan
 from .air_quality import AirQuality
 from .dbs import read_db_catalog
 from .history import RETENTION_HOURS
-from .home import service_cards
+from .home import service_cards, ui_config
+from . import web
 from .zed import read_catalog
 from .night_mode import request as night_request
 from .dave import DaveBridge, DaveUnavailable, MAX_BODY, MAX_RESPONSE, PAGES, PREFIX, upstream_path
@@ -225,6 +226,17 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
             if error := self.access_error():
                 return self.respond(403, {"error": error})
             url = urlsplit(self.path)
+            if config.get("frontend") == "react" and not url.path.startswith("/api/"):
+                shell_path = url.path
+                if url.path.startswith(PREFIX + "/") and url.path.removeprefix(PREFIX) in PAGES and parse_qs(url.query).get("st-embedded") != ["1"]:
+                    shell_path = "/"
+                found = web.asset(shell_path)
+                if found:
+                    file, cache = found
+                    mime = mimetypes.guess_type(file.name)[0] or "application/octet-stream"
+                    return self.respond(200, file.read_bytes(), mime, cache=cache)
+                if shell_path in web.PAGES:
+                    return self.respond(503, {"error": "Console assets are not built. Run the console build."})
             planner_shell = (dave is not None and url.path.startswith(PREFIX + "/") and
                              url.path.removeprefix(PREFIX) in PAGES - {"/"} and
                              parse_qs(url.query).get("st-embedded") != ["1"])
@@ -233,6 +245,8 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
             if url.path == "/api/night-mode":
                 return self.respond(200, {**night_control("status"), "token": token})
             if url.path.startswith("/api/"):
+                if url.path == "/api/ui-config":
+                    return self.respond(200, ui_config(config))
                 if url.path == "/api/air-quality":
                     if air_quality is None:
                         return self.respond(503, {"error": "Air quality collector unavailable"})

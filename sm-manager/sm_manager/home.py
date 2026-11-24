@@ -18,7 +18,7 @@ def external_url(value):
         return False
 
 
-def service_cards(config):
+def services(config):
     services = []
     links = config.get("home_links", [])
     for link in links if isinstance(links, list) else []:
@@ -40,8 +40,22 @@ def service_cards(config):
         dict(name="Faceplate", url="/#faceplate", description="Your room display, with night mode a tap away.", category="At home", icon="screen", tone="blue", destination="Room display"),
         dict(name="System monitor", url="#overview", description="Projects, containers and the machine behind it all.", category="Under the hood", icon="system", tone="slate", destination="Resources & activity"),
     ])
+    return services
+
+
+def ui_config(config):
+    """Only browser-facing, validated configuration; never expose the config dict."""
+    return {
+        "services": services(config),
+        "planner": bool(config.get("dave_port")),
+        "ovis": bool(config.get("ovis_enabled")),
+        "printer_url": config.get("printer_url") if external_url(config.get("printer_url")) else None,
+    }
+
+
+def service_cards(config):
     cards = []
-    for service in services:
+    for service in services(config):
         external = external_url(service["url"])
         destination = urlsplit(service["url"]).netloc if external else service["destination"]
         target = ' target="_blank" rel="noopener noreferrer"' if external else ""

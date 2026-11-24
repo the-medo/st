@@ -1,5 +1,12 @@
 # ST · System console
 
+The React v2 migration is developed on `feature/st-v2`. See
+[the implementation plan](ST_V2_IMPLEMENTATION.md). From this directory run
+`bun install --frozen-lockfile`, `bun run typecheck`, `bun run test:unit`, and
+`bun run build`. A private configuration with `"frontend": "react"` selects
+the built console; existing installations retain the legacy frontend during
+the migration. Built output and local configuration stay out of Git.
+
 A quiet, local dashboard for the projects running on your machine. See which app,
 branch, worktree, or Docker container is using memory and CPU without asking an
 agent to inspect the host every time.
