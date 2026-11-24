@@ -683,3 +683,64 @@ upstream updates that bypass those checks.
 - [Bun WebSockets](https://bun.sh/docs/runtime/http/websockets) describes upgrade,
   message, and backpressure APIs; forwarding between two sockets is explicit
   gateway work and must be tested.
+
+## Implementation checkpoint — 2026-11-24
+
+The branch now has a working native integrated preview. Each implementation
+milestone is committed separately as `the-medo` on `feature/st-v2`.
+
+Implemented:
+
+- Preserved the customized Ovis source, dependency patches, MIT notices and
+  Python bridge with source hashes and explicit private data paths.
+- Added the pinned Bun workspace, React 19/TypeScript/Vite console, typed monitor
+  clients, native console pages, charts, Workmode, device controls and retained
+  DAVe frame/navigation.
+- Added a loopback HTTP/WebSocket gateway with origin/host checks, preserved
+  public identity, streaming bodies, bounded socket forwarding, and managed
+  update/runtime restrictions.
+- Mounted Ovis in the same React root, lazy loaded beside the S.T. sidebar.
+  Themes, DOM queries, portals and keyboard handling are scoped to its panel.
+  Chat selection/drafts survive console navigation; Chat/Terminal and the mobile
+  drawers work in browser acceptance. Existing query-based session links remain.
+- Packaged the Ovis web server without its self updater. The preview owns its
+  monitor, gateway and Ovis services; the shared managed Codex service and Herdr
+  terminal daemon remain external. The preview has separate cookies/state and
+  shares the original launch lock/catalog intentionally.
+- Added persistent private preview lifecycle and activation failure recovery.
+  Extended the production updater source with staged frozen builds, version
+  checks, artifact rollback, and retained previous artifacts. The installed
+  production updater and service layout have not been switched.
+
+Verification completed:
+
+| Check | Result |
+| --- | --- |
+| Python monitor/lifecycle/updater suite | 114 passed |
+| Packaged Python bridge and history adapter | 32 + 2 passed |
+| Existing legacy UI checks under Node | 38 passed |
+| New frontend/gateway/cookie unit checks | 8 passed |
+| Focused Ovis auth/access/Medo/Markdown suite | 163 passed |
+| Ovis file-serving/auth/gateway checks during namespace work | 106 passed (overlaps the checks above) |
+| Production console build and TypeScript checks | Passed |
+| Clean disposable clone: frozen install, build and validation | Passed |
+| Console browser acceptance | Passed with synthetic APIs |
+| Native Ovis browser acceptance | Passed with demo data through the real Python asset/CSP server, on desktop and a 390px viewport |
+| Actual Herdr PTY through Ovis and gateway | Passed in an isolated HOME/socket/session; terminal survived web-service shutdown |
+| Private HTTPS preview | Monitor, Ovis health, owner authentication and catalog reads verified |
+
+The home entry's JavaScript/CSS totals approximately 93 KiB gzipped in this build;
+the large Ovis feature stays in dynamically loaded chunks. This is a build-size
+measurement, not a completed long-running performance study.
+
+Release gates remain open. Before production cutover, finish the complete parity
+matrix, long-history/attachment/IME and disconnect cases, saved-thread path-link
+handling, cross-PC acceptance with an explicitly owned test Codex conversation,
+and the production three-service installer/updater migration. The preview is
+restricted to its configured Tailscale owner. Delegated-device rollout, native
+mobile/desktop relay hosting and the root PWA require separate acceptance.
+The full upstream Ovis test matrix has not been claimed as passing.
+
+The existing S.T. and standalone Ovis installations remain available. Preview
+addresses and real-machine screenshots are kept in private local profiles/cache,
+not in the repository. Use the lifecycle and verification commands in README.md.
