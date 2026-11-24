@@ -58,6 +58,8 @@ class ProductionTests(unittest.TestCase):
             result = subprocess.run(['systemd-analyze', '--user', 'verify', *[str(self.unit.with_name(name)) for name in units]],
                 capture_output=True, text=True, env={**os.environ, 'XDG_RUNTIME_DIR': str(self.root)})
             self.assertEqual(result.returncode, 0, result.stderr)
+            # systemd returns zero even when it ignores a malformed EnvironmentFile.
+            self.assertEqual(result.stderr.strip(), '')
 
     def test_failed_activation_restores_config_units_and_preserves_data(self):
         original = {key: value for key, value in self.config.items() if key != 'v2'}
