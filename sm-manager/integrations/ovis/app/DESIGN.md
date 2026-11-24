@@ -1482,6 +1482,11 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   latest saved order, preserves unrelated positions, and is idempotent on retry. Newly
   configured projects append, removed IDs are ignored, and catalogue refreshes share the
   order with other browsers without moving checkouts or conversations.
+  New conversation repeats each project's saved icon or image, title and icon colors,
+  background, border, and matching hover fill in the project chooser. It shares the sidebar's
+  icon renderer and palette so both views stay consistent, following T3 Code's reuse of
+  project icons across sidebar rows and project details. Unstyled projects keep the folder
+  fallback and theme defaults; project choices retain the saved project order.
 
 - Close follows herdr's `ui.confirm_close`: a workspace close, or a pane close that takes its
   workspace with it, asks in a confirm first. A busy pane also asks before it stops. After a

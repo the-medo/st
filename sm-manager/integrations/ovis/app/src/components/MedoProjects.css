@@ -51,6 +51,10 @@
 .medo-preview-row.is-unread .medo-indicator{color:var(--medo-activity)}
 .medo-folder-edit{display:flex;gap:8px;align-items:center;margin:8px 0}.medo-folder-edit input{flex:1;min-width:0}.medo-folder-choices{display:flex;flex-direction:column;gap:8px}.medo-folder-choices button{justify-content:flex-start}.medo-reader{width:min(1000px,calc(100vw - 32px));height:85dvh}.medo-reader{display:flex;flex-direction:column}.medo-reader>.chat-view{flex:1;min-height:0}
 .medo-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.medo-dialog .medo-project-choice{width:100%;min-width:0;height:auto;min-height:46px;gap:10px;padding:10px 12px;text-align:left;white-space:normal;background:var(--medo-section);border-color:var(--medo-border);color:var(--medo-title);border-radius:8px}
+.medo-project-choice>span:last-child{min-width:0;overflow-wrap:anywhere;font-weight:600}
+.medo-dialog .medo-project-choice:hover:not(:disabled){background:var(--medo-hover);border-color:var(--medo-border)}
+.medo-dialog .medo-project-choice:active:not(:disabled){background:var(--medo-selected)}
 @media(hover:none){.medo-row-action{opacity:1}}
 
 .medo-model-button{display:flex;align-items:center;gap:5px;padding:2px 0;border:0;background:none;color:inherit;cursor:pointer;font:inherit;font-size:12px}
