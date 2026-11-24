@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { fixtureApi } from "./v2-fixtures";
 import { verifyCatalogs } from "./catalog-browser";
 import { verifyAirQuality } from "./air-browser";
+import { verifyOverviewCharts } from "./overview-browser";
 const root = resolve("sm_manager/web");
 const planner = `<!doctype html><html><head><link rel="stylesheet" href="/st-theme.css"><link rel="stylesheet" href="/st-planner.css"><script src="/st-planner.js"></script></head><body><h1>Fixture planner</h1><input aria-label="Task title"><button id="home">ST home</button><script>document.querySelector('#home').onclick=()=>parent.postMessage({type:'st:home'},location.origin);parent.postMessage({type:'st:ready',path:'/planner/tasks'},location.origin);window.addEventListener('message',e=>{if(e.origin!==location.origin)return;if(e.data.type==='st:navigate')parent.postMessage({type:'st:navigated',path:e.data.path},location.origin);});</script></body></html>`;
 const server = Bun.serve({
@@ -108,8 +109,12 @@ try {
     assert(!(await page.getByText("Page not found.").count()), route);
   }
   await verifyCatalogs(page, base);
+  await verifyOverviewCharts(page, base);
   await page.goto(`${base}/overview`);
-  await page.getByRole("combobox", { name: /^Range/ }).selectOption("0.25");
+  await page
+    .getByRole("group", { name: "History range", exact: true })
+    .getByRole("button", { name: "15m", exact: true })
+    .click();
   const overviewChart = page.locator(".st-chart").first();
   const overviewPlot = overviewChart.locator("svg");
   await overviewPlot.scrollIntoViewIfNeeded();
@@ -157,8 +162,9 @@ try {
   assert.equal(await overviewTip.locator(".allocation-row").count(), 4);
   assert(!(await overviewTip.innerText()).includes("Whole machine"));
   await page
-    .getByRole("combobox", { name: /^Metric/ })
-    .selectOption("cpu_percent");
+    .getByRole("group", { name: "History metric", exact: true })
+    .getByRole("button", { name: "CPU", exact: true })
+    .click();
   await overviewPlot.focus();
   await overviewTip.waitFor();
   assert.match(await overviewTip.innerText(), /%/);
@@ -277,7 +283,10 @@ try {
   });
   touch.on("pageerror", (error) => errors.push(error.message));
   await touch.goto(`${base}/overview`);
-  await touch.getByRole("combobox", { name: /^Range/ }).selectOption("0.25");
+  await touch
+    .getByRole("group", { name: "History range", exact: true })
+    .getByRole("button", { name: "15m", exact: true })
+    .click();
   const touchPlot = touch.locator(".st-chart svg").first();
   await touchPlot.scrollIntoViewIfNeeded();
   const touchBox = (await touchPlot.boundingBox())!;

@@ -1,17 +1,18 @@
 import { useEffect, useState } from "react";
-import { api, bytes, percent } from "../lib/api";
+import { api } from "../lib/api";
 import type { History, Snapshot } from "../lib/types";
-import { Chart, type Series } from "../components/Chart";
+import { historySources } from "../lib/resourceHistory";
+import { Chart } from "../components/Chart";
 import { Notice } from "../components/Ui";
-const colors = [
-  "#f0f6fc",
-  "#63cf8c",
-  "#c4b5fd",
-  "#91a0b2",
-  "#58a6ff",
-  "#f0b65f",
-  "#f778ba",
-];
+
+const ranges = [
+  [0.25, "15m"],
+  [1, "1h"],
+  [6, "6h"],
+  [24, "24h"],
+  [168, "7d"],
+  [720, "30d"],
+] as const;
 export function HistoryChart({
   snapshot,
   initialEntity = "all",
@@ -23,41 +24,27 @@ export function HistoryChart({
     [metric, setMetric] = useState<"memory_bytes" | "cpu_percent">(
       "memory_bytes",
     ),
-    [scale, setScale] = useState("usage"),
+    [scale, setScale] = useState<"usage" | "capacity">("usage"),
     [entity, setEntity] = useState(initialEntity);
-  const [data, setData] = useState<{
-    key: string;
-    series: Series[];
-    failed: number;
-    at: number;
-  } | null>(null);
-  const [retry, setRetry] = useState(0);
-  const choices = [
-    { id: "host", label: "Whole machine", dash: false },
-    { id: "projects", label: "All projects · total", dash: true },
-    { id: "codex", label: "Codex processes", dash: false },
-    { id: "other", label: "System & other", dash: false },
-    ...snapshot.projects.flatMap((p) => [
-      { id: `project:${p.id}`, label: p.name, dash: false },
-      ...p.worktrees.map((w) => ({
-        id: `worktree:${w.id}`,
-        label: `${p.name} / ${w.branch}`,
-        dash: false,
-      })),
-    ]),
-  ];
+  const choices = historySources(snapshot);
   const selected =
     entity === "all"
       ? choices.filter((c) => !c.id.startsWith("worktree:"))
       : choices.filter((c) => c.id === entity);
   const selection = JSON.stringify(selected);
-  const key = `${hours}:${entity}:${metric}:${selection}`;
+  const key = `${hours}:${entity}:${selection}`;
+  const [data, setData] = useState<{
+    key: string;
+    series: ((typeof choices)[number] & { history: History | null })[];
+    at: number;
+  } | null>(null);
+  const [retry, setRetry] = useState(0);
   useEffect(() => {
-    let stopped = false;
+    let stopped = false,
+      pending = false;
     const controller = new AbortController();
-    let pending = false;
     const load = async () => {
-      if (pending || document.hidden) return;
+      if (pending || stopped || document.hidden) return;
       pending = true;
       const targets = JSON.parse(selection) as typeof selected;
       const results = await Promise.allSettled(
@@ -77,24 +64,10 @@ export function HistoryChart({
         setData({
           key,
           at: Date.now() / 1000,
-          failed: results.filter((r) => r.status === "rejected").length,
-          series: results.flatMap((r, i) =>
-            r.status === "fulfilled"
-              ? [
-                  {
-                    id: targets[i]!.id,
-                    label: targets[i]!.label,
-                    color: colors[i % colors.length]!,
-                    dash: targets[i]!.dash,
-                    gap: r.value.bucket_seconds,
-                    points: r.value.points.map((p) => ({
-                      timestamp: p.timestamp,
-                      value: p[metric],
-                    })),
-                  },
-                ]
-              : [],
-          ),
+          series: results.map((result, i) => ({
+            ...targets[i]!,
+            history: result.status === "fulfilled" ? result.value : null,
+          })),
         });
       pending = false;
     };
@@ -107,85 +80,108 @@ export function HistoryChart({
       clearInterval(timer);
       document.removeEventListener("visibilitychange", load);
     };
-  }, [selection, hours, metric, key, retry]);
+  }, [selection, hours, key, retry]);
   const current = data?.key === key ? data : null;
+  const failed =
+    current?.series.filter((series) => !series.history).length ?? 0;
+  const starts =
+    current?.series.flatMap((series) =>
+      series.history?.started_at == null ? [] : [series.history.started_at],
+    ) ?? [];
+  const historyNote = !current
+    ? "Loading samples…"
+    : failed
+      ? `${failed} series unavailable · available series shown`
+      : starts.length
+        ? `Since ${new Date(Math.min(...starts) * 1000).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })} · bucket averages · gaps = no data`
+        : "No samples in this range";
   return (
-    <>
-      <div className="st-toolbar">
-        <label>
-          Range
-          <select
-            value={hours}
-            onChange={(e) => setHours(Number(e.target.value))}
-          >
-            {[
-              [0.25, "15m"],
-              [1, "1h"],
-              [6, "6h"],
-              [24, "24h"],
-              [168, "7d"],
-              [720, "30d"],
-            ].map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Metric
-          <select
-            value={metric}
-            onChange={(e) => setMetric(e.target.value as typeof metric)}
-          >
-            <option value="memory_bytes">Memory</option>
-            <option value="cpu_percent">CPU</option>
-          </select>
-        </label>
-        <label>
-          Scale
-          <select value={scale} onChange={(e) => setScale(e.target.value)}>
-            <option value="usage">Zoom to usage</option>
-            <option value="capacity">Full capacity</option>
-          </select>
-        </label>
-        <label>
-          Source
-          <select value={entity} onChange={(e) => setEntity(e.target.value)}>
-            <option value="all">All — resource comparison</option>
-            {choices.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </label>
+    <section className="st-panel panel history-panel">
+      <div className="panel-heading">
+        <h2>Resource activity</h2>
+        <div className="segmented" role="group" aria-label="History range">
+          {ranges.map(([value, label]) => (
+            <button
+              key={value}
+              aria-pressed={hours === value}
+              className={hours === value ? "selected" : ""}
+              onClick={() => setHours(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
-      {current?.failed ? (
-        <Notice retry={() => setRetry((v) => v + 1)}>
-          {current.failed} series unavailable. Available series remain visible.
+      <div className="chart-toolbar">
+        <div className="chart-tabs" role="group" aria-label="History metric">
+          {(["memory_bytes", "cpu_percent"] as const).map((value) => (
+            <button
+              key={value}
+              aria-pressed={metric === value}
+              className={metric === value ? "selected" : ""}
+              onClick={() => setMetric(value)}
+            >
+              {value === "memory_bytes" ? "Memory" : "CPU"}
+            </button>
+          ))}
+        </div>
+        <span className="chart-unit">
+          {ranges.find(([value]) => value === hours)?.[1]} ·{" "}
+          {metric === "memory_bytes" ? "memory" : "machine CPU %"}
+        </span>
+        <select
+          className="st-history-scale"
+          aria-label="Chart scale"
+          value={scale}
+          onChange={(event) => setScale(event.target.value as typeof scale)}
+        >
+          <option value="capacity">Full capacity</option>
+          <option value="usage">Zoom to usage</option>
+        </select>
+        <select
+          className="st-history-source"
+          aria-label="History source"
+          value={entity}
+          onChange={(event) => setEntity(event.target.value)}
+        >
+          <option value="all">All — resource comparison</option>
+          {choices.map((choice) => (
+            <option key={choice.id} value={choice.id}>
+              {choice.id === "projects" ? "All projects · total" : choice.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      {failed > 0 && (
+        <Notice retry={() => setRetry((value) => value + 1)}>
+          {failed} series unavailable. Available series remain visible.
         </Notice>
-      ) : null}
-      {!current ? (
-        <Notice>Loading history…</Notice>
-      ) : (
-        <Chart
-          series={current.series}
-          format={metric === "memory_bytes" ? bytes : percent}
-          ceiling={
-            scale === "capacity"
-              ? metric === "memory_bytes"
-                ? snapshot.system.memory_total
-                : 100
-              : undefined
-          }
-          start={current.at - hours * 3600}
-          end={current.at}
-        />
       )}
-      <small>
-        30-day retention · project RSS and container working sets may overlap.
-      </small>
-    </>
+      <Chart
+        series={
+          current?.series.map((series) => ({
+            ...series,
+            error: !series.history,
+            gap: series.history?.bucket_seconds ?? 60,
+            points:
+              series.history?.points.map((point) => ({
+                timestamp: point.timestamp,
+                value: point[metric],
+              })) ?? [],
+          })) ?? []
+        }
+        metric={metric}
+        scale={scale}
+        capacity={snapshot.system.memory_total}
+        start={current ? current.at - hours * 3600 : 0}
+        end={current?.at ?? 0}
+        loading={!current}
+        viewKey={`${hours}:${entity}:${metric}`}
+      />
+      <div className="chart-footer">
+        <span>{historyNote}</span>
+        <span>30-day retention</span>
+      </div>
+    </section>
   );
 }

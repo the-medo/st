@@ -215,6 +215,7 @@ export async function verifyAirQuality(page: Page, base: string) {
     await page.locator("#air-fullscreen-air").click();
     await page.locator("dialog[open] #air-fullscreen-air").click();
     await page.locator("dialog[open]").waitFor({ state: "hidden" });
+    await page.locator(".air-charts > #air-panel-air").waitFor();
 
     if (process.env.ST_AIR_EVIDENCE)
       await page.screenshot({

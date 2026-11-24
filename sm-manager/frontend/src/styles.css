@@ -32,7 +32,10 @@ body {
     margin-bottom: 14px;
   }
   .overview-grid > .st-panel {
-    margin-bottom: 14px;
+    margin-bottom: 0;
+  }
+  .overview-grid + .st-panel {
+    margin-top: 14px;
   }
   .st-panel > :is(p, small, details, h3, .st-list, .st-project-info) {
     margin: 0;
@@ -62,10 +65,12 @@ body {
   .st-muted {
     color: var(--muted);
   }
-  /* Air Quality uses its original controls from the shared console stylesheet. */
-  button:not(.workmode-toggle):not(:where(#air-quality-section *)),
+  /* Restored dashboards use their original controls from the shared stylesheet. */
+  button:not(.workmode-toggle):not(
+      :where(#air-quality-section *, .history-panel *)
+    ),
   input:not([type="checkbox"]),
-  select:not(:where(#air-quality-section *)),
+  select:not(:where(#air-quality-section *, .history-panel *)),
   textarea {
     border: 1px solid #374556;
     border-radius: 3px;
@@ -78,16 +83,18 @@ body {
       "Segoe UI",
       sans-serif;
   }
-  button:not(.workmode-toggle):not(:where(#air-quality-section *)):hover:not(
-      :disabled
-    ) {
+  button:not(.workmode-toggle):not(
+      :where(#air-quality-section *, .history-panel *)
+    ):hover:not(:disabled) {
     background: var(--hover-bg);
     border-color: var(--hover-line);
   }
   input[type="checkbox"] {
     accent-color: var(--accent);
   }
-  button[aria-pressed="true"]:not(:where(#air-quality-section *)) {
+  button[aria-pressed="true"]:not(
+      :where(#air-quality-section *, .history-panel *)
+    ) {
     color: var(--selected-ink);
     background: var(--selected-bg);
     border-color: var(--selected-line);
@@ -183,90 +190,19 @@ body {
     font: 10px var(--mono);
     padding: 4px 6px;
   }
+  .history-panel .chart-toolbar .st-history-scale {
+    margin-left: auto;
+    max-width: 135px;
+  }
+  .history-panel .chart-toolbar .st-history-source {
+    margin-left: 0;
+  }
   .st-chart {
-    position: relative;
-    padding: 8px 12px;
-    font-family: var(--mono);
-  }
-  .st-chart svg {
-    display: block;
-    width: 100%;
-    height: 600px;
-    overflow: visible;
-  }
-  .st-chart-cap {
-    font-size: 9px;
-    color: var(--muted);
-  }
-  .st-gridline {
-    stroke: var(--line);
-    stroke-width: 1;
-  }
-  .st-chart-times {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
-    font-size: 9px;
-    color: var(--muted);
-  }
-  .st-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 3px 6px;
-    margin: 8px 0;
-  }
-  .st-legend button {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: transparent;
-    border-color: transparent;
-    padding: 3px 5px;
-    font: 10px var(--mono);
-  }
-  .st-legend button[aria-pressed="false"] {
-    opacity: 0.4;
-  }
-  .st-legend button span {
-    width: 7px;
-    height: 7px;
-    border-radius: 2px;
-  }
-  .st-chart-plot {
     position: relative;
   }
   .st-chart-plot > svg:focus-visible {
     outline: 1px solid var(--accent);
     outline-offset: 2px;
-  }
-  .st-chart-crosshair {
-    stroke: var(--muted);
-    stroke-dasharray: 3 3;
-    vector-effect: non-scaling-stroke;
-    pointer-events: none;
-  }
-  .st-chart-marker {
-    position: absolute;
-    width: 8px;
-    height: 8px;
-    border: 2px solid var(--paper);
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    pointer-events: none;
-  }
-  .st-chart-tooltip {
-    position: absolute;
-    z-index: 2;
-    width: 280px;
-    max-width: calc(100% - 8px);
-    overflow: auto;
-    padding: 9px 10px;
-    border: 1px solid var(--selected-line);
-    border-radius: var(--radius);
-    background: var(--paper);
-    color: var(--ink);
-    box-shadow: 0 5px 18px #0007;
-    font: 10px/1.5 var(--mono);
   }
   .st-chart-tooltip .allocation-label {
     align-items: flex-start;
@@ -274,11 +210,6 @@ body {
   .st-chart-tooltip .allocation-label strong {
     white-space: normal;
     overflow-wrap: anywhere;
-  }
-  .st-chart-note {
-    min-height: 20px;
-    color: var(--muted);
-    font-size: 9px;
   }
   .st-table-scroll {
     overflow-x: auto;
@@ -615,7 +546,7 @@ body {
   details {
     margin-top: 12px;
   }
-  summary:not(:where(#air-quality-section *)) {
+  summary:not(:where(#air-quality-section *, .history-panel *)) {
     cursor: pointer;
     font-size: 11px;
   }

@@ -9,6 +9,7 @@ import {
 } from "./MonitorContext";
 import { Projects, ProcessTable, WorktreeDetail } from "./Resources";
 import { HistoryChart } from "./HistoryChart";
+import { codexColor, otherColor, projectColors } from "../lib/resourceHistory";
 export function Overview() {
   const { snapshot } = useMonitor();
   const [selected, setSelected] = useState<Set<string>>(new Set()),
@@ -44,17 +45,35 @@ export function Overview() {
       setBusy(false);
     }
   };
+  const colors = projectColors(s.projects);
   const allocated = [
-    ...s.projects.map((p) => ({ label: p.name, value: p.memory_bytes })),
-    { label: "Codex", value: s.codex.memory_bytes },
+    ...s.projects
+      .filter((p) => p.memory_bytes > 0)
+      .slice(0, 6)
+      .map((p) => ({
+        label: p.name,
+        value: p.memory_bytes,
+        color: colors.get(p.id)!,
+      })),
+    ...(s.codex.memory_bytes > 0
+      ? [
+          {
+            label: "Codex processes",
+            value: s.codex.memory_bytes,
+            color: codexColor,
+          },
+        ]
+      : []),
     {
       label: "System & other",
+      color: otherColor,
       value: Math.max(
         0,
         s.system.memory_used - s.totals.memory_bytes - s.codex.memory_bytes,
       ),
     },
   ];
+  const allocationMaximum = Math.max(1, ...allocated.map((item) => item.value));
   return (
     <>
       <div className="st-metrics metrics">
@@ -93,18 +112,15 @@ export function Overview() {
         </div>
       </Panel>
       <div className="overview-grid">
-        <Panel title="Resource activity">
-          <HistoryChart snapshot={s} />
-        </Panel>
-        <Panel title="Memory allocation" className="allocation-panel">
+        <HistoryChart snapshot={s} />
+        <Panel
+          title="Memory allocation"
+          className="allocation-panel"
+          actions={<span className="subtle-tag">LIVE</span>}
+        >
           <div id="allocation">
             {allocated.map((a, i) => {
-              const color =
-                a.label === "Codex"
-                  ? "#c4b5fd"
-                  : a.label === "System & other"
-                    ? "#91a0b2"
-                    : ["#58a6ff", "#63cf8c", "#d2a8ff", "#f0b65f"][i % 4];
+              const color = a.color;
               return (
                 <div className="allocation-row" key={i}>
                   <div className="allocation-label">
@@ -120,13 +136,13 @@ export function Overview() {
                     role="meter"
                     aria-label={a.label}
                     aria-valuemin={0}
-                    aria-valuemax={Math.max(s.system.memory_used, 1)}
+                    aria-valuemax={allocationMaximum}
                     aria-valuenow={a.value}
                     aria-valuetext={bytes(a.value)}
                   >
                     <span
                       style={{
-                        width: `${Math.min(100, (a.value / Math.max(s.system.memory_used, 1)) * 100)}%`,
+                        width: `${(a.value / allocationMaximum) * 100}%`,
                         background: color,
                       }}
                     />
@@ -137,7 +153,7 @@ export function Overview() {
           </div>
           <div className="allocation-note">
             RSS + container working set; shared pages may overlap. System &amp;
-            other is the remainder.
+            other is the remainder, including unassigned containers.
           </div>
         </Panel>
       </div>
