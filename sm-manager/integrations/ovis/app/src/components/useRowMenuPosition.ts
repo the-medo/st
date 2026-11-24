@@ -26,7 +26,15 @@ export function useRowMenuPosition({ anchor, surface, point, align, sheet, onClo
     // viewport dimensions. DOM rectangles still use browser coordinates, so move
     // anchors and clipping edges into that same local space before comparing them.
     const offset = (): { x: number; y: number } => {
-      const parent = menu.offsetParent;
+      let parent = menu.offsetParent;
+      if (!parent) {
+        // Older Chromium leaves offsetParent null for fixed elements even inside
+        // a layout/paint containment block. Locate that ancestor directly: the
+        // menu's integer layout offsets lose subpixel precision and can oscillate.
+        for (let ancestor = menu.parentElement; ancestor; ancestor = ancestor.parentElement) {
+          if (/\b(layout|paint|strict|content)\b/.test(getComputedStyle(ancestor).contain)) { parent = ancestor; break; }
+        }
+      }
       if (!parent) return { x: 0, y: 0 };
       const bounds = parent.getBoundingClientRect();
       return { x: bounds.left + parent.clientLeft - parent.scrollLeft, y: bounds.top + parent.clientTop - parent.scrollTop };

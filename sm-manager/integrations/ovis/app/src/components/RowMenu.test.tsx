@@ -34,7 +34,7 @@ describe("how the row menu closes from outside it", () => {
     const on = { addEventListener: events.addEventListener.bind(events), removeEventListener: events.removeEventListener.bind(events) };
     define("window", { ...on, localStorage: storage, matchMedia: (query: string) => ({ matches: phone && query === SHEET_QUERY, addEventListener() {}, removeEventListener() {} }), innerWidth: phone ? 390 : 1280, innerHeight: 800, requestAnimationFrame: (run: FrameRequestCallback) => frames.push(run), cancelAnimationFrame() {}, setTimeout, clearTimeout });
     define("document", { ...on, visibilityState: "visible", activeElement: null, body: { nodeType: 1, children: [], createNodeMock: () => menuNode }, documentElement: { dataset: {}, style: { setProperty() {}, removeProperty() {} } }, querySelector: () => null });
-    define("getComputedStyle", (element: Element) => ({ overflowX: "visible", overflowY: element === anchor.parentElement ? "auto" : "visible", getPropertyValue: () => "" }));
+    define("getComputedStyle", (element: HTMLElement) => ({ overflowX: "visible", overflowY: element === anchor.parentElement ? "auto" : "visible", contain: element.style?.contain ?? "none", getPropertyValue: () => "" }));
     function OpenMenu() {
       const [open, setOpen] = useState(true);
       return open ? createElement(RowMenu, { anchor, point, title: "w1", items: [{ id: "rename", label: "Rename", icon: Pencil, run() {} }], onClose: () => { closes++; setOpen(false); } }) : null;
@@ -165,5 +165,22 @@ describe("how the row menu closes from outside it", () => {
     await frame();
     expect(closes).toBe(0);
     expect(renderer?.root.findByProps({ role: "menu" }).props.style).toMatchObject({ left: 260, top: 60 });
+  });
+
+  it("keeps an embedded menu aligned when the browser exposes no fixed offset parent", async () => {
+    const host = Object.assign(node(), {
+      clientLeft: 0, clientTop: 0, scrollLeft: 0, scrollTop: 0, style: { contain: "layout style" },
+      getBoundingClientRect: () => ({ left: 240.25, top: 50.25 }),
+    });
+    const row = Object.assign(node(), {
+      getBoundingClientRect: () => ({ left: 1470, right: 1500, top: 60, bottom: 90 }),
+    });
+    const menuNode = Object.assign(node(), {
+      offsetParent: null, parentElement: host,
+    });
+    await draw(false, row, { menuNode });
+    await frame();
+    expect(closes).toBe(0);
+    expect(renderer?.root.findByProps({ role: "menu" }).props.style).toMatchObject({ left: 1059.75, top: 43.75 });
   });
 });
