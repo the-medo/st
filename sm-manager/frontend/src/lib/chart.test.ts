@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { segments } from "../components/Chart";
+import { sampleAt, segments } from "../components/Chart";
 import { safeUrl } from "./api";
 test("chart segments preserve missing readings and time gaps", () => {
   const p = [
@@ -30,4 +30,20 @@ test("Workmode honors explicit off and matches repository ownership without chan
   expect(snapshot.projects[0]!.info!.repository_url).toBe(
     "https://example.test/garden",
   );
+});
+
+test("chart tooltips align independent sample times without filling missing buckets", () => {
+  const points = [
+    { timestamp: 100.02, value: 10 },
+    { timestamp: 160.02, value: null },
+    { timestamp: 220.02, value: NaN },
+    { timestamp: 400.02, value: 0 },
+  ];
+  expect(sampleAt(points, 100, 60)?.value).toBe(10);
+  expect(sampleAt(points, 160, 60)).toBeNull();
+  expect(sampleAt(points, 220, 60)).toBeNull();
+  expect(sampleAt(points, 310, 60)).toBeNull();
+  expect(sampleAt(points, 400, 60)?.value).toBe(0);
+  expect(sampleAt([], 100, 60)).toBeNull();
+  expect(sampleAt([{ timestamp: NaN, value: 20 }], 100, 60)).toBeNull();
 });

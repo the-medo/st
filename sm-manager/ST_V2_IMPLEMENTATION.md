@@ -787,3 +787,19 @@ bundled images. That unrelated check and the icon assets are unchanged.
 See `packages/theme/README.md` for the package contract, adapters and generation
 commands. Static Python assets are generated and checked in; `theme:check`
 verifies that they match the package sources.
+
+## Chart tooltip parity restored — 2026-11-24
+
+The shared React chart now renders a floating tooltip inside the plot, with a
+crosshair, colored sample markers and per-series readings, replacing the hover
+text previously relegated to its footer. Overview, worktree history and all
+AirQ history axes share the fix. Tooltips support hover, tap and keyboard
+inspection, remain readable while hovered, and dismiss on Escape or outside
+interaction. Placement respects viewport edges, scrolling dialogs and fullscreen
+charts. Slightly offset series timestamps match within half a bucket; missing
+and non-finite samples remain missing. History-derived arrays are memoized so
+pointer movement does not repeatedly sort all collected readings.
+
+Validated with TypeScript, production build, the chart/unit suite and browser
+checks for multi-series values, CPU/memory units, missing air readings, legend
+filtering, keyboard stepping, dialog Escape behavior, fullscreen and phone taps.
