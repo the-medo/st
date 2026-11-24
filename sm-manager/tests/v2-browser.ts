@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import assert from "node:assert/strict";
 import { fixtureApi } from "./v2-fixtures";
 import { verifyCatalogs } from "./catalog-browser";
+import { verifyAirQuality } from "./air-browser";
 const root = resolve("sm_manager/web");
 const planner = `<!doctype html><html><head><link rel="stylesheet" href="/st-theme.css"><link rel="stylesheet" href="/st-planner.css"><script src="/st-planner.js"></script></head><body><h1>Fixture planner</h1><input aria-label="Task title"><button id="home">ST home</button><script>document.querySelector('#home').onclick=()=>parent.postMessage({type:'st:home'},location.origin);parent.postMessage({type:'st:ready',path:'/planner/tasks'},location.origin);window.addEventListener('message',e=>{if(e.origin!==location.origin)return;if(e.data.type==='st:navigate')parent.postMessage({type:'st:navigated',path:e.data.path},location.origin);});</script></body></html>`;
 const server = Bun.serve({
@@ -267,31 +268,7 @@ try {
     "Mobile projects fit the viewport",
   );
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto(`${base}/air-quality`);
-  const airChart = page.locator(".st-chart").first();
-  await airChart.locator("svg").focus();
-  const airTip = airChart.getByRole("tooltip");
-  await airTip.waitFor();
-  assert.match(
-    await airTip.innerText(),
-    /CO₂ mean[\s\S]*ppm[\s\S]*CO₂ peak[\s\S]*850 ppm/,
-  );
-  const particleChart = page.locator(".st-chart").nth(1);
-  await particleChart.locator("svg").focus();
-  await particleChart.getByRole("tooltip").waitFor();
-  assert.match(
-    await particleChart.getByRole("tooltip").innerText(),
-    /PM1 mean[\s\S]*—/,
-  );
-  await page
-    .getByRole("button", { name: "Fullscreen", exact: true })
-    .first()
-    .click();
-  await airChart.locator("svg").focus();
-  await airTip.waitFor();
-  await page
-    .getByRole("button", { name: "Exit fullscreen", exact: true })
-    .click();
+  await verifyAirQuality(page, base);
 
   const touch = await browser.newPage({
     viewport: { width: 390, height: 844 },
@@ -322,6 +299,15 @@ try {
     .getByRole("heading", { name: "Machine health", exact: true })
     .tap();
   await touchTip.waitFor({ state: "hidden" });
+  await touch.goto(`${base}/air-quality`);
+  const touchAir = touch.locator("#air-chart-air");
+  await touchAir.locator("svg").waitFor();
+  await touchAir.tap({ position: { x: 120, y: 100 } });
+  await touch.locator("#air-reading-air .air-reading-time").waitFor();
+  assert.match(
+    await touch.locator("#air-reading-air").innerText(),
+    /CO₂[\s\S]*ppm[\s\S]*peak 850/,
+  );
   await touch.close();
 
   const evidence = process.env.ST_V2_EVIDENCE;
@@ -333,7 +319,7 @@ try {
   }
   assert.deepEqual(errors, []);
   console.log(
-    "Console browser acceptance passed: routes, history, worktree detail, planner draft, night mode, mobile navigation, aligned catalogs, and mouse/keyboard/touch tooltips.",
+    "Console browser acceptance passed: routes, history, worktree detail, planner draft, night mode, mobile navigation, aligned catalogs, restored Air Quality charts, and mouse/keyboard/touch tooltips.",
   );
 } finally {
   await browser.close();
