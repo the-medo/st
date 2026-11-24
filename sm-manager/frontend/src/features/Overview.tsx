@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { bytes, percent } from "../lib/api";
 import { Panel, Metric, Notice, Empty } from "../components/Ui";
-import { CopyText, cleanupBrief, useMonitor } from "./MonitorContext";
+import {
+  CopyReport,
+  CopyText,
+  cleanupBrief,
+  useMonitor,
+} from "./MonitorContext";
 import { Projects, ProcessTable, WorktreeDetail } from "./Resources";
 import { HistoryChart } from "./HistoryChart";
 export function Overview() {
@@ -74,7 +79,7 @@ export function Overview() {
           detail={`of ${s.totals.worktree_count}`}
         />
       </div>
-      <Panel title="Machine health">
+      <Panel title="Machine health" actions={<CopyReport />}>
         <div className="st-health">
           {s.machine_health?.checks.map((c) => (
             <article key={c.id} data-status={c.status}>

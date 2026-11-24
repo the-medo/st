@@ -105,7 +105,7 @@ try {
     bg: getComputedStyle(el).backgroundColor,
     width: el.getBoundingClientRect().width,
   }));
-  await page.getByRole("link", { name: "Ovis", exact: true }).click();
+  await page.getByRole("link", { name: "Agents", exact: true }).click();
   await page
     .getByRole("button", { name: "Fixture conversation", exact: true })
     .click();
@@ -145,7 +145,7 @@ try {
   await page.getByRole("heading", { name: "Your services" }).waitFor();
   await page.keyboard.press("Control+k");
   assert.equal(await page.locator(".st-ovis-section:visible").count(), 0);
-  await page.getByRole("link", { name: "Ovis", exact: true }).click();
+  await page.getByRole("link", { name: "Agents", exact: true }).click();
   assert.equal(
     await page.locator(".composer-text:visible").inputValue(),
     "Draft stays here until I send it.",
@@ -168,7 +168,7 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("link", { name: "Home", exact: true }).click();
   await page.getByRole("heading", { name: "Your services" }).waitFor();
-  await page.getByRole("link", { name: "Ovis", exact: true }).click();
+  await page.getByRole("link", { name: "Agents", exact: true }).click();
   await page.locator(".composer-text:visible").waitFor();
   assert(
     await page.evaluate(

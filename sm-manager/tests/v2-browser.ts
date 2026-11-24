@@ -96,7 +96,7 @@ try {
     "faceplate",
   ]) {
     await page.goto(`${base}/${route}`);
-    await page.locator(".st-topbar h1").waitFor();
+    await page.locator(".st-content").waitFor();
     await page.waitForFunction(
       () =>
         !document

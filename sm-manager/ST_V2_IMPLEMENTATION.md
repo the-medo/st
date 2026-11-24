@@ -803,3 +803,12 @@ pointer movement does not repeatedly sort all collected readings.
 Validated with TypeScript, production build, the chart/unit suite and browser
 checks for multi-series values, CPU/memory units, missing air readings, legend
 filtering, keyboard stepping, dialog Escape behavior, fullscreen and phone taps.
+
+## Shared navigation simplified — 2026-11-24
+
+Removed the global breadcrumb header on all React routes. The monitor's live
+connection state now appears beside the hostname in the sidebar, without the
+Linux subtitle. The centered ST logo has no caption, and Agents is the first
+navigation destination with a bot icon. Copy report remains in Overview's
+Machine health panel. TypeScript, production build and both console/Ovis demo
+browser checks passed, including mobile navigation and chart tooltips.

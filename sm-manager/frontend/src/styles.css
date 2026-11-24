@@ -17,13 +17,16 @@ body {
   .st-sidebar {
     z-index: 30;
   }
-  .st-topbar {
-    flex-shrink: 0;
+  .st-brand {
+    align-items: center;
+  }
+  .st-sidebar > nav {
+    margin-top: 18px;
   }
   #dashboard.st-content {
     display: block;
     min-width: 0;
-    padding-bottom: 18px;
+    padding-block: 18px;
   }
   .st-panel {
     margin-bottom: 14px;
@@ -523,6 +526,9 @@ body {
   @media (max-width: 700px) {
     .st-sidebar {
       flex-shrink: 0;
+    }
+    .st-sidebar > nav {
+      margin-top: 0;
     }
     .st-ovis-section,
     .st-planner-section {

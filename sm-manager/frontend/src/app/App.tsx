@@ -1,3 +1,4 @@
+import { Bot } from "lucide-react";
 import { isWorkmode, withWorkmode } from "../lib/workmode";
 import { lazy, Suspense, useEffect, useRef } from "react";
 import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
@@ -5,7 +6,7 @@ import { Home } from "../features/Home";
 import { Notice } from "../components/Ui";
 import { usePoll } from "../lib/api";
 import type { UiConfig } from "../lib/types";
-import { CopyReport, useMonitor } from "../features/MonitorContext";
+import { useMonitor } from "../features/MonitorContext";
 import { Planner } from "../features/Planner";
 import { Ovis } from "../features/ovis/Ovis";
 const Overview = lazy(() =>
@@ -55,8 +56,16 @@ export function App() {
   const ovisAddress = useRef("/ovis");
   if (ovis)
     ovisAddress.current = location.pathname + location.search + location.hash;
-  const title =
-    location.pathname === "/"
+  const connection = monitor.error
+    ? "Reconnecting"
+    : !monitor.data
+      ? "Connecting"
+      : monitor.data.stale
+        ? "Stale"
+        : "Connected";
+  const title = ovis
+    ? "Agents"
+    : location.pathname === "/"
       ? "Home"
       : (navigation.find((n) => `/${n[0]}` === location.pathname)?.[1] ??
         location.pathname
@@ -89,10 +98,9 @@ export function App() {
           className="st-brand brand"
           to={withWorkmode("/", workmode)}
           aria-label="Home"
-          title="ST · System console"
+          title="ST · Home"
         >
           <img src="/st-logo.svg" alt="" width="86" height="48" />
-          <span className="brand-caption">SYSTEM CONSOLE</span>
           <img
             className="workmode-logo"
             src="/ydistri.svg"
@@ -101,6 +109,17 @@ export function App() {
           />
         </NavLink>
         <nav aria-label="Main navigation">
+          {config.data?.ovis && (
+            <NavLink
+              className="nav-link"
+              title="Agents"
+              aria-label="Agents"
+              to={withWorkmode(ovisAddress.current, workmode)}
+            >
+              <Bot className="nav-icon" aria-hidden="true" size={17} />
+              Agents
+            </NavLink>
+          )}
           {navigation.map(([path, label, icon]) => (
             <NavLink
               className="nav-link"
@@ -140,18 +159,6 @@ export function App() {
               )}
             </NavLink>
           ))}
-          {config.data?.ovis && (
-            <NavLink
-              className="nav-link"
-              title="Ovis"
-              to={withWorkmode(ovisAddress.current, workmode)}
-            >
-              <span className="nav-icon" aria-hidden="true">
-                ◌
-              </span>
-              Ovis
-            </NavLink>
-          )}
         </nav>
         <div className="st-sidebar-bottom sidebar-bottom">
           {config.data?.planner && (
@@ -221,12 +228,14 @@ export function App() {
               </NavLink>
             </nav>
           )}
-          <div className="machine">
-            <span className="status-dot" />
-            <div>
-              <strong>{monitor.data?.system.hostname ?? "Connecting…"}</strong>
-              <span>Linux · local monitor</span>
-            </div>
+          <div
+            className={`machine st-connection connection ${connection !== "Connected" ? "stale" : ""}`}
+            role="status"
+            aria-label={`${monitor.data?.system.hostname ?? "Monitor"} · ${connection}`}
+            title={connection}
+          >
+            <span className="status-dot" aria-hidden="true" />
+            <strong>{monitor.data?.system.hostname ?? "Connecting…"}</strong>
           </div>
           <button
             className="workmode-toggle"
@@ -249,29 +258,6 @@ export function App() {
         </div>
       </aside>
       <main className="st-main">
-        <header className="st-topbar topbar">
-          <h1>
-            <span className="breadcrumb">ST</span>
-            <span className="slash">/</span>
-            {title}
-          </h1>
-          <div className="topbar-actions">
-            <span
-              className={`st-connection connection ${monitor.error || monitor.data?.stale ? "stale" : ""}`}
-              role="status"
-            >
-              <span className="status-dot" />
-              {monitor.error
-                ? "Reconnecting"
-                : !monitor.data
-                  ? "Connecting"
-                  : monitor.data.stale
-                    ? "Stale"
-                    : "Connected"}
-            </span>
-            {location.pathname === "/overview" && <CopyReport />}
-          </div>
-        </header>
         <div
           id="dashboard"
           data-view={location.pathname.slice(1) || "home"}
