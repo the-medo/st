@@ -1,0 +1,54 @@
+/* DAVe/Tailwind and FullCalendar consume the same S.T. semantic colors. */
+:root[data-st-theme] {
+  color-scheme: dark;
+  color: var(--st-ink);
+  background: var(--st-bg);
+  font-family: var(--st-font-ui);
+  --font-sans: var(--st-font-ui);
+  --default-font-family: var(--st-font-ui);
+  --font-mono: var(--st-font-mono);
+  --background: var(--st-bg);
+  --foreground: var(--st-ink);
+  --card: var(--st-paper);
+  --card-foreground: var(--st-ink);
+  --popover: var(--st-paper);
+  --popover-foreground: var(--st-ink);
+  --primary: var(--st-primary-bg);
+  --primary-foreground: var(--st-primary-ink);
+  --secondary: var(--st-surface);
+  --secondary-foreground: var(--st-ink);
+  --muted: var(--st-surface);
+  --muted-foreground: var(--st-muted);
+  --accent: var(--st-selected-bg);
+  --accent-foreground: var(--st-selected-ink);
+  --border: var(--st-line);
+  --input: var(--st-line);
+  --ring: var(--st-accent);
+  --destructive: var(--st-danger);
+  --destructive-foreground: var(--st-bg);
+  --radius: var(--st-radius-dialog);
+  --spacing: var(--st-space-1);
+  --fc-border-color: var(--st-line);
+  --fc-page-bg-color: var(--st-bg);
+  --fc-neutral-bg-color: var(--st-surface);
+  --fc-today-bg-color: var(--st-selected-bg);
+  --fc-button-text-color: var(--st-ink);
+  --fc-button-bg-color: var(--st-surface);
+  --fc-button-border-color: var(--st-line);
+  --fc-button-hover-bg-color: var(--st-hover-bg);
+  --fc-button-hover-border-color: var(--st-hover-line);
+  --fc-button-active-bg-color: var(--st-primary-bg);
+  --fc-button-active-border-color: var(--st-primary-line);
+}
+:root[data-st-theme] body {
+  background: var(--st-bg);
+  color: var(--st-ink);
+}
+.st-theme-note {
+  color: var(--st-muted);
+  font: 12px/1.5 var(--st-font-ui);
+  margin: var(--st-space-2) 0 0;
+}
+[data-st-theme-controls] > div {
+  display: none;
+}

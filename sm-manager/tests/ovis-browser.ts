@@ -91,6 +91,16 @@ try {
   const base = `http://127.0.0.1:${server.port}`;
   await page.goto(base);
   await page.getByRole("heading", { name: "Your services" }).waitFor();
+  await page.evaluate(() =>
+    localStorage.setItem(
+      "ovis:settings",
+      JSON.stringify({
+        theme: "light",
+        lightTheme: "amber",
+        darkTheme: "codex",
+      }),
+    ),
+  );
   const before = await page.locator(".st-sidebar").evaluate((el) => ({
     bg: getComputedStyle(el).backgroundColor,
     width: el.getBoundingClientRect().width,
@@ -100,6 +110,15 @@ try {
     .getByRole("button", { name: "Fixture conversation", exact: true })
     .click();
   await page.locator(".composer-text:visible").waitFor();
+  await page.locator('.st-ovis-root[style*="--bg: #0d1117;"]').waitFor();
+  assert.equal(
+    await page.evaluate(
+      () => JSON.parse(localStorage.getItem("ovis:settings")!).theme,
+    ),
+    "light",
+    "Host theme preserves the standalone preference",
+  );
+
   await page
     .locator(".composer-text:visible")
     .fill("Draft stays here until I send it.");
@@ -120,6 +139,8 @@ try {
   await page.locator(".st-ovis-root .medo-overlay").waitFor();
   await page.keyboard.press("Escape");
   await page.locator(".medo-overlay").waitFor({ state: "hidden" });
+  await page.getByRole("switch", { name: "Workmode", exact: true }).click();
+  await page.locator('.st-ovis-root[style*="--bg: #19120e;"]').waitFor();
   await page.getByRole("link", { name: "Home", exact: true }).click();
   await page.getByRole("heading", { name: "Your services" }).waitFor();
   await page.keyboard.press("Control+k");
@@ -129,9 +150,16 @@ try {
     await page.locator(".composer-text:visible").inputValue(),
     "Draft stays here until I send it.",
   );
+  assert.match(page.url(), /workmode=1/);
+  await page.getByRole("switch", { name: "Workmode", exact: true }).click();
+  await page.locator('.st-ovis-root[style*="--bg: #0d1117;"]').waitFor();
   await page.locator(".composer-text:visible").fill("");
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.locator(".settings-dialog:visible").waitFor();
+  await page.locator('[data-settings-page="appearance"]:visible').click();
+  await page
+    .getByText("S.T. console theme · Colors follow the S.T. sidebar.")
+    .waitFor();
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Terminal", exact: true }).click();
   await page.locator(".xterm:visible").waitFor();

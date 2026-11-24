@@ -6455,3 +6455,14 @@ composer form, so saving a setting cannot accidentally send a draft.
 The dedicated loopback service is exposed only through private Tailscale HTTPS; existing
 auth and origin gates remain in front of custom routes. Cookie names and private state
 are isolated. All interactive tests use an isolated hc core and an owned demo chat.
+
+## Hosted S.T. appearance
+
+The S.T. integration supplies an optional host appearance to SettingsProvider.
+Its established blue console palette (amber in Workmode) follows the user's
+request to retain the original S.T. styling across the combined application.
+The existing Codex palette/semantic roles above provide the integration model;
+colors, fonts and corner shapes come from `@st/theme`. Chat sizing, density,
+semantic status colors and touch targets keep their existing roles. Both CSS
+and terminal canvas colors use the same resolved entry. Appearance settings show
+the host description while hosted; saved standalone choices remain untouched.

@@ -6,7 +6,7 @@
 import type { TelemetrySettings } from "../../shared/telemetry.ts";
 import { MAX_PINS, mirrorPalette, SHARED_SETTING_KEYS, type SharedSettingKey } from "../../shared/preferences.ts";
 import { browserBlockedSites } from "../../shared/browser-policy.ts";
-import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, createElement, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { DEFAULT_THEME, terminalColors, themeColor as themeTableColor, type DrawnTheme, type ThemeId } from "./themes.ts";
 import { bootRows, drawnTheme, NO_CUSTOM_THEMES, sanitizeCustomThemes, type CustomThemes } from "./customThemes.ts";
 import { LANGUAGE_SETTINGS, LOCALE_TAGS, resolveLanguage, setCurrentLanguage, type Language, type LanguageSetting } from "./i18n.ts";
@@ -990,6 +990,8 @@ export function applyToDocument(settings: Settings, entry: DrawnTheme, language:
 }
 
 interface SettingsContextValue {
+  /** Host-owned appearance does not overwrite standalone preferences. */
+  hostAppearance?: ReactNode;
   settings: Settings;
   resolvedTheme: ResolvedTheme;
   resolvedEntry: DrawnTheme;
@@ -1004,7 +1006,7 @@ interface SettingsContextValue {
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
 
-export function SettingsProvider({ children }: { children: ReactNode }) {
+export function SettingsProvider({ children, hostAppearance }: { children: ReactNode; hostAppearance?: { entry: DrawnTheme; description: ReactNode } }) {
   const [settings, setSettings] = useState<Settings>(loadSettings);
   // This tab's settings as of now. `update` and the storage handler advance it at once and then hand it to React to
   // draw: a change is never worked out in an updater, which React runs later, and twice under StrictMode.
@@ -1039,9 +1041,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     return () => query.removeEventListener("change", onChange);
   }, []);
 
-  const resolvedTheme: ResolvedTheme = settings.theme === "system" ? (systemDark ? "dark" : "light") : settings.theme;
+  const resolvedTheme: ResolvedTheme = hostAppearance?.entry.mode ?? (settings.theme === "system" ? (systemDark ? "dark" : "light") : settings.theme);
 
-  const resolvedEntry = drawnTheme(settings, resolvedTheme);
+  const resolvedEntry = hostAppearance?.entry ?? drawnTheme(settings, resolvedTheme);
   const customKey = JSON.stringify(settings.customThemes);
   useEffect(() => saveBootRows(sanitizeCustomThemes(JSON.parse(customKey))), [customKey]);
 
@@ -1055,7 +1057,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   // helpers outside React read this during the same render, so it is set before the children render
   setCurrentLanguage(resolvedLanguage);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     applyToDocument(settings, resolvedEntry, resolvedLanguage);
   }, [settings, resolvedEntry, resolvedLanguage]);
 
@@ -1083,7 +1085,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     return () => { watchers.current.delete(changed); };
   }, []);
 
-  const value = useMemo(() => ({ settings, resolvedTheme, resolvedEntry, resolvedLanguage, own, watch, update }), [settings, resolvedTheme, resolvedEntry, resolvedLanguage, own, watch, update]);
+  const value = useMemo(() => ({ settings, resolvedTheme, resolvedEntry, resolvedLanguage, own, watch, update, hostAppearance: hostAppearance?.description }), [settings, resolvedTheme, resolvedEntry, resolvedLanguage, own, watch, update, hostAppearance?.description]);
   return createElement(SettingsContext.Provider, { value }, children);
 }
 

@@ -764,3 +764,26 @@ on 18 shell/home selectors at 1440px, 900px and 390px viewport widths. Fixture
 screenshots were inspected for home, monitoring views, Workmode and embedded
 Ovis. Browser coverage also checks the original desktop/tablet sidebar widths,
 mobile project overflow and the Ovis viewport below mobile navigation.
+
+## Shared application theme — 2026-11-24
+
+`packages/theme` now owns the console/Workmode colors, typography, spacing and
+corner tokens. The legacy and React consoles use its generated stylesheet.
+Hosted Ovis consumes a resolved appearance entry for both CSS and terminal
+canvas colors, plus shared typography/shape tokens. Its Appearance page explains
+the host theme without changing saved standalone preferences. Theme application
+runs before paint. The planner proxy adds same-origin theme assets that map DAVe
+and FullCalendar tokens; validated parent messages keep the retained frame in
+sync with Workmode. Navigation preserves the host context and both apps' drafts.
+
+Validation: build, TypeScript, frozen workspace install, 11 shared frontend/unit
+checks, 115 Python checks, both browser acceptance suites, and all 240 focused
+Ovis appearance/settings/preference checks passed. The legacy visual comparison
+still matches the pre-extraction styles at desktop/tablet/mobile widths. The
+broader Ovis conventions run passed 18 checks and exposed its existing icon-cache
+assertion requiring a static icon URL in `src`; the imported source instead uses
+bundled images. That unrelated check and the icon assets are unchanged.
+
+See `packages/theme/README.md` for the package contract, adapters and generation
+commands. Static Python assets are generated and checked in; `theme:check`
+verifies that they match the package sources.

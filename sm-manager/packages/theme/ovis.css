@@ -1,0 +1,20 @@
+/* Host-owned foundations; Ovis retains its density, text sizes and touch targets. */
+.st-ovis-root[data-st-host-theme] {
+  --font-ui: var(--st-font-ui);
+  --font-mono: "Symbols Nerd Font Mono", var(--st-font-mono);
+  --radius-xs: var(--st-radius-control);
+  --radius-sm: var(--st-radius-panel);
+  --radius-md: var(--st-radius-dialog);
+  --radius-lg: var(--st-radius-card);
+  --radius-xl: var(--st-radius-card);
+  --radius-2xl: var(--st-radius-service);
+  --radius-cta: var(--st-radius-dialog);
+  --radius-pill: var(--st-radius-pill);
+  --space-1: var(--st-space-1);
+  --space-2: var(--st-space-2);
+  --space-3: var(--st-space-3);
+  --space-4: var(--st-space-4);
+  --space-5: var(--st-space-5);
+  --space-6: var(--st-space-6);
+  --space-8: var(--st-space-8);
+}

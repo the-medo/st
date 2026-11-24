@@ -1,3 +1,6 @@
+import { ovisTheme } from "@st/theme/ovis";
+import { themeName } from "@st/theme";
+import "@st/theme/ovis.css";
 import "../../../../integrations/ovis/app/src/lib/builtins.ts";
 import "../../../../integrations/ovis/app/src/lib/legacyStorage.ts";
 import "../../../../integrations/ovis/app/src/fonts/fonts.css";
@@ -17,14 +20,28 @@ import { readerFromSearch } from "../../../../integrations/ovis/app/src/lib/file
 import { ovisUrl } from "./host";
 setTransport({ ...nativeTransport, resourceUrl: ovisUrl });
 const reader = readerFromSearch(window.location.search);
-export default function Feature() {
+const hostThemes = {
+  console: ovisTheme("console"),
+  workmode: ovisTheme("workmode"),
+};
+export default function Feature({ workmode }: { workmode: boolean }) {
   useEffect(() => watchSheetExits(), []);
   return (
     <RenderBoundary
       resetKey={null}
       fallback={(_retry, error) => <AppCrash error={error} />}
     >
-      <SettingsProvider>
+      <SettingsProvider
+        hostAppearance={{
+          entry: hostThemes[themeName(workmode)],
+          description: (
+            <p>
+              S.T. {workmode ? "Workmode" : "console"} theme · Colors follow the
+              S.T. sidebar.
+            </p>
+          ),
+        }}
+      >
         {reader ? <FileReader target={reader} /> : <App />}
       </SettingsProvider>
     </RenderBoundary>

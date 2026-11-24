@@ -1,4 +1,4 @@
-import { isWorkmode } from "../lib/workmode";
+import { isWorkmode, withWorkmode } from "../lib/workmode";
 import { lazy, Suspense, useEffect, useRef } from "react";
 import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
 import { Home } from "../features/Home";
@@ -87,7 +87,7 @@ export function App() {
       <aside className="st-sidebar sidebar">
         <NavLink
           className="st-brand brand"
-          to="/"
+          to={withWorkmode("/", workmode)}
           aria-label="Home"
           title="ST · System console"
         >
@@ -141,7 +141,11 @@ export function App() {
             </NavLink>
           ))}
           {config.data?.ovis && (
-            <NavLink className="nav-link" title="Ovis" to={ovisAddress.current}>
+            <NavLink
+              className="nav-link"
+              title="Ovis"
+              to={withWorkmode(ovisAddress.current, workmode)}
+            >
               <span className="nav-icon" aria-hidden="true">
                 ◌
               </span>
@@ -153,7 +157,11 @@ export function App() {
           {config.data?.planner && (
             <nav className="sidebar-planner" aria-label="Planner">
               <h2 className="sidebar-heading">Planner</h2>
-              <NavLink className="nav-link" title="Tasks" to="/planner/tasks">
+              <NavLink
+                className="nav-link"
+                title="Tasks"
+                to={withWorkmode("/planner/tasks", workmode)}
+              >
                 <span className="nav-icon" aria-hidden="true">
                   ☑
                 </span>
@@ -162,7 +170,7 @@ export function App() {
               <NavLink
                 className="nav-link"
                 title="Calendar"
-                to="/planner/calendar"
+                to={withWorkmode("/planner/calendar", workmode)}
               >
                 <span className="nav-icon" aria-hidden="true">
                   ▦
@@ -320,7 +328,7 @@ export function App() {
           </Suspense>
         </div>
         {config.data?.planner && <Planner active={planner} />}
-        {config.data?.ovis && <Ovis active={ovis} />}
+        {config.data?.ovis && <Ovis active={ovis} workmode={workmode} />}
         {planner && config.data && !config.data.planner && (
           <Notice>Planner is not configured on this instance.</Notice>
         )}

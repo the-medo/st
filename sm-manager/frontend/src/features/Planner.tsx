@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
+import { isWorkmode, withWorkmode } from "../lib/workmode";
+import { themeName } from "@st/theme";
 import { Notice } from "../components/Ui";
 const pages = new Set(["tasks", "calendar", "contacts", "notes", "journals"]);
 export function plannerPath(value: unknown): string | null {
@@ -13,6 +15,7 @@ export function plannerPath(value: unknown): string | null {
 export function Planner({ active }: { active: boolean }) {
   const route = useLocation(),
     navigate = useNavigate();
+  const theme = themeName(isWorkmode(route.search));
   const frame = useRef<HTMLIFrameElement>(null),
     ready = useRef(false),
     current = useRef<string | null>(null);
@@ -53,7 +56,7 @@ export function Planner({ active }: { active: boolean }) {
       const data = event.data;
       if (!data || typeof data !== "object") return;
       if (data.type === "st:home") {
-        if (active) navigate("/");
+        if (active) navigate(withWorkmode("/", theme === "workmode"));
         return;
       }
       const next = plannerPath(data.path);
@@ -65,18 +68,23 @@ export function Planner({ active }: { active: boolean }) {
         setError(false);
         if (next !== desired.current)
           send("st:navigate", { path: desired.current });
+        send("st:theme", { theme });
         send("st:active", { active: active && !document.hidden });
       }
       if (data.type === "st:route") {
         current.current = next;
-        if (active) navigate(next, { replace: data.replace === true });
+        if (active)
+          navigate(withWorkmode(next, theme === "workmode"), {
+            replace: data.replace === true,
+          });
       }
       if (data.type === "st:navigated") current.current = next;
     };
     window.addEventListener("message", receive);
     return () => window.removeEventListener("message", receive);
-  }, [active, navigate]);
+  }, [active, navigate, theme]);
   useEffect(() => {
+    if (ready.current) send("st:theme", { theme });
     if (active && ready.current && current.current !== desired.current)
       send("st:navigate", { path: desired.current });
     const visibility = () => {
@@ -86,7 +94,7 @@ export function Planner({ active }: { active: boolean }) {
     visibility();
     document.addEventListener("visibilitychange", visibility);
     return () => document.removeEventListener("visibilitychange", visibility);
-  }, [active, path]);
+  }, [active, path, theme]);
   return (
     <section
       hidden={!active}

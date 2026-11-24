@@ -11,7 +11,8 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-router": "7.9.6",
-    "lucide-react": "1.47.0"
+    "lucide-react": "1.47.0",
+    "@st/theme": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "19.3.0",

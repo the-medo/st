@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import assert from "node:assert/strict";
 import { fixtureApi } from "./v2-fixtures";
 const root = resolve("sm_manager/web");
-const planner = `<!doctype html><html><body><h1>Fixture planner</h1><input aria-label="Task title"><button id="home">ST home</button><script>document.querySelector('#home').onclick=()=>parent.postMessage({type:'st:home'},location.origin);parent.postMessage({type:'st:ready',path:'/planner/tasks'},location.origin);window.addEventListener('message',e=>{if(e.origin!==location.origin)return;if(e.data.type==='st:navigate')parent.postMessage({type:'st:navigated',path:e.data.path},location.origin);});</script></body></html>`;
+const planner = `<!doctype html><html><head><link rel="stylesheet" href="/st-theme.css"><link rel="stylesheet" href="/st-planner.css"><script src="/st-planner.js"></script></head><body><h1>Fixture planner</h1><input aria-label="Task title"><button id="home">ST home</button><script>document.querySelector('#home').onclick=()=>parent.postMessage({type:'st:home'},location.origin);parent.postMessage({type:'st:ready',path:'/planner/tasks'},location.origin);window.addEventListener('message',e=>{if(e.origin!==location.origin)return;if(e.data.type==='st:navigate')parent.postMessage({type:'st:navigated',path:e.data.path},location.origin);});</script></body></html>`;
 const server = Bun.serve({
   hostname: "127.0.0.1",
   port: 0,
@@ -17,6 +17,14 @@ const server = Bun.serve({
       return new Response(planner, {
         headers: { "content-type": "text/html" },
       });
+    if (
+      ["/st-theme.css", "/st-planner.css", "/st-planner.js"].includes(
+        url.pathname,
+      )
+    )
+      return new Response(
+        Bun.file(resolve("sm_manager/static", "." + url.pathname)),
+      );
     const path = resolve(root, "." + url.pathname);
     if (!path.startsWith(root + "/") && path !== root)
       return new Response("", { status: 404 });
@@ -108,12 +116,61 @@ try {
   await page.getByRole("link", { name: "Tasks", exact: true }).click();
   const frame = page.frameLocator('iframe[title="ST Planner"]');
   await frame.getByLabel("Task title").fill("Draft survives");
+  assert.equal(
+    await frame
+      .locator("body")
+      .evaluate((el) => getComputedStyle(el).backgroundColor),
+    "rgb(13, 17, 23)",
+  );
+  await page.getByRole("switch", { name: "Workmode", exact: true }).click();
+  await page.waitForFunction(
+    () =>
+      document.querySelector<HTMLIFrameElement>("iframe")?.contentDocument
+        ?.documentElement.dataset.stTheme === "workmode",
+  );
+  assert.equal(
+    await frame
+      .locator("body")
+      .evaluate((el) => getComputedStyle(el).backgroundColor),
+    "rgb(25, 18, 14)",
+  );
+
   await page.getByRole("link", { name: "Home", exact: true }).click();
   await page.getByRole("link", { name: "Tasks", exact: true }).click();
   assert.equal(
     await frame.getByLabel("Task title").inputValue(),
     "Draft survives",
   );
+  await frame.locator("body").evaluate((el) => {
+    const row = document.createElement("section");
+    row.innerHTML =
+      '<div><span class="block font-medium">Theme</span><div><button>Light</button><button>System</button><button>Dark</button></div></div>';
+    el.append(row);
+  });
+  await frame.getByText("Colors follow the S.T. console.").waitFor();
+  assert.equal(
+    await frame.getByRole("button", { name: "Light", exact: true }).count(),
+    0,
+    "Planner's standalone color control is hidden while hosted",
+  );
+  assert.match(page.url(), /workmode=1/);
+  await page.getByRole("switch", { name: "Workmode", exact: true }).click();
+  await page.waitForFunction(
+    () =>
+      document.querySelector<HTMLIFrameElement>("iframe")?.contentDocument
+        ?.documentElement.dataset.stTheme === "console",
+  );
+  await frame.locator("html").evaluate((el) => {
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        origin: "https://untrusted.invalid",
+        source: parent,
+        data: { type: "st:theme", theme: "workmode" },
+      }),
+    );
+    if (el.dataset.stTheme !== "console")
+      throw new Error("Untrusted theme message was accepted");
+  });
   await page.goto(`${base}/faceplate`);
   await page.getByRole("switch", { name: /Night mode/ }).click();
   await page.waitForFunction(() =>

@@ -4,16 +4,19 @@
   "packageManager": "bun@1.4.4",
   "workspaces": [
     "frontend",
-    "integrations/ovis/app"
+    "integrations/ovis/app",
+    "packages/*"
   ],
   "scripts": {
-    "build": "bun run --cwd frontend build",
+    "build": "bun run theme:build && bun run --cwd frontend build",
     "typecheck": "bun run --cwd frontend typecheck && bun run --cwd frontend typecheck:gateway",
-    "test:unit": "bun test frontend/src services/web-gateway services/ovis",
+    "test:unit": "bun test frontend/src services/web-gateway services/ovis packages/theme",
     "test:browser": "bun tests/v2-browser.ts",
     "build:ovis": "cd integrations/ovis/app && VITE_MEDO_PROJECTS=1 bun run build",
     "test:ovis-browser": "bun tests/ovis-browser.ts",
-    "test:terminal": "bun tests/ovis-terminal.ts"
+    "test:terminal": "bun tests/ovis-terminal.ts",
+    "theme:build": "bun run --cwd packages/theme build",
+    "theme:check": "bun run --cwd packages/theme check"
   },
   "devDependencies": {
     "@types/bun": "1.4.2",

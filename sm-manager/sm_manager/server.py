@@ -193,6 +193,13 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
                     r"/planner/assets/[\w.-]+-[\w-]{8,}\.(js|css)", path) else "private, no-cache"
             elif status == 200 and path.removeprefix(PREFIX) in PAGES:
                 cache = "no-store"
+                if config.get("frontend") == "react" and content_type.startswith("text/html"):
+                    # Static, same-origin host styles load before the planner paints.
+                    # No account data, user CSS, or credentials enter this markup.
+                    theme = (b'<link rel="stylesheet" href="/st-theme.css">'
+                             b'<link rel="stylesheet" href="/st-planner.css">'
+                             b'<script src="/st-planner.js"></script>')
+                    data = data.replace(b"</head>", theme + b"</head>", 1)
             return self.respond(status, data, content_type, cache=cache)
 
         def do_PUT(self):
@@ -333,6 +340,8 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
                 return self.respond(404, {"error": "Not found"})
             name = {"/": "index.html", "/app.js": "app.js", "/style.css": "style.css",
                     "/favicon.svg": "favicon.svg", "/st-logo.svg": "st-logo.svg",
+                    "/st-theme.css": "st-theme.css",
+                    "/st-planner.css": "st-planner.css", "/st-planner.js": "st-planner.js",
                     "/home.css": "home.css", "/home.js": "home.js", "/home-icons.svg": "home-icons.svg",
                     "/workmode.js": "workmode.js", "/ydistri.svg": "ydistri.svg",
                     "/zed.svg": "zed.svg", "/db.svg": "db.svg",

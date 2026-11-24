@@ -96,3 +96,11 @@ export function isWorkmode(search: string) {
     value !== null && ["", "1", "true", "on"].includes(value.toLowerCase())
   );
 }
+
+/** Carry the host appearance/context across internal app navigation. */
+export function withWorkmode(path: string, enabled: boolean) {
+  const url = new URL(path, "http://st.invalid");
+  if (enabled) url.searchParams.set("workmode", "1");
+  else url.searchParams.delete("workmode");
+  return url.pathname + url.search + url.hash;
+}

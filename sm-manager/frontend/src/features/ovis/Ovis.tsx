@@ -8,10 +8,18 @@ import {
 import { useNavigate } from "react-router";
 import { setOvisHost } from "./host";
 import { Notice } from "../../components/Ui";
-export function Ovis({ active }: { active: boolean }) {
+export function Ovis({
+  active,
+  workmode,
+}: {
+  active: boolean;
+  workmode: boolean;
+}) {
   const root = useRef<HTMLDivElement>(null),
     navigate = useNavigate();
-  const [Feature, setFeature] = useState<ComponentType | null>(null),
+  const [Feature, setFeature] = useState<ComponentType<{
+      workmode: boolean;
+    }> | null>(null),
     [error, setError] = useState(""),
     [retry, setRetry] = useState(0);
   const started = useRef(false);
@@ -48,9 +56,14 @@ export function Ovis({ active }: { active: boolean }) {
   }, [active, Feature, retry]);
   return (
     <section hidden={!active} className="st-ovis-section" aria-label="Ovis">
-      <div className="st-ovis-root" ref={root} inert={!active}>
+      <div
+        className="st-ovis-root"
+        data-st-host-theme={workmode ? "workmode" : "console"}
+        ref={root}
+        inert={!active}
+      >
         {Feature ? (
-          <Feature />
+          <Feature workmode={workmode} />
         ) : error ? (
           <Notice retry={() => setRetry((v) => v + 1)}>{error}</Notice>
         ) : (

@@ -446,16 +446,16 @@ function InterfaceFontRows() {
 }
 
 function AppearancePage() {
-  const { settings, update } = useSettings();
+  const { settings, update, hostAppearance } = useSettings();
   const t = useT();
   return (
     <SettingsBare.Provider value={true}>
-    <SettingsGroup>
+    {hostAppearance ?? <SettingsGroup>
       <SettingsRow icon={SunMoon} label={t("Theme")} description={t("Dark and Light keep one look; System follows each device's own dark or light mode. The choice applies on every device.")} wide reset={["theme"]}>
         <Segmented label={t("Theme")} value={settings.theme} onChange={(theme) => update({ theme })} options={[{ value: "dark", label: t("Dark") }, { value: "light", label: t("Light") }, { value: "system", label: t("System") }]} />
       </SettingsRow>
       <ThemePicker />
-    </SettingsGroup>
+    </SettingsGroup>}
 
     <SettingsGroup title={t("Typography")} section="typography">
       <SettingsRow icon={ALargeSmall} label={t("Interface font size")} description={t("The text size of menus, lists, dialogs and the sidebar. The chat follows it until Chat font is given a size of its own, and the terminal keeps its own.")} reset={["uiFontSize"]}>

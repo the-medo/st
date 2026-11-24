@@ -1,4 +1,5 @@
-import { Link } from "react-router";
+import { isWorkmode, withWorkmode } from "../lib/workmode";
+import { Link, useLocation } from "react-router";
 import { segments, type ChartPoint } from "../components/Chart";
 import { Notice } from "../components/Ui";
 import { usePoll } from "../lib/api";
@@ -60,6 +61,7 @@ export function Home({
   config: UiConfig | null;
   error: string;
 }) {
+  const workmode = isWorkmode(useLocation().search);
   const history = usePoll<History>("/api/history?hours=0.25&entity=host");
   const stale =
     !snapshot ||
@@ -79,7 +81,7 @@ export function Home({
           </h2>
           {(["memory_bytes", "cpu_percent"] as const).map((key, i) => (
             <Link
-              to="/overview"
+              to={withWorkmode("/overview", workmode)}
               className={`home-stat ${i ? "home-cpu" : "home-ram"}`}
               key={key}
               aria-label={`${i ? "CPU" : "RAM"} usage · Open Overview`}
@@ -132,7 +134,10 @@ export function Home({
               ? "Last known readings · reconnecting"
               : `Updated every ${snapshot?.interval ?? 5}s`}
           </p>
-          <Link className="home-monitor-link" to="/overview">
+          <Link
+            className="home-monitor-link"
+            to={withWorkmode("/overview", workmode)}
+          >
             View system monitor
           </Link>
         </aside>
@@ -191,11 +196,12 @@ export function Home({
               ) : (
                 <Link
                   key={i}
-                  to={
+                  to={withWorkmode(
                     s.url.startsWith("/planner")
                       ? s.url
-                      : `/${s.url.split("#")[1] || ""}`
-                  }
+                      : `/${s.url.split("#")[1] || ""}`,
+                    workmode,
+                  )}
                   className={className}
                 >
                   {body}

@@ -12,6 +12,7 @@
     "frontend": {
       "name": "@st/console",
       "dependencies": {
+        "@st/theme": "workspace:*",
         "lucide-react": "1.47.0",
         "react": "19.3.0",
         "react-dom": "19.3.0",
@@ -69,6 +70,10 @@
         "typescript-api": "npm:typescript@^6.0.3",
         "vite": "^8.3.4",
       },
+    },
+    "packages/theme": {
+      "name": "@st/theme",
+      "version": "0.1.0",
     },
   },
   "patchedDependencies": {
@@ -192,6 +197,8 @@
     "@shikijs/vscode-textmate": ["@shikijs/vscode-textmate@10.1.0", "", {}, "sha512-cVBuhDQjBZaNMTwBquYfPydrUP+E3hE6oYGasx8h6ZrODIM7/r+gxLDXdd66oszbrggZHEntdE6j+5gYIVyMWQ=="],
 
     "@st/console": ["@st/console@workspace:frontend"],
+
+    "@st/theme": ["@st/theme@workspace:packages/theme"],
 
     "@tanstack/highlight": ["@tanstack/highlight@1.0.0", "", {}, "sha512-nrg2iZSQUZlDZGTPKh/CNlg6Orm3vFHIaIi/9DqPC1rUpfe/M6rD2iokrckWTc2Z5jYDz185BK76GUh9VIjQRw=="],
 
