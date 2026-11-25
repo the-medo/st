@@ -1,4 +1,5 @@
-import { Bot, GitPullRequest as GithubIcon } from "lucide-react";
+import { GitPullRequest as GithubIcon } from "lucide-react";
+import herdrIcon from "../assets/herdr.svg";
 import { isWorkmode, withWorkmode } from "../lib/workmode";
 import { lazy, Suspense, useEffect, useRef } from "react";
 import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
@@ -116,7 +117,13 @@ export function App() {
               aria-label="Agents"
               to={withWorkmode(ovisAddress.current, workmode)}
             >
-              <Bot className="nav-icon" aria-hidden="true" size={17} />
+              <img
+                className="nav-icon nav-herdr-icon"
+                src={herdrIcon}
+                alt=""
+                width="22"
+                height="22"
+              />
               Agents
             </NavLink>
           )}

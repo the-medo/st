@@ -40,6 +40,11 @@ body {
     color: var(--accent);
     flex-shrink: 0;
   }
+  .nav-agents .nav-herdr-icon {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+  }
   .nav-agents:hover {
     background: color-mix(in srgb, var(--accent) 24%, var(--paper));
     border-color: var(--accent);
