@@ -622,10 +622,10 @@ The suggested cleanup preserves volumes, databases, source files, and worktrees.
 The React console’s **GitHub** page replaces the former Codex resource page.
 It shows issues assigned to the signed-in GitHub user in the current **Sprint**
 iteration, including **Done** and **Delivered**. Open pull requests authored by
-that user are listed across the organization, with draft state, reviews, checks,
-conflicts and links. The expandable **Backlog** matches the project’s issue view:
-it excludes Done and Delivered, includes current and older sprint issues, and
-has an optional **Assigned to me** filter. Search and repository filters apply
+that user are listed across the organization, with draft state, checks,
+conflicts and links. The expandable **Backlog** shows only issues assigned to
+that user. It excludes Done and Delivered and includes current and older sprint
+issues. Search and repository filters apply
 to all three tables. Archived and inaccessible project items are omitted.
 
 The defaults are organization `ydistri`, project `6`, sprint view `2` and backlog

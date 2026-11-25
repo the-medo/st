@@ -42,7 +42,7 @@ export async function verifyGitHub(page: Page, base: string) {
   );
   assert.match(
     await page.getByRole("table", { name: "Open pull requests" }).innerText(),
-    /Draft[\s\S]*Conflicts[\s\S]*Changes requested[\s\S]*Failure/,
+    /Draft[\s\S]*Conflicts[\s\S]*Failure/,
   );
   assert.equal(
     await page.locator("details.github-backlog").getAttribute("open"),
@@ -52,9 +52,40 @@ export async function verifyGitHub(page: Page, base: string) {
   const backlog = page.getByRole("table", { name: "Backlog issues" });
   assert.equal(await backlog.locator("tbody tr").count(), 2);
   assert.doesNotMatch(await backlog.innerText(), /Done|Delivered/);
-  await page.getByRole("checkbox", { name: "Assigned to me" }).check();
-  assert.equal(await backlog.locator("tbody tr").count(), 1);
-  await page.getByRole("checkbox", { name: "Assigned to me" }).uncheck();
+  assert.equal(
+    await page.getByRole("checkbox", { name: "Assigned to me" }).count(),
+    0,
+  );
+  assert.deepEqual(
+    await page
+      .getByRole("table", { name: "Current sprint tasks" })
+      .locator("th")
+      .allTextContents(),
+    ["Issue ID", "Name", "Status", "Linked PRs"],
+  );
+  assert.deepEqual(
+    await page
+      .getByRole("table", { name: "Open pull requests" })
+      .locator("th")
+      .allTextContents(),
+    ["PR ID", "Name", "Repository", "Status", "Checks", "Changes"],
+  );
+  assert.equal(
+    await page
+      .locator(
+        ".github-title-cell small, .github-item-meta, .github-section-meta, table time",
+      )
+      .count(),
+    0,
+  );
+  await page
+    .locator(".github-sync")
+    .getByText(/Tasks updated/)
+    .waitFor();
+  assert.match(
+    await page.locator(".github-sprint-section .panel-heading").innerText(),
+    /My current sprint[\s\S]*Sprint 19[\s\S]*Includes done and delivered/,
+  );
   await page
     .getByRole("combobox", { name: "Filter by repository" })
     .selectOption("example/platform");

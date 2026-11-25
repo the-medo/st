@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { RefreshCw, GitPullRequest, CheckCheck, ListTodo } from "lucide-react";
-import { api, ago, usePoll } from "../lib/api";
+import { api, usePoll } from "../lib/api";
 import { Empty, External, Notice, Panel } from "../components/Ui";
 import "./github.css";
 
@@ -39,7 +39,6 @@ export type GitHubPR = {
   url: string;
   repository: string;
   draft: boolean;
-  review: string | null;
   mergeable: string;
   checks: string | null;
   additions: number;
@@ -156,48 +155,28 @@ function TaskTable({
       >
         <thead>
           <tr>
-            <th>Issue</th>
+            <th>Issue ID</th>
+            <th>Name</th>
             <th>Status</th>
-            {backlog && (
-              <>
-                <th>Assignees</th>
-                <th>Sprint</th>
-              </>
-            )}
+            {backlog && <th>Sprint</th>}
             <th>Linked PRs</th>
-            <th>Updated</th>
           </tr>
         </thead>
         <tbody>
           {tasks.map((task) => (
             <tr key={task.id}>
-              <td className="github-title-cell">
+              <td className="github-id-cell">
+                <External url={task.url}>
+                  {task.number ? `#${task.number}` : "Draft"}
+                </External>
+              </td>
+              <td className="github-title-cell" title={task.title}>
                 <External url={task.url}>{task.title}</External>
-                <div className="github-item-meta">
-                  <span>
-                    {task.repository || "Draft issue"}
-                    {task.number ? ` #${task.number}` : ""}
-                  </span>
-                  {task.labels.map((l) => (
-                    <span className="github-label" key={l}>
-                      {l}
-                    </span>
-                  ))}
-                </div>
               </td>
               <td>
                 <Badge value={task.status} />
               </td>
-              {backlog && (
-                <>
-                  <td>
-                    {task.assignees.join(", ") || (
-                      <span className="st-muted">Unassigned</span>
-                    )}
-                  </td>
-                  <td>{task.sprint || "—"}</td>
-                </>
-              )}
+              {backlog && <td>{task.sprint || "—"}</td>}
               <td>
                 <div className="github-linked-prs">
                   {task.pull_requests.length ? (
@@ -210,9 +189,6 @@ function TaskTable({
                     <span className="st-muted">—</span>
                   )}
                 </div>
-              </td>
-              <td>
-                <Updated at={task.updated_at} />
               </td>
             </tr>
           ))}
@@ -229,38 +205,37 @@ function PullRequests({ rows }: { rows: GitHubPR[] }) {
       <table className="github-table" aria-label="Open pull requests">
         <thead>
           <tr>
-            <th>Pull request</th>
+            <th>PR ID</th>
+            <th>Name</th>
+            <th>Repository</th>
             <th>Status</th>
-            <th>Review</th>
             <th>Checks</th>
             <th>Changes</th>
-            <th>Updated</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((pr) => (
             <tr key={pr.id}>
-              <td className="github-title-cell">
+              <td className="github-id-cell">
+                <External url={pr.url}>#{pr.number}</External>
+              </td>
+              <td className="github-title-cell" title={pr.title}>
                 <External url={pr.url}>{pr.title}</External>
-                <div className="github-item-meta">
-                  {pr.repository} #{pr.number}
-                </div>
+              </td>
+              <td className="github-repository-cell">
+                <External url={`https://github.com/${pr.repository}`}>
+                  {pr.repository}
+                </External>
               </td>
               <td>
                 <Badge value={pr.draft ? "Draft" : "Open"} />
                 {pr.mergeable === "CONFLICTING" && <Badge value="Conflicts" />}
               </td>
               <td>
-                <Badge value={label(pr.review, "No review")} />
-              </td>
-              <td>
                 <Badge value={label(pr.checks, "No checks")} />
               </td>
               <td className="github-changes">
                 <span>+{pr.additions}</span> <span>−{pr.deletions}</span>
-              </td>
-              <td>
-                <Updated at={pr.updated_at} />
               </td>
             </tr>
           ))}
@@ -277,7 +252,6 @@ export function GitHub() {
   const [refreshHint, setRefreshHint] = useState("");
   const [search, setSearch] = useState("");
   const [repository, setRepository] = useState("");
-  const [mine, setMine] = useState(false);
   useEffect(() => {
     setInterval(data?.refreshing ? 2000 : 60000);
   }, [data?.refreshing]);
@@ -326,14 +300,7 @@ export function GitHub() {
       .join(" ")
       .toLowerCase()
       .includes(search.trim().toLowerCase());
-  const shownBacklog = backlog.filter(
-    (task) =>
-      matches(task) &&
-      (!mine ||
-        task.assignees.some(
-          (assignee) => assignee.toLowerCase() === data?.username.toLowerCase(),
-        )),
-  );
+  const shownBacklog = backlog.filter(matches);
   const busy = requesting || data?.refreshing;
   return (
     <div className="github-page">
@@ -365,12 +332,34 @@ export function GitHub() {
           </button>
         </div>
       </header>
-      <p className="github-sync" role="status">
-        {busy
-          ? "Fetching your latest work from GitHub…"
-          : refreshHint ||
-            "Refreshes hourly while you’re here. Use Refresh to check sooner."}
-      </p>
+      <div className="github-sync">
+        <span role="status">
+          {busy
+            ? "Fetching your latest work from GitHub…"
+            : refreshHint ||
+              "Refreshes hourly while you’re here. Use Refresh to check sooner."}
+        </span>
+        <div className="github-updated">
+          {data?.project.updated_at && (
+            <span>
+              Tasks updated{" "}
+              <Updated
+                at={new Date(data.project.updated_at * 1000).toISOString()}
+              />
+            </span>
+          )}
+          {data?.pull_requests.updated_at && (
+            <span>
+              PRs updated{" "}
+              <Updated
+                at={new Date(
+                  data.pull_requests.updated_at * 1000,
+                ).toISOString()}
+              />
+            </span>
+          )}
+        </div>
+      </div>
       {(error || refreshError) && (
         <Notice retry={refresh}>{error || refreshError}</Notice>
       )}
@@ -427,25 +416,25 @@ export function GitHub() {
           </div>
           <Panel
             title="My current sprint"
-            className="github-section"
-            actions={<External url={data.sprint_url}>Sprint board</External>}
+            className="github-section github-sprint-section"
+            actions={
+              <>
+                <span className="github-sprint-details">
+                  {sprint ? (
+                    <>
+                      <strong>{sprint.title}</strong> ·{" "}
+                      {dateLabel(sprint.startDate)} –{" "}
+                      {dateLabel(sprint.endDate)}
+                    </>
+                  ) : (
+                    "No active sprint"
+                  )}{" "}
+                  · Includes done and delivered
+                </span>
+                <External url={data.sprint_url}>Sprint board</External>
+              </>
+            }
           >
-            <div className="github-section-meta">
-              <span>
-                {sprint ? (
-                  <>
-                    <strong>{sprint.title}</strong> ·{" "}
-                    {dateLabel(sprint.startDate)} – {dateLabel(sprint.endDate)}
-                  </>
-                ) : (
-                  "No active sprint"
-                )}{" "}
-                · Includes done and delivered
-              </span>
-              {data.project.updated_at && (
-                <span>Updated {ago(data.project.updated_at)}</span>
-              )}
-            </div>
             <SectionStatus
               section={data.project}
               refreshing={data.refreshing}
@@ -472,12 +461,6 @@ export function GitHub() {
               </External>
             }
           >
-            <div className="github-section-meta">
-              <span>Authored by you · Drafts included</span>
-              {data.pull_requests.updated_at && (
-                <span>Updated {ago(data.pull_requests.updated_at)}</span>
-              )}
-            </div>
             <SectionStatus
               section={data.pull_requests}
               refreshing={data.refreshing}
@@ -494,19 +477,9 @@ export function GitHub() {
                   {project ? backlog.length : "—"}
                 </span>
               </span>
-              <small>
-                Issues across the project · Excludes done and delivered
-              </small>
+              <small>My issues · Excludes done and delivered</small>
             </summary>
             <div className="github-backlog-controls">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={mine}
-                  onChange={(event) => setMine(event.target.checked)}
-                />{" "}
-                Assigned to me
-              </label>
               <span>{shownBacklog.length} matching issues</span>
               <External url={data.backlog_url}>Backlog board</External>
             </div>

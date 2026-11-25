@@ -45,7 +45,7 @@ query($search: String!, $cursor: String) {
   search(query: $search, type: ISSUE, first: 50, after: $cursor) {
     issueCount pageInfo { hasNextPage endCursor } nodes {
       ... on PullRequest {
-        id title number url updatedAt isDraft reviewDecision mergeable
+        id title number url updatedAt isDraft mergeable
         repository { nameWithOwner } additions deletions
         commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
       }
@@ -192,7 +192,7 @@ class GitHubDashboard:
                 rows.append({
                     'id': pr['id'], 'title': pr['title'], 'number': pr['number'], 'url': pr['url'],
                     'repository': pr['repository']['nameWithOwner'], 'draft': pr['isDraft'],
-                    'review': pr['reviewDecision'], 'mergeable': pr['mergeable'], 'checks': checks,
+                    'mergeable': pr['mergeable'], 'checks': checks,
                     'additions': pr['additions'], 'deletions': pr['deletions'], 'updated_at': pr['updatedAt'],
                 })
             page = result['pageInfo']
@@ -247,7 +247,8 @@ class GitHubDashboard:
             current = current_iteration(project.pop('iterations'))
             items = project.pop('items')
             project['current_sprint'] = current
-            project['sprint_tasks'] = [item for item in items if current and item['sprint_id'] == current['id'] and self.username.casefold() in [a.casefold() for a in item['assignees']]]
-            # Matches ydistri's Backlog view: is:issue -status:Done -status:Delivered.
-            project['backlog'] = [item for item in items if item['kind'] == 'ISSUE' and not item['completed']]
+            assigned = [item for item in items if result['username'].casefold() in [a.casefold() for a in item['assignees']]]
+            project['sprint_tasks'] = [item for item in assigned if current and item['sprint_id'] == current['id']]
+            # Personal backlog: assigned issues excluding Done and Delivered.
+            project['backlog'] = [item for item in assigned if item['kind'] == 'ISSUE' and not item['completed']]
         return result

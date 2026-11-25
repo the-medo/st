@@ -77,7 +77,7 @@ class GitHubTests(unittest.TestCase):
         with patch('sm_manager.github.current_iteration', return_value=current_iteration(ITERATIONS, date(2026, 11, 25))):
             result = dashboard.get()['project']['data']
         self.assertEqual([task['id'] for task in result['sprint_tasks']], ['active', 'done', 'delivered', 'draft'])
-        self.assertEqual([task['id'] for task in result['backlog']], ['active', 'other', 'old', 'future'])
+        self.assertEqual([task['id'] for task in result['backlog']], ['active', 'old', 'future'])
         self.assertIn('items', dashboard.sections['project']['data'])  # Projection doesn't mutate cache.
 
     def test_pr_pagination_drafts_and_checks(self):

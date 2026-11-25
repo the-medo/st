@@ -7,7 +7,6 @@
   .github-heading,
   .github-actions,
   .github-filters,
-  .github-section-meta,
   .github-backlog-controls {
     display: flex;
     align-items: center;
@@ -48,9 +47,22 @@
     cursor: wait;
   }
   .github-sync {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 20px;
     color: var(--muted);
     font-size: 11px;
     margin: 14px 0 20px;
+  }
+  .github-updated {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+  }
+  .github-updated span {
+    white-space: nowrap;
   }
   .github-summary {
     display: grid;
@@ -103,15 +115,19 @@
   .github-section > .panel-heading {
     padding: 14px;
   }
-  .github-section-meta {
-    flex-wrap: wrap;
-    justify-content: space-between;
-    padding: 9px 14px;
-    border-bottom: 1px solid var(--line);
-    font-size: 10px;
-    color: var(--muted);
+  .github-sprint-section > .panel-heading {
+    gap: 14px;
   }
-  .github-section-meta strong {
+  .github-sprint-section h2 {
+    flex-shrink: 0;
+  }
+  .github-sprint-details {
+    margin-right: auto;
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1.6;
+  }
+  .github-sprint-details strong {
     color: var(--ink);
     font-weight: 500;
   }
@@ -129,33 +145,31 @@
   }
   .github-table .github-title-cell {
     width: 48%;
-    min-width: 280px;
-    white-space: normal;
+    min-width: 260px;
+    white-space: nowrap;
   }
-  .github-title-cell > a {
+  .github-title-cell > :is(a, span) {
+    display: block;
+    max-width: min(620px, 42vw);
+    min-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     color: var(--ink);
     font-size: 12px;
     font-weight: 500;
     line-height: 1.5;
-    overflow-wrap: anywhere;
   }
   .github-title-cell > a:hover {
     color: var(--link-ink);
   }
-  .github-item-meta {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 5px 8px;
-    margin-top: 6px;
-    color: var(--muted);
-    font: 10px/1.5 var(--mono);
+  .github-table .github-id-cell {
+    font: 600 17px var(--mono);
+    white-space: nowrap;
   }
-  .github-label {
-    border: 1px solid var(--line);
-    padding: 0 5px;
-    border-radius: 4px;
-    font: 9px/1.5 var(--sans, sans-serif);
+  .github-repository-cell {
+    white-space: nowrap;
+    color: var(--muted);
   }
   .github-badge {
     display: inline-flex;
@@ -189,11 +203,6 @@
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-  }
-  .github-table time {
-    color: var(--muted);
-    white-space: nowrap;
-    font-size: 10px;
   }
   .github-changes {
     white-space: nowrap;
@@ -234,11 +243,6 @@
     flex-wrap: wrap;
     padding: 12px 14px;
     font-size: 11px;
-  }
-  .github-backlog-controls label {
-    display: flex;
-    align-items: center;
-    gap: 7px;
   }
   .github-backlog-controls > span {
     color: var(--muted);

@@ -56,7 +56,7 @@ export const githubFixture: GitHubData = {
       backlog: [
         task("1", "In Progress"),
         {
-          ...task("4", "Todo", ["teammate"]),
+          ...task("4", "Todo"),
           title: "Backlog improvement",
           sprint: null,
           sprint_id: null,
@@ -77,7 +77,6 @@ export const githubFixture: GitHubData = {
         url: "https://github.com/example/service/pull/42",
         repository: "example/service",
         draft: true,
-        review: "CHANGES_REQUESTED",
         mergeable: "CONFLICTING",
         checks: "FAILURE",
         additions: 32,
