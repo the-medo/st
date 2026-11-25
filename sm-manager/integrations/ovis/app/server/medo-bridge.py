@@ -9,7 +9,7 @@ import sys
 import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
-from integrations.ovis.bridge import server as sidebar, organization
+from integrations.ovis.bridge import server as sidebar, organization, resources
 from integrations.ovis.bridge.chat_service import request, Bridge
 root = sidebar.ROOT
 
@@ -147,6 +147,25 @@ def history(thread, p):
 
 def handle(p):
     op = p['operation']
+    if op in ('resources', 'skillshare'):
+        pane = p.get('paneId', '')
+        if pane.startswith('medo:'):
+            thread = pane[5:]
+        else:
+            terminal = sidebar.hc('get', pane, '--json')
+            if not terminal.get('labels', {}).get('medo.ovis.project'):
+                raise ValueError('Open a conversation from the project sidebar first.')
+            thread = terminal_thread(terminal, sidebar.read_rows())
+        if not thread:
+            raise ValueError('The conversation is still opening. Try again shortly.')
+        row, _ = sidebar.checked_thread(thread)
+        if op == 'skillshare':
+            return resources.skillshare(row['cwd'], p.get('check') is True)
+        client = Bridge()
+        try:
+            return resources.inventory(client, thread, row['cwd'])
+        finally:
+            client.process.terminate()
     if op == 'rename':
         name = p.get('name')
         if not isinstance(name, str): raise ValueError('Enter a conversation name.')

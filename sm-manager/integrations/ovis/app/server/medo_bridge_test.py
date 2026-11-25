@@ -247,4 +247,20 @@ class SidebarTests(unittest.TestCase):
         terminal['title'] = 'Project named '+self.first
         self.assertIsNone(bridge.terminal_thread(terminal, rows, starting=True))
 
+
+
+class ResourceIdentityTests(unittest.TestCase):
+    def test_saved_inventory_uses_verified_thread_cwd_and_closes_only_its_client(self):
+        client = Mock()
+        with patch.object(bridge.sidebar, 'checked_thread', return_value=({'cwd': '/verified'}, {})) as checked, patch.object(bridge, 'Bridge', return_value=client), patch.object(bridge.resources, 'inventory', return_value={}) as inventory:
+            bridge.handle({'operation': 'resources', 'paneId': 'medo:fixture', 'cwd': '/untrusted'})
+            checked.assert_called_once_with('fixture')
+            inventory.assert_called_once_with(client, 'fixture', '/verified')
+            client.process.terminate.assert_called_once()
+
+    def test_unowned_pane_is_rejected_before_reading_inventory(self):
+        with patch.object(bridge.sidebar, 'hc', return_value={'labels': {}}), patch.object(bridge, 'Bridge') as client:
+            with self.assertRaises(ValueError): bridge.handle({'operation': 'resources', 'paneId': 't1'})
+            client.assert_not_called()
+
 if __name__=='__main__':unittest.main()

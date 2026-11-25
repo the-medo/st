@@ -1,3 +1,4 @@
+import { ResourceActivityContext } from "../lib/resourceActivity.ts";
 import { createContext, memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { createPortal, flushSync } from "react-dom";
 import {
@@ -2195,6 +2196,10 @@ export const ChatView = memo(function ChatView({ paneId, presentationKey, finish
     return () => { if (pageScroll.current === scroll) pageScroll.current = null; };
   });
   const turns = useMemo(() => older.length > 0 ? [...older, ...state.turns] : state.turns, [older, state.turns]);
+  const reportResources = useContext(ResourceActivityContext);
+  useEffect(() => {
+    if (active && paneVisible && reportResources) reportResources({ paneId, machineId, turns, more: typeof olderCursor === "string", loadingEarlier: olderState === "loading", loadEarlier: () => { void loadOlder(); } });
+  }, [active, paneVisible, reportResources, paneId, machineId, turns, olderCursor, olderState, loadOlder]);
   const stopped = useMemo(() => stoppedTurn(turns, restored), [turns, restored]);
   if (stopped !== null) lastStopped.current = stopped;
   const goneOut = goingCancel !== null && !pendingRows.some((row) => row.id === goingCancel.id && row.state !== "sending");

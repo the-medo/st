@@ -6591,3 +6591,14 @@ copy. Its only namespace is `/agents` (including APIs and WebSockets); removed
 `ST - <conversation name>` and retain that title when returning from another
 S.T. page. This keeps the existing Zed-inspired named navigation model. The
 standalone app, source attribution and stored user preferences keep their names.
+
+## S.T. conversation resources experiment
+
+The Skills & MCPs book button opens a right-side inspector, using the existing file
+panel sizing and a sheet on narrow screens. It follows Zed's agent tools/MCP
+inventory separation (<https://zed.dev/docs/ai/mcp>), with Skillshare's resource
+and sync/update grouping (<https://github.com/runkids/skillshare/tree/main/herdr/skillshare>).
+Used is recorded conversation evidence; Available is the agent's current catalog;
+Updates is optional read-only Skillshare data. Unknown is never presented as
+connected, synchronized, or current. No upstream code was copied. See the host
+project's `SKILLS_PANE.md` for scope, source analysis and test commands.

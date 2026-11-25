@@ -89,10 +89,19 @@ def normalize_item(item):
                   'subAgentActivity': 'Agent activity', 'functionCallOutput': 'Tool output'}
         title = titles.get(kind, kind or 'Activity')
         if kind == 'commandExecution':
+            result['exitCode'] = item.get('exitCode')
+            result['commandActions'] = [
+                {'type': 'read', 'path': str(Path(item.get('cwd') or '.') / action['path'])}
+                for action in item.get('commandActions', [])
+                if action.get('type') == 'read' and isinstance(action.get('path'), str)]
             text = str(item.get('command', '')) + '\n\n' + str(item.get('aggregatedOutput') or '')
         elif kind == 'fileChange':
             text = '\n\n'.join(str(c.get('path', '')) + '\n' + str(c.get('diff', '')) for c in item.get('changes', []))
         elif kind in ('mcpToolCall', 'dynamicToolCall'):
+            if kind == 'mcpToolCall':
+                result['mcp'] = {key: item.get(key) for key in ('server', 'tool', 'status')}
+                if item.get('error') or (item.get('result') or {}).get('isError'):
+                    result['mcp']['status'] = 'failed'
             title = item.get('tool') or title
             text = short({'arguments': item.get('arguments'), 'result': item.get('result', item.get('contentItems')), 'error': item.get('error')})
         elif kind == 'webSearch':

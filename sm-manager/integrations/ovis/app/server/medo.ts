@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import type { ConversationPart, ConversationTurn } from '../shared/protocol.ts';
+import { codexReadSkills, skillInvocationPrompt } from './skill-activity.ts';
 import { badRequest, jsonResponse, readJsonObject, setRequestRoute } from './http.ts';
 
 import { HistoryChanged, type ConversationPage, type RecognizedConversation } from './conversation-shared.ts';
@@ -35,16 +36,22 @@ export function medoConversation(data: any): RecognizedConversation {
         // Ovis uploads images as explicit file mentions; show those files inline in saved history.
         const mentioned = [...String(item.text).matchAll(/@([^\s]+\.(?:png|jpe?g|webp|gif))(?=\s|$)/gi)].filter((match) => match[1]!.startsWith('/')).map((match) => ({ name: match[1]!.split('/').pop(), path: match[1]! }));
         const files = [...(item.attachments || []), ...mentioned];
-        const userText = mentioned.reduce((text, file) => text.replace(`@${file.path}`, ''), String(item.text)).trim();
+        const selected = skillInvocationPrompt(String(item.text));
+        const userText = mentioned.reduce((text, file) => text.replace(`@${file.path}`, ''), selected?.request ?? String(item.text)).trim();
         const attachments = files.map((f: any) => /\.(png|jpe?g|webp|gif)$/i.test(f.path)
           ? `![${f.name}](<${f.path}>)` : `[${f.name}](<${f.path}>)`).join('\n');
         turns.push({ role: 'user', ts: time(turn.startedAt), message_id: item.id, turn_id: turn.id,
           parts: [{ kind: 'text', text: [userText, attachments].filter(Boolean).join('\n\n') }] });
+        for (const skill of selected?.skills ?? []) assistant.push({ kind: 'skill', skill });
       } else if (item.role === 'assistant') {
         assistant.push({ kind: 'text', text: item.text, ...(item.phase === 'commentary' || item.phase === 'final_answer' ? { phase: item.phase } : {}) });
       } else if (item.kind === 'reasoning') assistant.push({ kind: 'thinking', text: item.text });
-      else assistant.push({ kind: 'tool', name: item.title || item.kind, summary: item.title || item.kind, input: '', output: item.text || '', call_id: item.id,
-        ...(item.status === 'inProgress' ? { state: 'pending' as const } : {}) });
+      else {
+        for (const skill of codexReadSkills({ type: 'CommandExecution', status: item.status, exit_code: item.exitCode, parsed_cmd: item.commandActions })) assistant.push({ kind: 'skill', skill });
+        assistant.push({ kind: 'tool', name: item.title || item.kind, summary: item.title || item.kind, input: '', output: item.text || '', call_id: item.id,
+        ...(item.mcp ? { mcp: item.mcp } : {}),
+        ...(item.status === 'inProgress' ? { state: 'pending' as const } : item.status === 'failed' ? { state: 'error' as const, error: true } : {}) });
+      }
     }
     if (turn.error) assistant.push({ kind: 'text', text: `Error: ${typeof turn.error === 'string' ? turn.error : turn.error.message || JSON.stringify(turn.error)}`, failed: true });
     flush();
@@ -69,6 +76,12 @@ export async function handleMedoRequest(request: Request, url: URL, readOnly: bo
         history_id: url.searchParams.get('history_id') ?? undefined,
       }, true);
       return result ? jsonResponse({ ...result, server_time: new Date().toISOString() }, 200, { 'cache-control': 'no-store' }) : badRequest('invalid_conversation', 'Choose a saved conversation.');
+    }
+
+    if (request.method === 'GET' && ['/api/medo/resources', '/api/medo/skillshare'].includes(url.pathname)) {
+      const paneId = url.searchParams.get('pane_id') ?? '';
+      if (!/^(t[\da-z]+|medo:[0-9a-f-]{36})$/.test(paneId)) return badRequest('invalid_conversation', 'Choose a conversation.');
+      return jsonResponse(await medoCall({ operation: url.pathname.endsWith('/skillshare') ? 'skillshare' : 'resources', paneId, check: url.searchParams.get('check') === '1' }), 200, { 'cache-control': 'no-store' });
     }
 
     if (request.method === 'GET' && url.pathname === '/api/medo/catalog') return jsonResponse(await medoCall({ operation: 'index' }), 200, { 'cache-control': 'no-store' });
