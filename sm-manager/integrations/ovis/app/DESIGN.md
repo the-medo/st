@@ -6513,6 +6513,18 @@ The dedicated loopback service is exposed only through private Tailscale HTTPS; 
 auth and origin gates remain in front of custom routes. Cookie names and private state
 are isolated. All interactive tests use an isolated hc core and an owned demo chat.
 
+### Confirming messages with incomplete native history
+
+S.T. keeps pending input separate from recorded conversation, following the distinction
+in [T3 Code's composer](https://github.com/pingdotgg/t3code/blob/main/docs/user/composer.md#queued-messages).
+Once history confirms a send, its temporary waiting bubble disappears. Codex history can
+omit `startedAt`; native UUIDv7 turn IDs still encode their creation time under
+[RFC 9562 §5.7](https://www.rfc-editor.org/rfc/rfc9562.html#section-5.7).
+The adapter uses that timestamp only when the explicit one is missing. Other ID formats
+remain undated, and existing message-identity checks keep repeated follow-ups separate.
+Cache versions cover the adapted turns so corrected timestamps reach open readers.
+No external code or visual assets were copied.
+
 ## S.T. conversation identity and navigation
 
 The S.T. conversation list follows [T3 Code's thread sidebar](https://github.com/pingdotgg/t3code/blob/main/docs/user/thread-sidebar.md)

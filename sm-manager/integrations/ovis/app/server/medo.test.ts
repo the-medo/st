@@ -2,6 +2,25 @@ import { describe, expect, test } from 'bun:test';
 import { handleMedoRequest, medoConversation } from './medo.ts';
 
 describe('Steam Machine history adapter', () => {
+  test('recovers an omitted start time from a native UUIDv7 turn without guessing for other IDs', () => {
+    // RFC 9562's UUIDv7 test vector encodes 1645557742000 milliseconds.
+    const nativeId = '017f22e2-79b0-7cc3-98c4-dc0c0c07398f';
+    const adapt = (id: string, startedAt?: number | null) => medoConversation({ thread: { id: 'fixture' }, turns: [{
+      id, startedAt, items: [{ id: 'user', role: 'user', text: 'Inspect the project.' },
+        { id: 'tool', kind: 'commandExecution', status: 'inProgress', text: 'git status' }],
+    }] });
+    for (const missing of [null, undefined]) {
+      expect(adapt(nativeId, missing).turns.map(turn => turn.ts)).toEqual([
+        '2022-02-22T19:22:22.000Z', '2022-02-22T19:22:22.000Z',
+      ]);
+    }
+    expect(adapt(nativeId, 100).turns.map(turn => turn.ts)).toEqual([
+      '1970-01-01T00:01:40.000Z', '1970-01-01T00:01:40.000Z',
+    ]);
+    for (const id of ['turn', nativeId.replace('-7cc3-', '-4cc3-'), nativeId.replace('-98c4-', '-18c4-')]) {
+      expect(adapt(id, null).turns.map(turn => turn.ts)).toEqual([null, null]);
+    }
+  });
   test('keeps commentary, tools and final answer in one assistant turn and preserves attachments', () => {
     const result = medoConversation({ version: 'v1', thread: { id: 'demo', model: 'model-a', effort: 'high' }, active: false, ovisCursor: 'older', turns: [{ id: 'turn', startedAt: 100, completedAt: 104, items: [
       { id: 'user', role: 'user', text: 'Please inspect', attachments: [{ name: 'test.png', path: '/demo/test.png' }] },
