@@ -8,8 +8,25 @@ import { verifyGitHub } from "./github-browser";
 import { verifyCatalogs } from "./catalog-browser";
 import { verifyAirQuality } from "./air-browser";
 import { verifyOverviewCharts } from "./overview-browser";
+import { verifyShortcuts } from "./shortcuts-browser";
 const root = resolve("sm_manager/web");
-const planner = `<!doctype html><html><head><link rel="stylesheet" href="/st-theme.css"><link rel="stylesheet" href="/st-planner.css"><script src="/st-planner.js"></script></head><body><h1>Fixture planner</h1><input aria-label="Task title"><button id="home">ST home</button><script>document.querySelector('#home').onclick=()=>parent.postMessage({type:'st:home'},location.origin);parent.postMessage({type:'st:ready',path:'/planner/tasks'},location.origin);window.addEventListener('message',e=>{if(e.origin!==location.origin)return;if(e.data.type==='st:navigate')parent.postMessage({type:'st:navigated',path:e.data.path},location.origin);});</script></body></html>`;
+const planner = `<!doctype html><html><head><link rel="stylesheet" href="/st-theme.css"><link rel="stylesheet" href="/st-planner.css"><script src="/st-planner.js"></script></head><body><h1>Fixture planner</h1><nav aria-label="Planner navigation"></nav><input aria-label="Task title"><main></main><button id="home">ST home</button><script>
+const names={contacts:'New',tasks:'New task',notes:'New note',journals:'New journal'};
+function form(name){const dialog=document.createElement('div');dialog.role='dialog';dialog.setAttribute('aria-label',name);dialog.innerHTML='<input aria-label="New title"><button>Cancel</button>';dialog.querySelector('button').onclick=()=>dialog.remove();document.body.append(dialog);dialog.querySelector('input').focus();}
+function draw(path){
+ const current=path.split('?')[0].split('/').pop();
+ document.querySelector('nav').innerHTML=['contacts','calendar','tasks','notes','journals'].map(p=>'<a href="/planner/'+p+'" '+(p===current?'aria-current="page"':'')+'>'+p+'</a>').join(' ');
+ document.querySelectorAll('nav a').forEach(a=>a.onclick=e=>{e.preventDefault();draw(a.getAttribute('href'));parent.postMessage({type:'st:route',path:a.getAttribute('href')},location.origin);});
+ document.querySelector('main').innerHTML=current==='calendar'?'<div class="fc"><div class="fc-toolbar"></div><div class="fc-day-today"><div class="fc-daygrid-day-frame">Today</div></div></div>':'<button>'+names[current]+'</button>';
+ const bind=()=>{const add=document.querySelector('main button');if(add)add.onclick=()=>form(names[current]);};
+ const delay=window.__stDelayNextQuickAdd;window.__stDelayNextQuickAdd=0;
+ if(delay){const main=document.querySelector('main'),markup=main.innerHTML;main.textContent='Loading view…';setTimeout(()=>{main.innerHTML=markup;bind();},delay);}else bind();
+}
+document.addEventListener('keydown',e=>{if(e.key==='n'&&document.querySelector('.fc'))form('New event today');});
+document.querySelector('#home').onclick=()=>parent.postMessage({type:'st:home'},location.origin);
+draw(location.pathname);parent.postMessage({type:'st:ready',path:location.pathname},location.origin);
+window.addEventListener('message',e=>{if(e.origin!==location.origin)return;if(e.data.type==='st:navigate'){draw(e.data.path);parent.postMessage({type:'st:navigated',path:e.data.path},location.origin);}});
+</script></body></html>`;
 const server = Bun.serve({
   hostname: "127.0.0.1",
   port: 0,
@@ -63,6 +80,7 @@ try {
   });
   page.on("pageerror", (e) => errors.push(e.message));
   const base = `http://127.0.0.1:${server.port}`;
+  await verifyShortcuts(page, base);
   await page.goto(base);
   await page.getByRole("heading", { name: "Your services" }).waitFor();
   await page.getByRole("link", { name: /RAM/ }).waitFor();

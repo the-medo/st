@@ -29,6 +29,10 @@ const hop = [
 ];
 const blocked =
   /^\/api\/(?:updates\/(?:install|cancel|check)|herdr\/update|runtime\/move)(?:\/|$)/;
+// Cross-site links may open the app shell; APIs, assets and embedded documents
+// still require the usual origin checks. Keep these routes aligned with web.py.
+const shellPath =
+  /^\/(?:overview|projects|containers|codex|storage|zed|dbs|air-quality|faceplate|ovis(?:\/(?:chat|session)\/.*)?|planner\/(?:tasks|calendar|contacts|notes|journals))?$/;
 const closeCode = (code: number) =>
   code === 1000 || code === 1001 || (code >= 3000 && code <= 4999)
     ? code
@@ -74,8 +78,15 @@ export function createGateway(config: GatewayConfig) {
           new Response("Invalid sign-in request", { status: 400 })
         );
       const origin = request.headers.get("origin");
+      const pageNavigation =
+        request.method === "GET" &&
+        request.headers.get("sec-fetch-mode") === "navigate" &&
+        request.headers.get("sec-fetch-dest") === "document" &&
+        shellPath.test(url.pathname) &&
+        !url.searchParams.getAll("st-embedded").includes("1");
       if (
-        request.headers.get("sec-fetch-site") === "cross-site" ||
+        (request.headers.get("sec-fetch-site") === "cross-site" &&
+          !pageNavigation) ||
         (origin && !new Set([publicHost?.origin, `http://${host}`]).has(origin))
       )
         return new Response("Origin not allowed", { status: 403 });

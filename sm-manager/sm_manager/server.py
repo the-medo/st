@@ -133,7 +133,16 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
             allowed |= {f"{h}:{config['port']}" for h in list(allowed)}
             if host not in allowed:
                 return "Host not allowed"
-            if self.headers.get("Sec-Fetch-Site") == "cross-site":
+            url = urlsplit(self.path)
+            # A link from chat/mail may open the React shell. This does not
+            # permit cross-site API calls, frames, assets, or state changes.
+            shell = (url.path in web.PAGES or url.path.startswith(("/ovis/chat/", "/ovis/session/")) or
+                     (url.path.startswith(PREFIX + "/") and url.path.removeprefix(PREFIX) in PAGES - {"/"}))
+            page_navigation = (config.get("frontend") == "react" and shell and
+                               "1" not in parse_qs(url.query).get("st-embedded", []) and
+                               self.command == "GET" and self.headers.get("Sec-Fetch-Mode") == "navigate" and
+                               self.headers.get("Sec-Fetch-Dest") == "document")
+            if self.headers.get("Sec-Fetch-Site") == "cross-site" and not page_navigation:
                 return "Cross-site access denied"
             origin = self.headers.get("Origin")
             if origin and origin not in {f"http://{host}", f"https://{host}"}:

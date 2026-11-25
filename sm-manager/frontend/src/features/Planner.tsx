@@ -12,7 +12,13 @@ export function plannerPath(value: unknown): string | null {
   u.searchParams.delete("st-embedded");
   return u.pathname + u.search + u.hash;
 }
-export function Planner({ active }: { active: boolean }) {
+export function Planner({
+  active,
+  onFrameLoad,
+}: {
+  active: boolean;
+  onFrameLoad: (frame: Window | null) => void;
+}) {
   const route = useLocation(),
     navigate = useNavigate();
   const theme = themeName(isWorkmode(route.search));
@@ -23,6 +29,7 @@ export function Planner({ active }: { active: boolean }) {
   const [src, setSrc] = useState<string | null>(null),
     [error, setError] = useState(false),
     [loaded, setLoaded] = useState(false);
+  useEffect(() => () => onFrameLoad(null), [onFrameLoad]);
   const path = plannerPath(route.pathname + route.search + route.hash);
   if (path) desired.current = path;
   const send = (type: string, data: object = {}) =>
@@ -120,6 +127,7 @@ export function Planner({ active }: { active: boolean }) {
       {src && (
         <iframe
           ref={frame}
+          onLoad={(event) => onFrameLoad(event.currentTarget.contentWindow)}
           src={src}
           title="ST Planner"
           className="st-planner"

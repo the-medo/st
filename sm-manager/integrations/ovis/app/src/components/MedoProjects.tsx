@@ -1,3 +1,4 @@
+import type { HostShortcuts } from "../lib/hostShortcuts.ts";
 import { focusInOtherModal, useFocusTrap } from '../lib/useFocusTrap.ts';
 import { usePhoneSheetBack } from '../lib/sheetHistory.ts';
 import { createPortal } from 'react-dom';
@@ -40,7 +41,8 @@ export function MedoDialog({ title, children, onClose, wide = false }: { title: 
     <header><h2>{title}</h2><button aria-label="Close" onClick={onClose}><X size={18} /></button></header>{children}
   </div></div>, document.body);
 }
-export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, headerActions }: {
+export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, headerActions, hostShortcuts }: {
+  hostShortcuts?: HostShortcuts;
   headerActions?: ReactNode;
   selectedPaneId: string | null; onOpen: (paneId: string, isCurrent: () => boolean) => Promise<void>; onNew: (project?: MedoProject) => void; onSettings: () => void;
 }) {
@@ -154,6 +156,24 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
     try { await action(() => organize({ operation: 'move-project', projectId: projectMenu.project.id, relativeTo: relative.id, direction })); }
     finally { reorderPending.current = false; if (mounted.current) setReordering(false); }
   };
+  useEffect(() => {
+    hostShortcuts?.projects((id) => {
+      const project = catalog?.projects.find((item) => item.id === id);
+      if (!project) return;
+      const draft = drafts.find((item) => item.project === id);
+      const first = [null, ...project.folders.map((folder) => folder.id)].flatMap((folder) =>
+        chats.filter((chat) => chat.project === id && chat.folder === folder).sort((a, b) => b.updated - a.updated),
+      )[0];
+      setClosed((current) => {
+        const next = new Set(current); next.delete(id);
+        if (!draft && first?.folder) next.delete(`${id}/${first.folder}`);
+        return next;
+      });
+      if (draft) void openDraft(draft.address);
+      else if (first) void open(first);
+    });
+  });
+  useEffect(() => () => hostShortcuts?.projects(null), [hostShortcuts]);
   const rows = (project: MedoProject, folder: string | null) => {
     const key = `${project.id}/${folder ?? ''}`;
     const group = chats.filter((chat) => chat.project === project.id && chat.folder === folder).sort((a, b) => b.updated - a.updated);
@@ -182,7 +202,7 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
         const projectDrafts = drafts.filter((draft) => draft.project === project.id);
         const matching = chats.filter((chat) => chat.project === project.id).length + projectDrafts.length;
         if (query && !matching) return null;
-        return <section key={project.id} className="medo-project" style={projectColors(style)}>
+        return <section key={project.id} className="medo-project" data-st-project={project.id} style={projectColors(style)}>
           <div className="medo-project-head"><button className="medo-project-toggle" onClick={() => toggle(project.id)} aria-expanded={!hidden}>
             {hidden ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
             <ProjectIcon style={style} />

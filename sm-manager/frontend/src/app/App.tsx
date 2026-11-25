@@ -1,5 +1,6 @@
 import { GitPullRequest as GithubIcon } from "lucide-react";
 import herdrIcon from "../assets/herdr.svg";
+import { RecentConversations } from "../components/RecentConversations";
 import { isWorkmode, withWorkmode } from "../lib/workmode";
 import { lazy, Suspense, useEffect, useRef } from "react";
 import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
@@ -10,6 +11,11 @@ import type { UiConfig } from "../lib/types";
 import { useMonitor } from "../features/MonitorContext";
 import { Planner } from "../features/Planner";
 import { Ovis } from "../features/ovis/Ovis";
+import {
+  ShortcutIndicator,
+  ShortcutKey,
+} from "../components/ShortcutIndicator";
+import { useSidebarShortcuts } from "./useSidebarShortcuts";
 const Overview = lazy(() =>
   import("../features/Overview").then((m) => ({ default: m.Overview })),
 );
@@ -38,17 +44,23 @@ const Faceplate = lazy(() =>
   import("../features/Faceplate").then((m) => ({ default: m.Faceplate })),
 );
 const navigation = [
-  ["overview", "Overview", "◫"],
-  ["projects", "Projects", "⌘"],
-  ["containers", "Containers", "▤"],
-  ["github", "GitHub", "github"],
-  ["storage", "Storage", "▥"],
-  ["zed", "Zed", "/zed.svg"],
-  ["dbs", "DBs", "/db.svg"],
+  ["overview", "Overview", "◫", "O"],
+  ["projects", "Projects", "⌘", "P"],
+  ["containers", "Containers", "▤", "N"],
+  ["github", "GitHub", "github", "G"],
+  ["storage", "Storage", "▥", "S"],
+  ["zed", "Zed", "/zed.svg", "Z"],
+  ["dbs", "DBs", "/db.svg", "D"],
 ] as const;
+const shortcut = (key: string) => ({
+  "data-shortcut": key,
+  "aria-description": `Keyboard shortcut: press and release Control+Shift, then ${key}.`,
+});
 export function App() {
   const location = useLocation(),
     navigate = useNavigate();
+  const sidebar = useRef<HTMLElement>(null);
+  const shortcuts = useSidebarShortcuts(sidebar, location.key);
   const config = usePoll<UiConfig>("/api/ui-config", 60000);
   const { snapshot: monitor, projects } = useMonitor();
   const planner = location.pathname.startsWith("/planner/");
@@ -94,8 +106,15 @@ export function App() {
   }, [workmode]);
   return (
     <div className="st-app" data-workmode={workmode}>
-      <aside className="st-sidebar sidebar">
+      <aside
+        className="st-sidebar sidebar"
+        ref={sidebar}
+        data-shortcuts-ready={
+          shortcuts.step === 2 && shortcuts.scope === "main"
+        }
+      >
         <NavLink
+          {...shortcut("H")}
           className="st-brand brand"
           to={withWorkmode("/", workmode)}
           aria-label="Home"
@@ -108,10 +127,12 @@ export function App() {
             alt="Ydistri"
             hidden={!workmode}
           />
+          <ShortcutKey letter="H" />
         </NavLink>
         <nav aria-label="Main navigation">
           {config.data?.ovis && (
             <NavLink
+              {...shortcut("A")}
               className="nav-link nav-agents"
               title="Agents"
               aria-label="Agents"
@@ -125,10 +146,12 @@ export function App() {
                 height="22"
               />
               Agents
+              <ShortcutKey letter="A" />
             </NavLink>
           )}
-          {navigation.map(([path, label, icon]) => (
+          {navigation.map(([path, label, icon, key]) => (
             <NavLink
+              {...shortcut(key)}
               className="nav-link"
               title={label}
               aria-label={label}
@@ -151,6 +174,7 @@ export function App() {
                 </span>
               )}
               {label}
+              <ShortcutKey letter={key} />
               {path === "projects" && (
                 <span className="nav-count" aria-hidden="true">
                   {monitor.data ? projects.length : "—"}
@@ -174,40 +198,55 @@ export function App() {
             <nav className="sidebar-planner" aria-label="Planner">
               <h2 className="sidebar-heading">Planner</h2>
               <NavLink
+                {...shortcut("T")}
                 className="nav-link"
                 title="Tasks"
+                aria-label="Tasks"
                 to={withWorkmode("/planner/tasks", workmode)}
               >
                 <span className="nav-icon" aria-hidden="true">
                   ☑
                 </span>
                 Tasks
+                <ShortcutKey letter="T" />
               </NavLink>
               <NavLink
+                {...shortcut("C")}
                 className="nav-link"
                 title="Calendar"
+                aria-label="Calendar"
                 to={withWorkmode("/planner/calendar", workmode)}
               >
                 <span className="nav-icon" aria-hidden="true">
                   ▦
                 </span>
                 Calendar
+                <ShortcutKey letter="C" />
               </NavLink>
             </nav>
           )}
           {!workmode && (
             <nav className="sidebar-devices" aria-label="Devices">
               <h2 className="sidebar-heading">Devices</h2>
-              <NavLink className="nav-link" title="Faceplate" to="/faceplate">
+              <NavLink
+                {...shortcut("F")}
+                className="nav-link"
+                title="Faceplate"
+                aria-label="Faceplate"
+                to="/faceplate"
+              >
                 <span className="nav-icon" aria-hidden="true">
                   ▣
                 </span>
                 Faceplate
+                <ShortcutKey letter="F" />
               </NavLink>
               {config.data?.printer_url && (
                 <a
+                  {...shortcut("R")}
                   className="nav-link"
                   title="Prusa Connect"
+                  aria-label="Prusa Connect"
                   href={config.data.printer_url}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -220,20 +259,24 @@ export function App() {
                     height="17"
                   />
                   Prusa Connect
+                  <ShortcutKey letter="R" />
                   <span className="nav-external" aria-hidden="true">
                     ↗
                   </span>
                 </a>
               )}
               <NavLink
+                {...shortcut("Q")}
                 className="nav-link"
                 title="Air quality"
+                aria-label="Air quality"
                 to="/air-quality"
               >
                 <span className="nav-icon" aria-hidden="true">
                   ≋
                 </span>
                 Air quality
+                <ShortcutKey letter="Q" />
               </NavLink>
             </nav>
           )}
@@ -247,6 +290,7 @@ export function App() {
             <strong>{monitor.data?.system.hostname ?? "Connecting…"}</strong>
           </div>
           <button
+            {...shortcut("W")}
             className="workmode-toggle"
             role="switch"
             aria-label="Workmode"
@@ -259,6 +303,7 @@ export function App() {
             }}
           >
             <span className="workmode-label">Workmode</span>
+            <ShortcutKey letter="W" />
             <span className="workmode-switch" aria-hidden="true" />
           </button>
           <div className="sidebar-version">
@@ -322,7 +367,9 @@ export function App() {
             </Routes>
           </Suspense>
         </div>
-        {config.data?.planner && <Planner active={planner} />}
+        {config.data?.planner && (
+          <Planner active={planner} onFrameLoad={shortcuts.connectPlanner} />
+        )}
         {config.data?.ovis && <Ovis active={ovis} workmode={workmode} />}
         {planner && config.data && !config.data.planner && (
           <Notice>Planner is not configured on this instance.</Notice>
@@ -331,6 +378,14 @@ export function App() {
           <Notice>Ovis is not configured on this instance.</Notice>
         )}
       </main>
+      <ShortcutIndicator step={shortcuts.step} scope={shortcuts.scope} />
+      {shortcuts.recent && (
+        <RecentConversations
+          picker={shortcuts.recent}
+          onOpen={shortcuts.openRecent}
+          onClose={shortcuts.cancel}
+        />
+      )}
     </div>
   );
 }

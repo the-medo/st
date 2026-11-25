@@ -7,6 +7,55 @@ The React v2 migration is developed on `feature/st-v2`. See
 the built console; existing installations retain the legacy frontend during
 the migration. Built output and local configuration stay out of Git.
 
+The React console supports scoped shortcuts: tap and release **Ctrl twice**
+within 700 ms to show the current page's keys, or press and release **Ctrl+Shift**
+to open the main sidebar's keys directly. The bottom-right Ctrl ring fills halfway
+after the first tap and fully when ready. **Escape cancels completely**;
+**Shift alone** or **Left Arrow** returns to the main sidebar while armed.
+Shortcut mode expires after eight seconds without a choice (except in the recent
+items picker, or while Planner loads its Quick Add control). Existing modifier combinations keep their normal behavior.
+The sequence works in Agents, terminals, and the embedded planner without
+inserting a shortcut letter into a draft. Reduced-motion preferences apply.
+
+| Key | Destination | Key | Destination |
+| --- | --- | --- | --- |
+| H | Home | A | Agents |
+| O | Overview | P | Projects |
+| N | Containers | X | Codex |
+| S | Storage | Z | Zed |
+| D | DBs | T | Tasks |
+| C | Calendar | F | Faceplate |
+| R | Prusa Connect (new tab) | Q | Air quality |
+| W | Toggle Workmode | | |
+
+Only currently available sidebar items have active shortcuts. Workmode hides
+device shortcuts, and navigation retains the current Workmode setting and the
+last Agents conversation.
+
+Opening Agents or Planner with a main-sidebar shortcut keeps the mode ready:
+
+- **Planner:** Contacts **O**, Calendar **C**, Tasks **T**, Notes **N**, Journals
+  **J**. The current page has no navigation key. **Q** opens its New form and
+  ends shortcut mode. Calendar shows a temporary **+ New** button on today;
+  when today is outside the visible date range, it appears on the toolbar.
+- **Agents:** the first nine projects get **1–9**; rendered conversations get
+  **A–Z**, skipping **E** and **Q**. Folded conversations and those behind Show
+  more are excluded. **Q** opens the New conversation chooser.
+- **Selected project:** its first conversation opens automatically. Its own
+  first nine visible conversations get **1–9**, **Q** creates a conversation in
+  that project, and **O** opens project options. Selecting a conversation ends
+  shortcut mode.
+- **Inside a conversation:** double Ctrl shows the Agents sidebar keys together
+  with **T** new terminal, **Y** switch chat/terminal, **F** files, **O** more
+  options, and **Q** new conversation. Projects still use **1–9**; conversation
+  letters skip **E/Q** and the reserved toolbar keys **T/Y/F/O** in this mode.
+  A collapsed Agents sidebar opens so its keys are visible.
+- **Recent items:** **E** from any Agents shortcut scope opens this tab's recent
+  conversations and terminals, with the previous visit highlighted. **E** or
+  **Down** advances; **Shift+E** or **Up** goes back. **Enter** opens the selection;
+  **Escape** cancels without navigating. Visits remain in memory for this page
+  session, with chat and terminal views tracked separately.
+
 A quiet, local dashboard for the projects running on your machine. See which app,
 branch, worktree, or Docker container is using memory and CPU without asking an
 agent to inspect the host every time.

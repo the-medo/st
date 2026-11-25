@@ -6549,3 +6549,30 @@ This follows the session-first sidebar described in
 [Claude Code's desktop redesign](https://claude.com/resources/articles/claude-code-desktop-redesign),
 with host branding removed to suit the requested two-sidebar ST layout. No code
 or artwork was copied. The standalone Ovis header retains its existing branding.
+
+
+## S.T. host shortcut scopes
+
+The embedded S.T. console owns an opt-in double-Control sequence and a separate
+Control+Shift entry for its main navigation. Entering Agents exposes numbered
+projects and lettered conversations; selecting a project narrows those labels to
+its conversations and quick actions. A fresh double-Control in a conversation
+exposes both the Agents sidebar and toolbar actions, opening a collapsed sidebar.
+Project numbers remain 1–9; conversation letters skip the toolbar's T/Y/F/O as
+well as the reserved E/Q to keep each key unambiguous. The host draws keycaps
+only while that scope is armed.
+Escape always exits; Shift alone or Left Arrow goes to the S.T. sidebar.
+Standalone Ovis keeps its existing shortcuts through an optional host interface.
+
+The recent conversation/terminal picker follows [Zed's tab switcher](https://zed.dev/docs/tab-switcher):
+recent-use order, the previous item initially selected, a stable list while
+cycling, and confirmation before navigation. S.T. uses E / Shift+E and arrows
+inside its opt-in mode, Enter to open, and Escape to cancel, as requested by the
+owner. No source code or artwork was adapted. Chat and terminal visits are
+separate entries; the host keeps a bounded in-memory history, not a new server
+store. Project shortcuts call the same selection paths as the sidebar, including
+its stale-request guard, and quick actions invoke existing controls.
+
+The embedded host establishes a containing block for fixed-position portals.
+Row menus measure both their anchor and clipping ancestors in that block's
+coordinates, so the More menu stays open and visible beside the right edge.

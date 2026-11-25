@@ -1,3 +1,4 @@
+import type { HostShortcuts } from "./lib/hostShortcuts.ts";
 import sheepIcon from './assets/brand/sheep.png';
 import { MedoProjects } from './components/MedoProjects.tsx';
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -245,7 +246,7 @@ function Brand() {
   );
 }
 
-export function App() {
+export function App({ hostShortcuts }: { hostShortcuts?: HostShortcuts } = {}) {
   const t = useT();
   const apple = /Mac|iPhone|iPad/.test(navigator.platform);
   const { settings, resolvedTheme, resolvedEntry, hostAppearance, update: updateSettings } = useSettings();
@@ -911,6 +912,16 @@ export function App() {
   const listScreen = inMode && inbox.shown && !inboxWide;
   const tabRoom = inMode && !inboxWide && !inbox.shown && selectedPane !== null && !chatShown && !tabRowHidden(cramped, workspaceTabCount, tabsInHeader);
 
+  useEffect(() => {
+    hostShortcuts?.selection(selectedPaneId && selectedPane && !inbox.shown ? {
+      machineId: selectedMachineId, paneId: selectedPaneId, view,
+      title: selectedTitle ?? selectedPaneId,
+      workspace: selectedWorkspace?.label ?? selectedPane.workspace_id,
+      open: () => { selectTargetRef.current(selectedMachineId, selectedPaneId, view); setDrawerOpen(false); },
+    } : null);
+  }, [hostShortcuts, selectedMachineId, selectedPaneId, selectedPane?.workspace_id, selectedTitle, selectedWorkspace?.label, view, inbox.shown]);
+  useEffect(() => () => hostShortcuts?.selection(null), [hostShortcuts]);
+
   if (locked === null) {
     // the auth state is unknown until /api/health or /api/session answers (ten seconds when
     // herdr is down): show the shell without the terminal, and so without a WebSocket,
@@ -1179,7 +1190,7 @@ export function App() {
           {error && <div className="error-state" role="alert"><p>{error}</p><button className="btn" onClick={() => void load()}>{t("Retry")}</button></div>}
           <RenderBoundary resetKey={null} fallback={(retry) => <RegionCrash message={t("The sidebar can't be shown.")} retry={retry} />}>
             <CrashProbe region="sidebar" />
-            {import.meta.env.VITE_MEDO_PROJECTS === "1" ? <MedoProjects selectedPaneId={selectedPaneId}
+            {import.meta.env.VITE_MEDO_PROJECTS === "1" ? <MedoProjects selectedPaneId={selectedPaneId} hostShortcuts={hostShortcuts}
               headerActions={stConversations ? (wideScreen ? (!sidebarCollapsed && sidebarToggle) : <button type="button" aria-label={t("Close workspace list")} title={t("Close workspace list")} onClick={() => setDrawerOpen(false)}><X size={18} /></button>) : undefined}
               onOpen={async (paneId, isCurrent) => { await load(); if (!isCurrent()) return; selectTarget("local", paneId, "chat"); setDrawerOpen(false); }}
               onNew={(project) => { setNewPrefill(project ? { cwd: project.path, name: null, agent: "codex" } : null); openNewOn("local"); }}

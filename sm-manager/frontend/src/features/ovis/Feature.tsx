@@ -1,3 +1,4 @@
+import { agentsShortcuts } from "./shortcuts";
 import { ovisTheme } from "@st/theme/ovis";
 import { themeName } from "@st/theme";
 import "@st/theme/ovis.css";
@@ -42,7 +43,11 @@ export default function Feature({ workmode }: { workmode: boolean }) {
           ),
         }}
       >
-        {reader ? <FileReader target={reader} /> : <App />}
+        {reader ? (
+          <FileReader target={reader} />
+        ) : (
+          <App hostShortcuts={agentsShortcuts} />
+        )}
       </SettingsProvider>
     </RenderBoundary>
   );

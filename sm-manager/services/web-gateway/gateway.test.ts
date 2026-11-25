@@ -1,5 +1,69 @@
 import { expect, test } from "bun:test";
 import { createGateway } from "./gateway";
+test("cross-site links open app pages without allowing cross-site APIs or embedded requests", async () => {
+  const backend = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch: () => new Response("shell"),
+  });
+  const gateway = createGateway({
+    port: 0,
+    publicOrigin: "https://st.example.test",
+    monitorOrigin: `http://127.0.0.1:${backend.port}`,
+    ovisOrigin: `http://127.0.0.1:${backend.port}`,
+  });
+  const navigation = {
+    "sec-fetch-site": "cross-site",
+    "sec-fetch-mode": "navigate",
+    "sec-fetch-dest": "document",
+  };
+  const request = (
+    path: string,
+    headers: Record<string, string> = {},
+    method = "GET",
+  ) =>
+    fetch(`http://127.0.0.1:${gateway.port}${path}`, {
+      method,
+      headers: { ...navigation, ...headers },
+    });
+  try {
+    for (const path of [
+      "/",
+      "/overview?workmode=1",
+      "/projects",
+      "/ovis",
+      "/ovis/chat/example",
+      "/ovis/session/example",
+      "/planner/tasks",
+      "/planner/calendar",
+    ])
+      expect((await request(path)).status).toBe(200);
+    for (const path of [
+      "/api/snapshot",
+      "/api/night-mode",
+      "/ovis/api/medo/catalog",
+      "/ovis/ws",
+      "/planner/api/tasks",
+      "/planner/calendar?st-embedded=1",
+      "/assets/example.js",
+    ])
+      expect((await request(path)).status).toBe(403);
+    const rejectedHeaders: Record<string, string>[] = [
+      { "sec-fetch-mode": "cors" },
+      { "sec-fetch-mode": "no-cors" },
+      { "sec-fetch-dest": "iframe" },
+      { "sec-fetch-dest": "empty" },
+      { origin: "https://elsewhere.example" },
+      { host: "elsewhere.example" },
+    ];
+    for (const headers of rejectedHeaders)
+      expect((await request("/", headers)).status).toBe(403);
+    expect((await request("/", {}, "POST")).status).toBe(403);
+  } finally {
+    gateway.stop(true);
+    backend.stop(true);
+  }
+});
 test("routes monitor and Ovis namespaces without dropping origin or authorization", async () => {
   const backend = Bun.serve({
     hostname: "127.0.0.1",
