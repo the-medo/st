@@ -6607,3 +6607,6 @@ The inspector uses S in the host's existing double-Control shortcut mode, with
 a keycap on its book button. The same sequence opens and closes it through the
 button's normal action. S is reserved from conversation letters to keep the
 sidebar and toolbar bindings distinct, following S.T.'s existing shortcut scopes.
+When leaving Agents, the host rejects late conversation URL updates as soon as
+the browser address changes, even before React commits the inactive view. This
+keeps a terminal update from undoing navigation through the host shortcuts.
