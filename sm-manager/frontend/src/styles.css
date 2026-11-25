@@ -20,6 +20,40 @@ body {
   .st-brand {
     align-items: center;
   }
+  .nav-agents {
+    position: relative;
+    min-height: 46px;
+    margin-bottom: 17px;
+    font-weight: 650;
+    color: var(--ink);
+    background: linear-gradient(
+      115deg,
+      color-mix(in srgb, var(--accent) 19%, var(--paper)),
+      var(--paper)
+    );
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+    box-shadow:
+      inset 3px 0 var(--accent),
+      0 3px 14px color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+  .nav-agents .nav-icon {
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+  .nav-agents:hover {
+    background: color-mix(in srgb, var(--accent) 24%, var(--paper));
+    border-color: var(--accent);
+  }
+  .nav-agents.active {
+    color: var(--ink);
+    background: color-mix(in srgb, var(--accent) 30%, var(--paper));
+    border-color: var(--accent);
+    box-shadow: inset 3px 0 var(--accent);
+  }
+  .nav-agents:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
   .st-sidebar > nav {
     margin-top: 18px;
   }
@@ -587,6 +621,10 @@ body {
     }
   }
   @media (max-width: 700px) {
+    .nav-agents {
+      min-height: 32px;
+      margin-bottom: 0;
+    }
     .st-sidebar {
       flex-shrink: 0;
     }

@@ -17,6 +17,8 @@ class ConsoleAssetsTests(unittest.TestCase):
             for name in ['index.html', 'assets/main-hash.js', 'assets/main-hash.css', 'private.json']:
                 (root / name).write_text('fixture')
             self.assertEqual(asset('/overview', root)[0].name, 'index.html')
+            self.assertEqual(asset('/github', root)[0].name, 'index.html')
+            self.assertIsNone(asset('/codex', root))
             self.assertEqual(asset('/ovis/chat/fixture', root)[1], 'no-store')
             self.assertIn('immutable', asset('/assets/main-hash.js', root)[1])
             for path in ['/private.json', '/assets/missing.js', '/api/missing', '/.vite/manifest.json', '/../private.json', '/assets/../../private.json']:

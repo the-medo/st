@@ -1,0 +1,291 @@
+@scope (.st-app) to (.st-ovis-root) {
+  .github-page {
+    max-width: 1600px;
+    margin-inline: auto;
+  }
+  .github-header,
+  .github-heading,
+  .github-actions,
+  .github-filters,
+  .github-section-meta,
+  .github-backlog-controls {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .github-header {
+    justify-content: space-between;
+    padding: 8px 0 0;
+  }
+  .github-heading > svg {
+    color: var(--ink);
+  }
+  .github-heading h1 {
+    font-size: 22px;
+    line-height: 1.2;
+    margin: 0;
+    letter-spacing: -0.5px;
+  }
+  .github-heading p {
+    margin: 6px 0 0;
+    font: 11px var(--mono);
+    color: var(--muted);
+  }
+  .github-heading p span {
+    opacity: 0.5;
+  }
+  .github-actions {
+    font-size: 11px;
+  }
+  .github-actions button {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 32px;
+  }
+  .github-actions button:disabled {
+    opacity: 0.65;
+    cursor: wait;
+  }
+  .github-sync {
+    color: var(--muted);
+    font-size: 11px;
+    margin: 14px 0 20px;
+  }
+  .github-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .github-summary > div {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: start;
+    gap: 8px 12px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    border-radius: 7px;
+    padding: 16px;
+  }
+  .github-summary svg {
+    color: var(--accent);
+    margin-top: 1px;
+  }
+  .github-summary span {
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .github-summary strong {
+    display: block;
+    color: var(--ink);
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1.3;
+    margin-top: 7px;
+  }
+  .github-summary small {
+    grid-column: 2;
+    font-size: 10px;
+  }
+  .github-filters {
+    margin-bottom: 16px;
+  }
+  .github-filters input {
+    flex: 1;
+    max-width: 400px;
+    min-width: 0;
+  }
+  .github-filters select {
+    max-width: 240px;
+    min-width: 0;
+  }
+  .github-section > .panel-heading {
+    padding: 14px;
+  }
+  .github-section-meta {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--line);
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .github-section-meta strong {
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .github-table {
+    width: 100%;
+    min-width: 700px;
+  }
+  .github-table th {
+    font-size: 10px;
+  }
+  .github-table td {
+    vertical-align: middle;
+    font-size: 11px;
+    padding-block: 13px;
+  }
+  .github-table .github-title-cell {
+    width: 48%;
+    min-width: 280px;
+    white-space: normal;
+  }
+  .github-title-cell > a {
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+  .github-title-cell > a:hover {
+    color: var(--link-ink);
+  }
+  .github-item-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px 8px;
+    margin-top: 6px;
+    color: var(--muted);
+    font: 10px/1.5 var(--mono);
+  }
+  .github-label {
+    border: 1px solid var(--line);
+    padding: 0 5px;
+    border-radius: 4px;
+    font: 9px/1.5 var(--sans, sans-serif);
+  }
+  .github-badge {
+    display: inline-flex;
+    padding: 3px 7px;
+    margin: 2px 3px 2px 0;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+  .github-badge-neutral {
+    color: var(--muted);
+    background: var(--surface);
+  }
+  .github-badge-success {
+    color: #8ed9b5;
+    background: #56b88a14;
+    border-color: #56b88a40;
+  }
+  .github-badge-pending {
+    color: #e7c481;
+    background: #d3a44e14;
+    border-color: #d3a44e40;
+  }
+  .github-badge-danger {
+    color: #efa3a3;
+    background: #dd747414;
+    border-color: #dd747440;
+  }
+  .github-linked-prs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .github-table time {
+    color: var(--muted);
+    white-space: nowrap;
+    font-size: 10px;
+  }
+  .github-changes {
+    white-space: nowrap;
+    font-family: var(--mono);
+  }
+  .github-changes span:first-child {
+    color: #8ed9b5;
+  }
+  .github-changes span:last-child {
+    color: #efa3a3;
+  }
+  .github-backlog > summary {
+    padding: 16px 14px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .github-backlog > summary > span {
+    margin-left: 6px;
+  }
+  .github-backlog > summary small {
+    margin-left: 12px;
+    font-size: 10px;
+    font-weight: 400;
+  }
+  .github-count {
+    font: 10px var(--mono);
+    color: var(--muted);
+    border: 1px solid var(--line);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+  }
+  .github-backlog[open] > summary {
+    border-bottom: 1px solid var(--line);
+  }
+  .github-backlog-controls {
+    flex-wrap: wrap;
+    padding: 12px 14px;
+    font-size: 11px;
+  }
+  .github-backlog-controls label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .github-backlog-controls > span {
+    color: var(--muted);
+  }
+  .github-backlog-controls > a {
+    margin-left: auto;
+  }
+  @media (max-width: 700px) {
+    .github-header {
+      align-items: flex-start;
+    }
+    .github-actions {
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .github-summary {
+      gap: 6px;
+    }
+    .github-summary > div {
+      padding: 10px;
+      gap: 4px;
+      grid-template-columns: 1fr;
+    }
+    .github-summary svg {
+      display: none;
+    }
+    .github-summary small {
+      grid-column: 1;
+      line-height: 1.5;
+    }
+    .github-summary span {
+      font-size: 10px;
+    }
+    .github-summary strong {
+      font-size: 23px;
+    }
+    .github-filters {
+      gap: 7px;
+    }
+    .github-filters select {
+      max-width: 45%;
+    }
+    .github-backlog > summary small {
+      display: block;
+      margin: 8px 0 0 18px;
+      line-height: 1.5;
+    }
+  }
+}

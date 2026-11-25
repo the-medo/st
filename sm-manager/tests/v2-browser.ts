@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import assert from "node:assert/strict";
 import { fixtureApi } from "./v2-fixtures";
+import { verifyGitHub } from "./github-browser";
 import { verifyCatalogs } from "./catalog-browser";
 import { verifyAirQuality } from "./air-browser";
 import { verifyOverviewCharts } from "./overview-browser";
@@ -91,7 +92,7 @@ try {
     "overview",
     "projects",
     "containers",
-    "codex",
+    "github",
     "storage",
     "zed",
     "dbs",
@@ -275,6 +276,7 @@ try {
   );
   await page.setViewportSize({ width: 1440, height: 1000 });
   await verifyAirQuality(page, base);
+  await verifyGitHub(page, base);
 
   const touch = await browser.newPage({
     viewport: { width: 390, height: 844 },
@@ -328,7 +330,7 @@ try {
   }
   assert.deepEqual(errors, []);
   console.log(
-    "Console browser acceptance passed: routes, history, worktree detail, planner draft, night mode, mobile navigation, aligned catalogs, restored Air Quality charts, and mouse/keyboard/touch tooltips.",
+    "Console browser acceptance passed: routes, GitHub sprint/backlog/PRs, Agents styling, history, worktree detail, planner draft, night mode, mobile navigation, aligned catalogs, restored Air Quality charts, and mouse/keyboard/touch tooltips.",
   );
 } finally {
   await browser.close();

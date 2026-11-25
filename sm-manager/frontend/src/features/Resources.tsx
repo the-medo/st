@@ -16,7 +16,6 @@ import {
   useMonitor,
 } from "./MonitorContext";
 import { HistoryChart } from "./HistoryChart";
-import { workCodex } from "../lib/workmode";
 export function ProcessTable({ items }: { items: Process[] }) {
   return items.length ? (
     <div className="st-table-scroll">
@@ -454,45 +453,5 @@ export function Containers() {
       </p>
       <ContainerTable items={all} />
     </Panel>
-  );
-}
-export function Codex() {
-  const { snapshot, workmode, scope } = useMonitor();
-  if (!snapshot.data) return <Empty>Waiting for a sample…</Empty>;
-  const c = workmode
-    ? workCodex(snapshot.data, scope.projects, scope.paths)
-    : snapshot.data.codex;
-  return (
-    <>
-      <div className="st-metrics metrics">
-        <Metric
-          label="Threads updated · 24h"
-          value={c.available ? c.recent_threads : "—"}
-          detail={
-            workmode
-              ? "Work checkout metadata"
-              : `${c.thread_count} stored threads`
-          }
-        />
-        <Metric label="Codex worktrees" value={c.managed_worktrees} />
-        <Metric
-          label="Codex memory"
-          value={bytes(c.memory_bytes)}
-          detail={`${percent(c.cpu_percent)} CPU`}
-        />
-      </div>
-      <Panel title="Codex processes">
-        <p>
-          <small>
-            {c.status}. Thread recency indicates metadata updates, not active
-            agents. Conversation text and token costs are not collected.
-            {workmode
-              ? " Shared host processes are excluded from Workmode."
-              : ""}
-          </small>
-        </p>
-        <ProcessTable items={c.processes} />
-      </Panel>
-    </>
   );
 }
