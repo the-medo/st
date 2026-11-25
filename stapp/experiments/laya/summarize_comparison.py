@@ -92,7 +92,7 @@ def main():
     (args.runs / "comparison.json").write_text(json.dumps(result, indent=2) + "\n")
     keys = list(dict.fromkeys(k for row in records for k in row))
     with (args.runs / "comparison.csv").open("w", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=keys)
+        writer = csv.DictWriter(stream, fieldnames=keys, lineterminator="\n")
         writer.writeheader()
         writer.writerows(records)
     lines = ["# Measured comparison", "", "500 scored requests; 100 identical synthetic transcripts per model; no agent calls.", "",
