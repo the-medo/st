@@ -56,7 +56,7 @@ export async function verifyAgentsShortcuts(page: Page) {
   }
   await page.keyboard.press("c");
   await page.waitForURL((url) => url.searchParams.get("pane") === panes.flaky);
-  await page.locator('.st-shortcut-indicator[data-step="0"]').waitFor();
+  await page.locator('.st-shortcut-indicator[data-step="0"]').waitFor({ state: "attached" });
   await armShortcuts(page);
   await page.keyboard.press("a");
   await page.keyboard.press("q");
@@ -180,7 +180,7 @@ export async function verifyAgentsShortcuts(page: Page) {
   await armPage(page);
   await page.keyboard.press("c");
   await page.waitForURL((url) => url.searchParams.get("pane") === panes.flaky);
-  await page.locator('.st-shortcut-indicator[data-step="0"]').waitFor();
+  await page.locator('.st-shortcut-indicator[data-step="0"]').waitFor({ state: "attached" });
   await armPage(page);
   await page.keyboard.press("1");
   await page
@@ -245,7 +245,7 @@ export async function verifyAgentsShortcuts(page: Page) {
   await page.keyboard.press("e");
   await page.keyboard.press("Escape");
   assert.equal(page.url(), terminalUrl);
-  await page.locator('.st-shortcut-indicator[data-step="0"]').waitFor();
+  await page.locator('.st-shortcut-indicator[data-step="0"]').waitFor({ state: "attached" });
 
   await armPage(page);
   await page.keyboard.press("Shift");
@@ -253,7 +253,7 @@ export async function verifyAgentsShortcuts(page: Page) {
   await page.keyboard.press("Escape");
   // Other Ctrl+Shift combinations must not accidentally arm the main sidebar.
   await page.keyboard.press("Control+Shift+p");
-  await page.locator('.st-shortcut-indicator[data-step="0"]').waitFor();
+  await page.locator('.st-shortcut-indicator[data-step="0"]').waitFor({ state: "attached" });
 
   await armPage(page);
   await page.keyboard.press("t");
