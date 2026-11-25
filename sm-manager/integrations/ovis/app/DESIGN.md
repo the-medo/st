@@ -6622,3 +6622,23 @@ sidebar and toolbar bindings distinct, following S.T.'s existing shortcut scopes
 When leaving Agents, the host rejects late conversation URL updates as soon as
 the browser address changes, even before React commits the inactive view. This
 keeps a terminal update from undoing navigation through the host shortcuts.
+
+## S.T. conversation attention and answers
+
+This follows [Warp's agent notifications](https://docs.warp.dev/agents/capabilities/agent-notifications/):
+make requests for input visible and identify the conversation that needs attention
+or has finished. S.T. adds a persistent “Needs attention” line and the existing
+blocked-state color to a waiting conversation, including the selected one. It
+clears when the agent resumes. Completion popups use the saved conversation name;
+the native terminal title remains available to bind the correct Codex thread.
+No external code or artwork was copied.
+
+Native async replies render the question as a Markdown quotation followed by the
+answer. Multiple answers keep their question/answer pairs; malformed envelopes
+remain visible verbatim. This changes presentation only.
+
+Collapsed questions in managed Codex conversations read candidate text from the
+read-only indexed history, since an unanswered question can precede the rollout
+reader's 4 MB tail. The live terminal count and existing checks after opening the
+queue still control which question can be answered. Indexed history alone never
+authorizes submitting an answer or marks an old, skipped question as waiting.

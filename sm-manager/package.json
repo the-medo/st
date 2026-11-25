@@ -11,7 +11,7 @@
     "build": "bun run theme:build && bun run --cwd frontend build",
     "typecheck": "bun run --cwd frontend typecheck && bun run --cwd frontend typecheck:gateway",
     "test:unit": "bun test frontend/src services/web-gateway services/ovis packages/theme",
-    "test:ovis-chat": "cd integrations/ovis/app && HERDR_TEST_MODE=unit bun test server/medo.test.ts src/lib/sentWaiting.test.ts src/components/ChatView.sentWaiting.test.tsx",
+    "test:ovis-chat": "cd integrations/ovis/app && HERDR_TEST_MODE=unit bun test server/medo.test.ts server/codex.test.ts server/herdr-core/snapshot.test.ts src/lib/sentWaiting.test.ts src/components/ChatView.sentWaiting.test.tsx && bun test server/prompt.test.ts -t 'managed collapsed'",
     "test:browser": "bun tests/v2-browser.ts && bun tests/owner-auth-browser.ts",
     "build:ovis": "cd integrations/ovis/app && VITE_MEDO_PROJECTS=1 bun run build",
     "test:ovis-browser": "bun tests/ovis-browser.ts && cd integrations/ovis/app && bun scripts/medo-sidebar-browser-qa.ts",

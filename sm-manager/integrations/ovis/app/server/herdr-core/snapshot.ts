@@ -401,7 +401,11 @@ function paneOf(terminal: HcTerminal, workspaceId: string, tabId: string, shown:
     foreground_cwd: cwd,
     title: terminal.title ?? null,
     terminal_title: terminal.title ?? null,
-    label: terminal.labels?.[PANE_NAME_LABEL] || terminal.name || null,
+    // ST keeps Codex's raw terminal title as a thread identity. Alerts and pane
+    // headings should use the conversation name already synced to its tab.
+    label: terminal.labels?.[PANE_NAME_LABEL]
+      || (terminal.labels?.['medo.ovis.project'] ? terminal.labels[TAB_NAME_LABEL] : null)
+      || terminal.name || null,
     focused: false,
     revision: terminal.turn ?? 0,
   };

@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { Database } from 'bun:sqlite';
+import { medoCall } from './medo.ts';
 import { omoEditorRows } from "./dialogs/omo.ts";
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Socket } from "node:net";
@@ -6898,6 +6900,51 @@ Enter to select · ↑/↓ to navigate · Esc to cancel
       expect(prompt.options[0]!.description).toBe("Run the linters over the whole repository");
       expect(await answer(prompt.id, { option_indices: [0, 1] })).toEqual({ status: 200, code: undefined });
       expect(pane.sent).toEqual(["enter", "down", "enter", "right"]);
+    });
+  });
+
+  test('answers a managed collapsed question from indexed history with no rollout file', async () => {
+    const collapsed = '\n• WAITING\n• Queued follow-up inputs\n  ? 1 question · 8s\n    alt+↑ to answer\n› Ask Codex to do anything\n';
+    const opened = (question: string, at = 0) => `\n• Queued follow-up inputs\n  ${question}\n  ${at === 0 ? '›' : ' '} 1. Active\n  ${at === 1 ? '›' : ' '} 2. All\n    3. Other\n  enter submit   ctrl+] skip   alt+↓ main prompt\n`;
+    await withPane('codex', 'blocked', collapsed, async (pane) => {
+      pane.cwd = pane.root;
+      const id = '00000000-0000-4000-8000-000000000001';
+      const db = new Database(join(pane.root, 'state_5.sqlite'));
+      db.exec('CREATE TABLE threads (id, source, agent_path, history_mode, updated_at)');
+      db.query('INSERT INTO threads VALUES (?, ?, ?, ?, ?)').run(id, 'app', null, 'paginated', 1);
+      db.close();
+      const history = new Database(join(pane.root, 'thread_history_1.sqlite'));
+      history.exec('CREATE TABLE thread_items (thread_id, item_type, rollout_ordinal, item_json)');
+      history.query('INSERT INTO thread_items VALUES (?, ?, ?, ?)').run(id, 'agentMessage', 1,
+        JSON.stringify({ type: 'agentMessage', id: 'call', delivery: 'async', questions: [{ title: 'Which default?', options: ['Active', 'All'] }] }));
+      history.close();
+      const hc = join(pane.root, 'hc');
+      writeFileSync(hc, '#!/usr/bin/env python3\nimport json\nprint(json.dumps(' + JSON.stringify({ foreground: { name: 'codex' }, title: id, labels: { 'medo.ovis.project': 'fixture' } }) + '))\n', { mode: 0o700 });
+      const environment = { MEDO_PROJECTS: '1', CODEX_HOME: pane.root, ST_OVIS_HC_BIN: hc };
+      const previous = Object.fromEntries(Object.keys(environment).map((key) => [key, process.env[key]]));
+      Object.assign(process.env, environment);
+      try {
+        expect(await medoCall({ operation: 'questions', paneId: 'p_1' })).toMatchObject({ questions: [{ title: 'Which default?' }] });
+        const queued = (await card(pane.root))!;
+        expect(queued).toMatchObject({ question: 'Which default?', queued: 'collapsed' });
+        // A different question now owns the input: never submit the old answer.
+        pane.onSent = (sent) => { pane.screen = sent === 'alt+down' ? collapsed : opened('A different question?'); };
+        expect((await answer(queued.id, { option_index: 1 }, { codexHome: pane.root })).status).toBe(409);
+        expect(pane.sent).toEqual(['alt+up', 'alt+down']);
+        pane.sent.length = 0;
+        const current = (await card(pane.root))!;
+        pane.onSent = (sent) => {
+          if (sent === 'alt+up') pane.screen = opened('Which default?');
+          if (sent === 'down') pane.screen = opened('Which default?', 1);
+          if (sent === 'enter') pane.screen = '› Ask Codex to do anything\n';
+        };
+        expect(await answer(current.id, { option_index: 1 }, { codexHome: pane.root })).toEqual({ status: 200, code: undefined });
+        expect(pane.sent).toEqual(['alt+up', 'down', 'enter']);
+      } finally {
+        for (const [key, value] of Object.entries(previous)) {
+          if (value === undefined) delete process.env[key]; else process.env[key] = value;
+        }
+      }
     });
   });
 

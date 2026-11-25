@@ -6,6 +6,9 @@ import { EventEmitter, once } from 'node:events';
 import { chromium, type Route } from 'playwright-core';
 import type { MedoCatalog } from '../shared/medo.ts';
 import { chromePath } from './chrome-path.ts';
+import { medoConversation } from '../server/medo.ts';
+import { buildSnapshot } from '../server/herdr-core/snapshot.ts';
+import { pushPaneTitle } from '../shared/notify-policy.ts';
 
 // Synthetic data only. No daemon, terminals or user history are accessed.
 const root = mkdtempSync(join(tmpdir(), 'ovis-medo-sidebar-'));
@@ -158,7 +161,39 @@ try {
   assert.deepEqual(await names(), ['Studio', 'Garden', 'Home']);
   assert.deepEqual(errors, []);
   if (evidence) await page.screenshot({ path: join(evidence, 'sidebar.png') });
-  console.log('Sidebar browser regressions passed: stable titles, last selection wins, refresh after mutation, draft filters, single creation, project reordering and persistence.');
+  // A blocked question stays visible even when selected, then clears when work resumes.
+  catalog = { ...catalog, chats: [{ ...chat('a', 'Archive defaults'), paneId: 'a', status: 'blocked' }] };
+  const rawReply = '<send_user_message_question_reply>' + JSON.stringify([{ question: 'Which `GET /Files` default should we use?', answer: 'Make REST active-only by default too', questionItemId: '["request_user_input_async","call",0]' }]) + '</send_user_message_question_reply>';
+  const adapted = medoConversation({ thread: { id: 'fixture' }, turns: [{ id: 'turn', items: [{ id: 'reply', role: 'user', text: rawReply }] }] });
+  const part = adapted.turns[0]!.parts[0]!;
+  const pane = buildSnapshot([{ address: 't1', cols: 120, rows: 40, cwd: '/fixture', state: 'live', title: '00000000-0000-4000-8000-000000000001', labels: { 'medo.ovis.project': 'garden', 'ovis.tab': 'Archive defaults' } }], null, '0.1.14').panes[0]!;
+  await page.addInitScript((feedback) => Reflect.set(window, '__stFeedback', feedback), { reply: part.kind === 'text' ? part.text : '', title: pushPaneTitle(pane) });
+  await page.reload();
+  const attention = page.locator('.medo-chat-attention');
+  await attention.getByText('Needs attention', { exact: true }).waitFor();
+  await row('Archive defaults').click();
+  await waitCount(opens, 1);
+  await opens.shift()!.fulfill({ json: { address: 'a', reused: true } });
+  await waitCount(selects, 1);
+  await selects.shift()!.fulfill({ json: {} });
+  await page.locator('.medo-chat.is-selected .medo-chat-attention').waitFor();
+  assert.equal(await page.locator('.chat-bubble blockquote code').innerText(), 'GET /Files');
+  assert.equal(await page.getByText('send_user_message_question_reply', { exact: false }).count(), 0);
+  await row('Preview completion').click();
+  await page.locator('.droplet').getByText('Archive defaults', { exact: true }).waitFor();
+  await page.locator('.droplet').evaluate(async (element) => {
+    await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished));
+  });
+  if (evidence) await page.screenshot({ path: join(evidence, 'conversation-feedback.png') });
+  await page.setViewportSize({ width: 720, height: 800 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  if (evidence) await page.screenshot({ path: join(evidence, 'conversation-feedback-narrow.png') });
+  catalog.chats[0]!.status = 'working';
+  await row('Refresh projects').click();
+  await attention.waitFor({ state: 'hidden' });
+  await page.locator('.medo-chat .medo-spinner').waitFor();
+  assert.deepEqual(errors, []);
+  console.log('Sidebar browser regressions passed: navigation, reordering, attention state, formatted question replies and named completion popup.');
 } finally {
   await browser.close();
   await server.stop(true);
