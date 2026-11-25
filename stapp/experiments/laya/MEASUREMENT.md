@@ -138,8 +138,9 @@ python3 experiments/laya/benchmark.py \
 ```
 
 The private JSON file has `account_id` and `api_token_file` properties. Relative
-token paths resolve against the config directory; `~` is also accepted. Only the
-prepared configuration exists until the owner supplies the dashboard token.
+token paths resolve against the config directory; `~` is also accepted. The
+owner-supplied account token was verified on 2026-11-26 with three successful
+Clef Flash requests; see [the separate check](account-token-check.json).
 
 For historical reproduction, pass
 `--catalog experiments/laya/results/action-wording/catalog.json`. The old private

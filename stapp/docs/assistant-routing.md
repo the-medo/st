@@ -114,11 +114,16 @@ otherwise invalidated; no-expiry does not guarantee perpetual service or quota.
 [Account token lifecycle](https://developers.cloudflare.com/fundamentals/api/get-started/account-owned-tokens/),
 [Workers AI token setup](https://developers.cloudflare.com/workers-ai/get-started/rest-api/).
 
-**Current setup:** the existing connection can run models but listing account
-tokens returned HTTP 403 because it lacks Account API Tokens permission. A
-dedicated token has therefore **not** been created or tested. Create it once in
-the Cloudflare dashboard under **Manage account → Account API tokens**. This does
-not require widening the developer connection's permissions.
+**Current setup, verified 2026-11-26:** the owner created and saved the dedicated
+account token. Its account-token verification endpoint returned HTTP 200,
+`status: active`, and no expiration field. Three real Clef Flash requests using
+this token returned HTTP 200 and the expected `planner`, `air_quality` (Czech),
+and `other` decisions in 155–156 ms. No Wrangler credentials or agents were used.
+The token file is mode 0600. See [the verification record](../experiments/laya/account-token-check.json).
+
+For a replacement token, use the Cloudflare dashboard under **Manage account →
+Account API tokens**. The developer connection previously lacked permission to
+create account tokens; runtime inference does not need that permission.
 
 Private configuration has been prepared at
 `~/.config/st-assistant/cloudflare.json` (outside Git, mode 0600):
@@ -130,9 +135,10 @@ Private configuration has been prepared at
 }
 ```
 
-Save the dashboard's one-time secret into the adjacent `cloudflare-ai.token`
+For a fresh installation, save the dashboard's one-time secret into the adjacent `cloudflare-ai.token`
 file with mode 0600. This command prompts without echoing or storing it in shell
-history; run it on the coordinator after creating the token:
+history; run it on the coordinator after creating the token. It deliberately
+refuses to overwrite an existing token; the current installation is already set up:
 
 ```sh
 python3 - <<'PY'

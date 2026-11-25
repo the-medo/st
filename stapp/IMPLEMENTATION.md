@@ -30,8 +30,10 @@ The [five-model comparison](experiments/laya/COMPARISON.md) supports the selecte
 decision model. Keep routing advisory, generic acknowledgements and capability
 discovery: even Clef Flash produced confidently wrong routes. All four local
 model caches and their service have been removed; benchmark evidence is retained.
-The live worker is unchanged. Dedicated account-token provisioning is still
-pending; the benchmark used Wrangler OAuth. See the
+The live worker is unchanged. The owner supplied a dedicated account API token;
+verification and three real Clef Flash requests passed on 2026-11-26. The token
+is active and the verification response reports no expiration. The original
+100-case benchmark used Wrangler OAuth. See the
 [authentication setup](docs/assistant-routing.md#cloudflare-authentication-and-maintenance).
 
 ## Existing implementation: retain or replace

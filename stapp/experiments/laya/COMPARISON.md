@@ -143,10 +143,11 @@ Steam Machine. The connected MCP rejected this Cloudflare-hosted model as a
 third-party model before sending it; the direct authorized Workers AI request
 worked. No new Worker, account or subscription was created.
 
-The unattended assistant will use a dedicated account API token with no expiry,
-rather than that developer login. Token provisioning is still pending: the
-current connection lacks Account API Tokens permission. Token-file support and
-private configuration are prepared; see
+The owner subsequently supplied a dedicated account API token. Verification on
+2026-11-26 reported active status without an expiration field; three classifier
+requests succeeded using that token alone. These checks are separate from the
+100-case benchmark. The unattended assistant will use this credential instead
+of the developer login; see [verification evidence](account-token-check.json) and
 [authentication and maintenance](../../docs/assistant-routing.md#cloudflare-authentication-and-maintenance).
 
 The 100 scored calls used 43,703 input tokens. At the published $0.038 per million
