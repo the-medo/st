@@ -1,8 +1,6 @@
 import json
-import tempfile
 import unittest
-from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 from . import resources
 from .chat_service import normalize_item
 
@@ -30,34 +28,6 @@ class ResourceTests(unittest.TestCase):
         result = resources.inventory(client, 'thread', '/fixture')
         self.assertEqual(len(result['errors']), 1)
         self.assertNotIn('SECRET', json.dumps(result))
-
-    def test_missing_skillshare_does_not_run_or_initialize_anything(self):
-        with patch.object(resources.shutil, 'which', return_value=None), patch.object(resources.subprocess, 'run') as run:
-            self.assertFalse(resources.skillshare('/fixture')['installed'])
-            run.assert_not_called()
-
-    def test_sync_and_upstream_are_independent_unknown_until_confirmed(self):
-        with tempfile.TemporaryDirectory() as root:
-            def cli(binary, args, cwd):
-                self.assertNotIn(args[0], ('init', 'sync', 'update', 'install'))
-                if args[0] == 'list': return [{'name': 'review'}, {'name': 'local'}, {'name': 'off', 'disabled': True}]
-                if args[0] == 'diff': return {'targets': [{'name': 'codex', 'items': [{'name': 'review', 'is_sync': True}]}]}
-                if args[0] == 'mcp': return {'changes': [{'name': 'docs', 'action': 'modify'}, {'name': 'docs', 'action': 'unchanged'}]}
-                if args[0] == 'check': return {'skills': [{'name': 'review', 'status': 'update_available'}, {'name': 'local', 'status': 'local'}]}
-                raise AssertionError(args)
-            with patch.object(resources.shutil, 'which', return_value='/fixture/skillshare'), patch.object(resources, 'cli_json', side_effect=cli):
-                first = resources.skillshare(root)
-                self.assertTrue(all(row['update'] == 'unknown' for row in first['rows']))
-                checked = resources.skillshare(root, check=True)
-                rows = {row['name']: row for row in checked['rows']}
-                self.assertEqual(rows['review']['update'], 'available')
-                self.assertEqual(rows['local']['update'], 'unknown')
-                self.assertEqual(rows['off']['sync'], 'off')
-                self.assertEqual(rows['docs']['sync'], 'pending')
-            with patch.object(resources.shutil, 'which', return_value='/fixture/skillshare'), patch.object(resources, 'cli_json', side_effect=lambda binary, args, cwd: [{'name': 'review'}] if args[0] == 'list' else (_ for _ in ()).throw(RuntimeError('SECRET'))):
-                failed = resources.skillshare(root)
-                self.assertEqual(failed['rows'][0]['sync'], 'unknown')
-                self.assertNotIn('SECRET', json.dumps(failed))
 
     def test_native_evidence_survives_normalization_without_inference_from_text(self):
         read = normalize_item({'type': 'commandExecution', 'id': 'a', 'status': 'completed', 'exitCode': 0, 'cwd': '/repo', 'command': 'cat skills/a/SKILL.md', 'commandActions': [{'type': 'read', 'path': 'skills/a/SKILL.md'}, {'type': 'search', 'path': 'SKILL.md'}]})

@@ -31,10 +31,4 @@
 .resources-detail ul { margin: 0; padding: 0; list-style: none; }
 .resources-detail li { margin-bottom: 12px; }
 .resources-detail p { margin: 4px 0 8px; }
-.resources-intro { padding: 20px 4px 12px; }
-.resources-intro > svg { color: var(--accent); }
-.resources-intro h3 { margin: 10px 0 8px; }
-.resources-intro p, .resources-intro a { font-size: 12px; line-height: 1.6; }
-.resources-intro p { color: var(--text-dim); }
-.resources-intro a { color: var(--accent); }
 .resources-sheet { max-height: 75dvh; min-height: 320px; }

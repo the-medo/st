@@ -1511,4 +1511,4 @@ export type { SessionHistoryAgent, SessionResumeSource, SessionHistoryRow, Sessi
 export const HERDR_SOCKET_PATH = `${process.env["XDG_CONFIG_HOME"] || `${process.env["HOME"] ?? ""}/.config`}/herdr/herdr.sock`;
 export const DEFAULT_PORT = 7317;
 
-export type { ResourceInventory, SkillshareInventory } from "./resources.ts";
+export type { ResourceInventory } from "./resources.ts";

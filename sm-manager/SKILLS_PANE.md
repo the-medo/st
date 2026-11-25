@@ -38,23 +38,35 @@ successful trial of this read-only view.
   thread. Disabled skills and unknown/failed MCP connection states stay explicit.
   Tool names/descriptions are shown; configuration, credentials, schemas, raw
   discovery errors and tool outputs are excluded from inventory responses.
-- **Updates** detects an installed `skillshare` executable. It reads `list --all`,
-  `diff`, and `mcp list` as JSON in global and discovered project scopes. An
-  explicit **Check upstream updates** runs `check --json`. Updates not confirmed
-  by the CLI remain unknown. This is not an MCP/plugin software version checker.
-  No install, init, sync, update, uninstall, git push, or configuration mutation is
-  offered. Missing CLI/configuration and failed reads are visible.
 
-Inventory routes are owner-only, `no-store`, and accept an existing pane/thread
+The inventory route is owner-only, `no-store`, and accepts an existing pane/thread
 identity, never a caller-supplied directory or command. The pane currently targets
 ST's local Codex conversations. Other agents and remote machines need their own
-adapters. Skills and MCPs managed outside Skillshare still appear in Available;
-they have no Skillshare update verdict.
+adapters. There is no Updates tab, Skillshare CLI dependency or update-checking
+endpoint. No install, sync, update or configuration mutation is offered.
 
 The UI follows [Zed's separation of agent tools and MCP inventory](https://zed.dev/docs/ai/mcp),
 with ST's existing right-side inspector and mobile sheet. The resource grouping
-and explicit sync/update state are inspired by Skillshare. No upstream UI code
-was copied.
+is inspired by Skillshare. No upstream UI code was copied.
+
+## Runtime overhead
+
+- Closed: the panel is unmounted, history reporting is disabled, and it makes no
+  inventory requests. Its small UI module and CSS are still in the static bundle;
+  structured skill/MCP metadata remains part of the existing chat responses.
+- Open: Used aggregates the loaded conversation in browser memory as the history
+  changes. It shares the existing turns rather than fetching another transcript.
+  Work grows linearly with the loaded message parts. The open panel also receives
+  these history updates while Available is selected.
+- Selecting Available or pressing Refresh makes one HTTP request. The backend
+  starts a short-lived Python bridge, verifies the conversation, connects to the
+  existing daemon, and reads skills plus MCP status (additional pages when needed).
+  It closes that connection afterwards. There are no inventory polling timers,
+  model requests, tool executions or automatic update checks.
+
+The experiment's separate preview services, including its private chat bridge,
+cost memory independently of this pane. Deploying the feature into the existing
+stack does not require another persistent resource service.
 
 ## Verification and preview
 
@@ -77,7 +89,7 @@ bun test server/medo.test.ts server/skill-activity.test.ts src/lib/resourceActiv
 ```
 
 Browser checks use synthetic data and cover usage, connection/error states,
-filtering, upstream checks, desktop focus, mobile sizing, close/reopen races and
+filtering, on-demand inventory reads, desktop focus, mobile sizing, close/reopen races and
 the existing shortcut/navigation acceptance. Set `ST_V2_EVIDENCE` to a private PNG
 path to save before/after screenshots. Real chats are never used for screenshots.
 

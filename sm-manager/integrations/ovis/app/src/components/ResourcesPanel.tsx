@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { BookOpen, ChevronDown, ExternalLink as ExternalLinkIcon, Plug, RefreshCw, Search, X } from "lucide-react";
-import type { ResourceInventory, SkillshareInventory } from "../../shared/protocol.ts";
+import { BookOpen, ChevronDown, Plug, RefreshCw, Search, X } from "lucide-react";
+import type { ResourceInventory } from "../../shared/protocol.ts";
 import { apiFetch } from "../lib/api-request-id.ts";
 import { type ResourceActivity, usedResources } from "../lib/resourceActivity.ts";
-import { ExternalLink } from "../lib/externalLink.ts";
 import { MedoDialog } from "./MedoProjects.tsx";
 import "./ResourcesPanel.css";
 
@@ -24,14 +23,12 @@ function Row({ name, icon, status, children }: { name: string; icon: ReactNode; 
 export function ResourcesPanel({ paneId, activity, docked, panelStart, onClose }: {
   paneId: string; activity: ResourceActivity | null; docked: boolean; panelStart?: ReactNode; onClose: () => void;
 }) {
-  const [tab, setTab] = useState<"used" | "available" | "updates">("used");
+  const [tab, setTab] = useState<"used" | "available">("used");
   const [query, setQuery] = useState("");
   const [inventory, setInventory] = useState<ResourceInventory | null>(null);
-  const [managed, setManaged] = useState<SkillshareInventory | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [refresh, setRefresh] = useState(0);
-  const [check, setCheck] = useState(false);
   const focus = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!docked) return;
@@ -49,27 +46,22 @@ export function ResourcesPanel({ paneId, activity, docked, panelStart, onClose }
     setBusy(true); setError("");
     const run = async () => {
       try {
-        if (tab === "available") {
-          const value = await read<ResourceInventory>("resources", paneId, controller.signal);
-          if (!controller.signal.aborted) setInventory(value);
-        } else {
-          const value = await read<SkillshareInventory>(`skillshare${check ? "?check=1" : ""}`, paneId, controller.signal);
-          if (!controller.signal.aborted) setManaged(value);
-        }
+        const value = await read<ResourceInventory>("resources", paneId, controller.signal);
+        if (!controller.signal.aborted) setInventory(value);
       } catch (cause) {
         if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Resources could not be loaded.");
       } finally { if (!controller.signal.aborted) setBusy(false); }
     };
     void run();
     return () => controller.abort();
-  }, [paneId, tab, refresh, check]);
+  }, [paneId, tab, refresh]);
   const matches = (value: string) => value.toLowerCase().includes(query.toLowerCase().trim());
   const skills = (tab === "used" ? used.skills : inventory?.skills ?? []).filter(item => matches(`${item.name} ${"description" in item ? item.description : ""}`));
   const servers = (inventory?.servers ?? []).filter(item => matches(`${item.name} ${item.tools.map(tool => tool.name).join(" ")}`));
   const usedServers = used.servers.filter(item => matches(`${item.name} ${[...item.tools].join(" ")}`));
   const body = <>
     <div className="resources-tabs" role="group" aria-label="Resource view">
-      {([['used', 'Used'], ['available', 'Available'], ['updates', 'Updates']] as const).map(([key, label]) => <button type="button" key={key} aria-pressed={tab === key} onClick={() => setTab(key)}>{label}</button>)}
+      {([['used', 'Used'], ['available', 'Available']] as const).map(([key, label]) => <button type="button" key={key} aria-pressed={tab === key} onClick={() => setTab(key)}>{label}</button>)}
     </div>
     <div className="resources-toolbar"><label><Search size={15} /><input aria-label="Filter resources" placeholder="Find a skill or MCP…" value={query} onChange={event => setQuery(event.target.value)} /></label>
       {tab !== "used" && <button type="button" aria-label="Refresh resources" title="Refresh resources" disabled={busy} onClick={() => setRefresh(value => value + 1)}><RefreshCw size={16} /></button>}
@@ -94,16 +86,6 @@ export function ResourcesPanel({ paneId, activity, docked, panelStart, onClose }
           <ul>{server.tools.map(tool => <li key={tool.name}><strong>{tool.name}</strong>{tool.description && <p>{tool.description}</p>}</li>)}</ul>
         </Row>)}</Group>
         {!skills.length && !servers.length && <p className="resources-empty">No matching resources reported.</p>}
-      </>}
-      {tab === "updates" && managed && <>
-        <div className="resources-intro"><BookOpen size={24} /><h3>Skillshare</h3><p>Keep skills and MCP settings in sync across your agents.</p><ExternalLink href="https://github.com/runkids/skillshare/tree/main/herdr/skillshare" kind="link">About Skillshare <ExternalLinkIcon size={12} /></ExternalLink></div>
-        {!managed.installed ? <p className="resources-empty">Skillshare is not installed on this machine. Usage and available resources work independently. Connect Skillshare to check managed skills for updates and sync drift.</p> : <>
-          <p className="resources-note">Read-only preview. Sync status covers resources managed by Skillshare; plugin and MCP software updates are not checked here.</p>
-          <button type="button" className="btn" disabled={busy} onClick={() => { setCheck(true); setRefresh(value => value + 1); }}>Check upstream updates</button>
-          {managed.errors.map(message => <p role="status" className="resources-warning" key={message}>{message}</p>)}
-          {managed.rows.filter(row => matches(row.name)).map(row => <Row key={`${row.scope}:${row.kind}:${row.name}`} name={row.name} icon={row.kind === "mcp" ? <Plug size={16} /> : <BookOpen size={16} />} status={`${row.scope} · ${row.sync === "off" ? "Disabled" : row.update === "available" ? "Update available" : ({ off: "Disabled", unknown: "Sync unknown", pending: "Needs sync", synced: "In sync" })[row.sync]}`}><p>{row.kind} · {row.update === "unknown" ? "Updates not checked" : row.update === "current" ? "No upstream update reported" : "An upstream update is available"}</p></Row>)}
-          {!managed.rows.length && <p className="resources-empty">No managed resources reported.</p>}
-        </>}
       </>}
     </div>
   </>;

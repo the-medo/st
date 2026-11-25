@@ -147,7 +147,7 @@ def history(thread, p):
 
 def handle(p):
     op = p['operation']
-    if op in ('resources', 'skillshare'):
+    if op == 'resources':
         pane = p.get('paneId', '')
         if pane.startswith('medo:'):
             thread = pane[5:]
@@ -159,8 +159,6 @@ def handle(p):
         if not thread:
             raise ValueError('The conversation is still opening. Try again shortly.')
         row, _ = sidebar.checked_thread(thread)
-        if op == 'skillshare':
-            return resources.skillshare(row['cwd'], p.get('check') is True)
         client = Bridge()
         try:
             return resources.inventory(client, thread, row['cwd'])

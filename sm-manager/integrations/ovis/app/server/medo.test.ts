@@ -35,17 +35,15 @@ test('preserves native skill reads, MCP identity and failed status through the H
 });
 
 
-test('resource routes require owner access and a conversation identity', async () => {
+test('resource inventory requires owner access and a conversation identity', async () => {
   const previous = process.env.MEDO_PROJECTS;
   process.env.MEDO_PROJECTS = '1';
   try {
-    for (const path of ['resources', 'skillshare']) {
-      const url = new URL(`http://fixture/api/medo/${path}?pane_id=medo:00000000-0000-4000-8000-000000000001`);
-      const denied = await handleMedoRequest(new Request(url), url, true);
-      expect(denied?.status).toBe(403);
-      url.searchParams.set('pane_id', '/arbitrary/path');
-      expect((await handleMedoRequest(new Request(url), url, false))?.status).toBe(400);
-    }
+    const url = new URL('http://fixture/api/medo/resources?pane_id=medo:00000000-0000-4000-8000-000000000001');
+    const denied = await handleMedoRequest(new Request(url), url, true);
+    expect(denied?.status).toBe(403);
+    url.searchParams.set('pane_id', '/arbitrary/path');
+    expect((await handleMedoRequest(new Request(url), url, false))?.status).toBe(400);
   } finally {
     if (previous === undefined) delete process.env.MEDO_PROJECTS;
     else process.env.MEDO_PROJECTS = previous;

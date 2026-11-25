@@ -78,10 +78,10 @@ export async function handleMedoRequest(request: Request, url: URL, readOnly: bo
       return result ? jsonResponse({ ...result, server_time: new Date().toISOString() }, 200, { 'cache-control': 'no-store' }) : badRequest('invalid_conversation', 'Choose a saved conversation.');
     }
 
-    if (request.method === 'GET' && ['/api/medo/resources', '/api/medo/skillshare'].includes(url.pathname)) {
+    if (request.method === 'GET' && url.pathname === '/api/medo/resources') {
       const paneId = url.searchParams.get('pane_id') ?? '';
       if (!/^(t[\da-z]+|medo:[0-9a-f-]{36})$/.test(paneId)) return badRequest('invalid_conversation', 'Choose a conversation.');
-      return jsonResponse(await medoCall({ operation: url.pathname.endsWith('/skillshare') ? 'skillshare' : 'resources', paneId, check: url.searchParams.get('check') === '1' }), 200, { 'cache-control': 'no-store' });
+      return jsonResponse(await medoCall({ operation: 'resources', paneId }), 200, { 'cache-control': 'no-store' });
     }
 
     if (request.method === 'GET' && url.pathname === '/api/medo/catalog') return jsonResponse(await medoCall({ operation: 'index' }), 200, { 'cache-control': 'no-store' });
