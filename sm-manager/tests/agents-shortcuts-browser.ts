@@ -56,7 +56,7 @@ export async function verifyAgentsShortcuts(page: Page) {
   }
   await page.keyboard.press("c");
   await page.waitForURL((url) => url.searchParams.get("pane") === panes.flaky);
-  await page.locator('.st-shortcut-indicator[data-step="0"]').waitFor();
+  await page.locator('.st-shortcut-indicator[data-step="0"]').waitFor({ state: "attached" });
   await armShortcuts(page);
   await page.keyboard.press("a");
   await page.keyboard.press("q");
@@ -137,7 +137,7 @@ export async function verifyAgentsShortcuts(page: Page) {
   await page
     .locator('.st-shortcut-indicator[data-scope="conversation"]')
     .waitFor();
-  for (const key of ["T", "Y", "F", "O"])
+  for (const key of ["T", "Y", "F", "S", "O"])
     await page.locator(`.st-ovis-root [data-st-shortcut="${key}"]`).waitFor();
   await page.locator('.medo-project-toggle[data-st-shortcut="9"]').waitFor();
   assert.equal(
@@ -150,7 +150,7 @@ export async function verifyAgentsShortcuts(page: Page) {
       .evaluateAll((els) =>
         els.map((el) => el.getAttribute("data-st-shortcut")).join(""),
       ),
-    "ABCDGHIJKLMNPRSUVWXZ",
+    "ABCDGHIJKLMNPRUVWXZ",
   );
   const keys = await page
     .locator(".st-ovis-root [data-st-shortcut]")
@@ -160,9 +160,27 @@ export async function verifyAgentsShortcuts(page: Page) {
     keys.length,
     "Sidebar and toolbar never share a shortcut key",
   );
+  const resourcesToggle = page.getByRole("button", { name: "Skills & MCPs", exact: true });
+  assert.equal(await resourcesToggle.getAttribute("data-st-shortcut"), "S");
+  if (process.env.ST_SHORTCUT_EVIDENCE) {
+    await page.screenshot({ path: `${process.env.ST_SHORTCUT_EVIDENCE}-conversation.png` });
+  }
+  await page.keyboard.press("s");
+  const resources = page.getByRole("complementary", { name: "Skills & MCPs" });
+  await resources.waitFor();
+  assert.equal(await resourcesToggle.getAttribute("aria-expanded"), "true");
+  // Arm without Escape: the same shortcut must close an already open pane.
+  await page.keyboard.press("Control");
+  await page.keyboard.press("Control");
+  await resourcesToggle.locator('.st-context-key').waitFor();
+  await page.keyboard.press("s");
+  await resources.waitFor({ state: "hidden" });
+  assert.equal(await resourcesToggle.getAttribute("aria-expanded"), "false");
+  assert(await resourcesToggle.evaluate(el => el === document.activeElement));
+  await armPage(page);
   await page.keyboard.press("c");
   await page.waitForURL((url) => url.searchParams.get("pane") === panes.flaky);
-  await page.locator('.st-shortcut-indicator[data-step="0"]').waitFor();
+  await page.locator('.st-shortcut-indicator[data-step="0"]').waitFor({ state: "attached" });
   await armPage(page);
   await page.keyboard.press("1");
   await page
@@ -227,7 +245,7 @@ export async function verifyAgentsShortcuts(page: Page) {
   await page.keyboard.press("e");
   await page.keyboard.press("Escape");
   assert.equal(page.url(), terminalUrl);
-  await page.locator('.st-shortcut-indicator[data-step="0"]').waitFor();
+  await page.locator('.st-shortcut-indicator[data-step="0"]').waitFor({ state: "attached" });
 
   await armPage(page);
   await page.keyboard.press("Shift");
@@ -235,7 +253,7 @@ export async function verifyAgentsShortcuts(page: Page) {
   await page.keyboard.press("Escape");
   // Other Ctrl+Shift combinations must not accidentally arm the main sidebar.
   await page.keyboard.press("Control+Shift+p");
-  await page.locator('.st-shortcut-indicator[data-step="0"]').waitFor();
+  await page.locator('.st-shortcut-indicator[data-step="0"]').waitFor({ state: "attached" });
 
   await armPage(page);
   await page.keyboard.press("t");

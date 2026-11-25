@@ -6558,7 +6558,7 @@ Control+Shift entry for its main navigation. Entering Agents exposes numbered
 projects and lettered conversations; selecting a project narrows those labels to
 its conversations and quick actions. A fresh double-Control in a conversation
 exposes both the Agents sidebar and toolbar actions, opening a collapsed sidebar.
-Project numbers remain 1–9; conversation letters skip the toolbar's T/Y/F/O as
+Project numbers remain 1–9; conversation letters skip the toolbar's T/Y/F/S/O as
 well as the reserved E/Q to keep each key unambiguous. The host draws keycaps
 only while that scope is armed.
 Escape always exits; Shift alone or Left Arrow goes to the S.T. sidebar.
@@ -6591,3 +6591,22 @@ copy. Its only namespace is `/agents` (including APIs and WebSockets); removed
 `ST - <conversation name>` and retain that title when returning from another
 S.T. page. This keeps the existing Zed-inspired named navigation model. The
 standalone app, source attribution and stored user preferences keep their names.
+
+## S.T. conversation resources experiment
+
+The Skills & MCPs book button opens a right-side inspector, using the existing file
+panel sizing and a sheet on narrow screens. It follows Zed's agent tools/MCP
+inventory separation (<https://zed.dev/docs/ai/mcp>), with Skillshare's resource
+grouping (<https://github.com/runkids/skillshare/tree/main/herdr/skillshare>).
+Used is recorded conversation evidence; Available is the agent's current catalog;
+update management is outside this experiment. Unknown connection states remain
+explicit. No upstream code was copied. See the host
+project's `SKILLS_PANE.md` for scope, source analysis and test commands.
+
+The inspector uses S in the host's existing double-Control shortcut mode, with
+a keycap on its book button. The same sequence opens and closes it through the
+button's normal action. S is reserved from conversation letters to keep the
+sidebar and toolbar bindings distinct, following S.T.'s existing shortcut scopes.
+When leaving Agents, the host rejects late conversation URL updates as soon as
+the browser address changes, even before React commits the inactive view. This
+keeps a terminal update from undoing navigation through the host shortcuts.

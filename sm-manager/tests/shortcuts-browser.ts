@@ -256,6 +256,8 @@ export async function verifyShortcuts(page: Page, base: string) {
   await armShortcuts(page);
   await page.keyboard.press("w");
   await page.waitForURL(`${base}/overview?workmode=1`);
+  // The URL can change before React commits the updated sidebar.
+  await page.locator('.st-app[data-workmode="true"]').waitFor();
   await armShortcuts(page);
   assert.equal(
     await page.locator('.st-sidebar [data-shortcut="F"]').count(),

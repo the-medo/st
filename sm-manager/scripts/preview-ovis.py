@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import secrets
 from pathlib import Path
 import shutil
 import socket
@@ -16,13 +17,14 @@ p = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(p)
 
 
-def unit(name, command, env_file=None, environment=None):
+def unit(name, command, env_file=None, environment=None, auth_file=None):
     env = ''.join('Environment=' + p.unit_quote(f'{key}={value}') + '\n' for key, value in (environment or {}).items())
     if env_file:
         # EnvironmentFile wins over Environment= in systemd. Command arguments
         # deliberately apply the preview overrides after the private file.
         command = ['/usr/bin/env', *[f'{key}={value}' for key, value in (environment or {}).items()], *command]
-        env = 'EnvironmentFile=' + str(env_file).replace('%', '%%').replace(' ', r'\x20') + '\n'
+        env = ''.join('EnvironmentFile=' + str(path).replace('%', '%%').replace(' ', r'\x20') + '\n'
+                      for path in [env_file, *([auth_file] if auth_file else [])])
     return f'''{p.MARKER}
 [Unit]
 Description=ST v2 {name} ({p.KEY})
@@ -37,6 +39,19 @@ NoNewPrivileges=yes
 [Install]
 WantedBy=default.target
 '''
+
+
+def provision_auth(gateway_path):
+    """A preview's own backend credential, kept out of browser cookies and unit argv."""
+    gateway = json.loads(gateway_path.read_text())
+    if not gateway.get('ownerLogin'):
+        raise ValueError('The preview must authorize its Tailscale owner before forwarding a credential.')
+    token = gateway.get('ovisToken') or secrets.token_urlsafe(48)
+    gateway['ovisToken'] = token
+    auth_file = gateway_path.with_name('agents-auth.env')
+    p.write(auth_file, 'OVIS_TOKEN=' + p.unit_quote(token) + '\n')
+    p.write(gateway_path, json.dumps(gateway) + '\n')
+    return auth_file, token
 
 
 def main():
@@ -94,21 +109,23 @@ def main():
         'OVIS_TELEMETRY':'off', 'OVIS_AUTO_UPDATE':'0', 'OVIS_TAILSCALE_SERVE_ONLY':'1',
         'ST_OVIS_BASE_PATH':'/agents', 'ST_OVIS_COOKIE_PREFIX':'st_ovis_' + p.KEY,
         'MEDO_PROJECTS':'1',
-    }))
+    }, auth_file=p.BASE / 'agents-auth.env'))
     p.write(config_path, json.dumps(config, indent=2) + '\n')
     p.write(p.BASE / 'gateway.json', json.dumps({'port':port,'publicOrigin':profile['url'],
         'monitorOrigin':f'http://127.0.0.1:{ports[0]}','ovisOrigin':f'http://127.0.0.1:{ports[1]}','ownerLogin':login}) + '\n')
+    _, token = provision_auth(p.BASE / 'gateway.json')
     try:
         p.run('systemctl','--user','daemon-reload')
         p.run('systemctl','--user','enable','--now',monitor_name,ovis_name)
         p.wait(ports[0])
         # Only check bridge availability, never open a user's conversation as QA.
-        wait_ovis(ports[1])
+        wait_ovis(ports[1], token)
         p.write(p.UNIT, unit('gateway',[args.bun,p.ROOT / 'services/web-gateway/index.ts',p.BASE / 'gateway.json']))
         p.run('systemctl','--user','daemon-reload')
         p.run('systemctl','--user','restart',p.NAME)
         p.wait(port)
-        profile.update(ovis=True, units=[monitor_name,ovis_name,p.NAME], monitor_port=ports[0], ovis_port=ports[1])
+        wait_ovis(port, path='/agents/api/health?scope=bridge')
+        profile.update(ovis=True, units=list(dict.fromkeys([*profile.get('units', []), monitor_name,ovis_name,p.NAME])), monitor_port=ports[0], ovis_port=ports[1])
         p.write(saved,json.dumps(profile)+'\n')
     except BaseException:
         p.write(p.UNIT,old_unit)
@@ -121,22 +138,23 @@ def main():
     print(profile['url'] + '/agents')
 
 
-def wait_ovis(port):
+def wait_ovis(port, token=None, path='/api/health?scope=bridge'):
     import http.client
     deadline=time.monotonic()+30
     while time.monotonic()<deadline:
         conn=http.client.HTTPConnection('127.0.0.1',port,timeout=2)
         try:
-            conn.request('GET','/api/health?scope=bridge')
+            conn.request('GET', path, headers={'Authorization': 'Bearer ' + token} if token else {})
             response=conn.getresponse()
-            if response.status==200 and isinstance(json.loads(response.read()),dict):
+            data = json.loads(response.read())
+            if response.status==200 and isinstance(data,dict) and data.get('auth', {}).get('authenticated') is True:
                 return
         except (OSError,ValueError):
             pass
         finally:
             conn.close()
         time.sleep(.3)
-    raise RuntimeError('Ovis did not become ready; inspect its preview service log')
+    raise RuntimeError('Agents sign-in did not become ready; inspect the preview gateway and backend credentials')
 
 
 if __name__=='__main__':

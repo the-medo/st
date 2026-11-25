@@ -1,3 +1,4 @@
+import { resourcesFixture, verifyResourcesPanel } from "./resources-browser";
 import { chromium } from "playwright-core";
 import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
@@ -89,7 +90,7 @@ try {
     errors.push(e.message);
     console.error(e.message);
   });
-  await page.addInitScript({ content: setup });
+  await page.addInitScript({ content: setup + resourcesFixture });
   await page.route("**/*", (route) =>
     new URL(route.request().url()).hostname === "127.0.0.1"
       ? route.continue()
@@ -124,6 +125,7 @@ try {
     await page.getByRole("region", { name: "Ovis", exact: true }).count(),
     0,
   );
+  await verifyResourcesPanel(page, process.env.ST_V2_EVIDENCE);
   const more = page.locator(".header-more-button:visible");
   await more.click();
   const menu = page.getByRole("menu", { name: "More", exact: true });

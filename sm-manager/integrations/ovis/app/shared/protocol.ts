@@ -725,6 +725,8 @@ export type ConversationPart =
     /** Hermes could not load a tool-call list whose arguments exceeded its page limit. */
     arguments_omitted?: true;
     skill?: SkillActivity;
+    /** Explicit MCP call identity from the agent, never guessed from text. */
+    mcp?: { server: string; tool: string; status: string };
     /** set when `output` was cut: an opaque ref for GET /api/pane/conversation/tool-output, and the whole output's length */
     output_ref?: string; output_size?: number;
     /** images the call returned (pi reads a picture into the result); same fetch as a user image */
@@ -1508,3 +1510,5 @@ export type { SessionHistoryAgent, SessionResumeSource, SessionHistoryRow, Sessi
 /** herdr's default socket, under XDG_CONFIG_HOME when set, as herdr itself resolves it. */
 export const HERDR_SOCKET_PATH = `${process.env["XDG_CONFIG_HOME"] || `${process.env["HOME"] ?? ""}/.config`}/herdr/herdr.sock`;
 export const DEFAULT_PORT = 7317;
+
+export type { ResourceInventory } from "./resources.ts";

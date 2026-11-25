@@ -46,9 +46,9 @@ Opening Agents or Planner with a main-sidebar shortcut keeps the mode ready:
   that project, and **O** opens project options. Selecting a conversation ends
   shortcut mode.
 - **Inside a conversation:** double Ctrl shows the Agents sidebar keys together
-  with **T** new terminal, **Y** switch chat/terminal, **F** files, **O** more
-  options, and **Q** new conversation. Projects still use **1–9**; conversation
-  letters skip **E/Q** and the reserved toolbar keys **T/Y/F/O** in this mode.
+  with **T** new terminal, **Y** switch chat/terminal, **F** files, **S** Skills &
+  MCPs, **O** more options, and **Q** new conversation. Projects still use **1–9**;
+  conversation letters skip **E/Q** and the reserved toolbar keys **T/Y/F/S/O** in this mode.
   A collapsed Agents sidebar opens so its keys are visible.
 - **Recent items:** **E** from any Agents shortcut scope opens this tab's recent
   conversations and terminals, with the previous visit highlighted. **E** or

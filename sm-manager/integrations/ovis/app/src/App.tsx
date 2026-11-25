@@ -1,3 +1,5 @@
+import { ResourcesPanel } from "./components/ResourcesPanel.tsx";
+import { ResourceActivityContext, type ResourceActivity } from "./lib/resourceActivity.ts";
 import type { HostShortcuts } from "./lib/hostShortcuts.ts";
 import sheepIcon from './assets/brand/sheep.png';
 import type { MedoCatalog } from '../shared/medo.ts';
@@ -5,7 +7,7 @@ import { MedoConversation } from './components/MedoConversation.tsx';
 import { savedConversation } from './lib/savedConversation.ts';
 import { MedoProjects } from './components/MedoProjects.tsx';
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bell, ChevronDown, ChevronLeft, Eye, Plus, CircleHelp, Ellipsis, FolderOpen, Inbox, Link, Menu, MessageCircle, MessageSquare, PanelLeft, PanelsTopLeft, Search, Settings as SettingsGlyph, SquareTerminal, Target, TextSearch, X } from "lucide-react";
+import { Bell, ChevronDown, ChevronLeft, Eye, Plus, CircleHelp, Ellipsis, FolderOpen, Inbox, Link, Menu, MessageCircle, MessageSquare, BookOpen, PanelLeft, PanelsTopLeft, Search, Settings as SettingsGlyph, SquareTerminal, Target, TextSearch, X } from "lucide-react";
 
 import type { HerdrPane, PaneDirection } from "../shared/protocol.ts";
 import { authenticate, createTab, declinePendingKey, movePaneBeside, moveTabToWorkspace, paneSessionKey, shareSeen, swapPaneWith } from "./lib/api.ts";
@@ -253,6 +255,8 @@ export function App({ hostShortcuts }: { hostShortcuts?: HostShortcuts } = {}) {
   const t = useT();
   const apple = /Mac|iPhone|iPad/.test(navigator.platform);
   const { settings, resolvedTheme, resolvedEntry, hostAppearance, update: updateSettings } = useSettings();
+  const [resourcesOpen, setResourcesOpen] = useState(false);
+  const [resourceActivity, setResourceActivity] = useState<ResourceActivity | null>(null);
   const stConversations = hostAppearance !== undefined && import.meta.env.VITE_MEDO_PROJECTS === "1";
   const [catalog, setCatalog] = useState<MedoCatalog | null>(null);
   const [savedThreadId, setSavedThreadId] = useState(() => import.meta.env.VITE_MEDO_PROJECTS === "1" ? savedConversation(pageSearch()) : null);
@@ -939,6 +943,10 @@ export function App({ hostShortcuts }: { hostShortcuts?: HostShortcuts } = {}) {
   }, [hostShortcuts, selectedMachineId, selectedPaneId, selectedPane?.workspace_id, selectedPane?.agent, selectedTitle, selectedWorkspace?.label, view, inbox.shown, savedThreadId]);
   useEffect(() => () => hostShortcuts?.selection(null), [hostShortcuts]);
 
+  useEffect(() => {
+    if ((viewing !== null && fileDocked) || (filesOpen && filesDocked) || webPage !== null || browserShown) setResourcesOpen(false);
+  }, [viewing, fileDocked, filesOpen, filesDocked, webPage, browserShown]);
+
   if (locked === null) {
     // the auth state is unknown until /api/health or /api/session answers (ten seconds when
     // herdr is down): show the shell without the terminal, and so without a WebSocket,
@@ -1159,6 +1167,7 @@ export function App({ hostShortcuts }: { hostShortcuts?: HostShortcuts } = {}) {
             <FolderOpen aria-hidden="true" />
           </button>
         )}
+        {stConversations && selectedMachineId === "local" && (savedThreadId || selectedAgent === "codex") && <button type="button" className="header-text-button header-resources-button is-icon" title="Skills & MCPs" aria-label="Skills & MCPs" aria-expanded={resourcesOpen} aria-controls="resources-panel" onClick={() => { setResourcesOpen(value => !value); setFilesOpen(false); closeFile(); closeWebPage(); setBrowserTab(null); }}><BookOpen size={18} /></button>}
         <div className="header-meta">
           {!savedThreadId && !guideShown && !inbox.shown && <ConnectionChip
             connected={chipConnected}
@@ -1199,6 +1208,7 @@ export function App({ hostShortcuts }: { hostShortcuts?: HostShortcuts } = {}) {
         {moreGroup && groupItems.length > 0 && <RowMenu anchor={moreGroup.anchor} title={t(moreGroup.kind === "find" ? "Find…" : "Pane and tab…")} items={groupItems} onClose={closeMoreGroup} />}
 
       <PanePressContext.Provider value={pressPane}>
+      <ResourceActivityContext.Provider value={resourcesOpen ? setResourceActivity : null}>
       <div className="app-body">
         {inMode ? (inboxWide && <aside className="sidebar inbox-column">
           <InboxRail onExit={leaveMode} onInbox={() => inbox.list.current?.toTop()} waiting={railWaiting}
@@ -1433,6 +1443,11 @@ export function App({ hostShortcuts }: { hostShortcuts?: HostShortcuts } = {}) {
         </div>
         </WebPanelContext.Provider>
         </OpenFileContext.Provider>
+        {resourcesOpen && stConversations && selectedMachineId === "local" && (savedThreadId || selectedAgent === "codex") && <ResourcesPanel key={savedThreadId ?? selectedPaneId}
+          paneId={savedThreadId ? `medo:${savedThreadId}` : selectedPaneId!}
+          activity={resourceActivity?.paneId === (savedThreadId ? `medo:${savedThreadId}` : selectedPaneId) && resourceActivity.machineId === selectedMachineId ? resourceActivity : null}
+          docked={filePanelAvailable} onClose={() => setResourcesOpen(false)}
+          panelStart={<FilePanelResizer width={filePanelWidth} onResize={setFilePanelWidth} />} />}
         {viewing !== null && fileDocked && <MachineContext.Provider value={viewing.machineId}>
           <FileViewer key={fileViewerKey(viewing)} docked panelStart={<FilePanelResizer width={filePanelWidth} onResize={setFilePanelWidth} />} path={viewing.path} paneId={viewing.paneId} onClose={closeFile} onOpen={(path) => openFile({ ...viewing, path, presentation })} onKind={reportFileKind} onTogglePresentation={toggleFilePresentation} keyboardActive={!settingsOpen} editable={fileEditable} />
         </MachineContext.Provider>}
@@ -1448,6 +1463,7 @@ export function App({ hostShortcuts }: { hostShortcuts?: HostShortcuts } = {}) {
         {browserShown && <BrowserPanel tab={shownBrowserTab} covered={dialogCover || webDialogCover} onOpened={setOpeningTab} onClose={() => setBrowserTab(null)}
           panelStart={<FilePanelResizer width={filePanelWidth} onResize={setFilePanelWidth} />} />}
       </div>
+      </ResourceActivityContext.Provider>
       </PanePressContext.Provider>
 
       <MachineContext.Provider value={newSessionMachineId}><NewSessionDialog

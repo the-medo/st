@@ -197,7 +197,9 @@ const hostHistory = new Proxy({} as History, {
     if (key === "pushState" || key === "replaceState")
       return (state: unknown, _unused: string, url?: string | URL | null) => {
         if (host) {
-          if (host.active && url) {
+          // The router changes the address before React commits host.active.
+          // A late terminal update must not pull navigation back into Agents.
+          if (host.active && /^\/agents(?:\/|$)/.test(globalThis.location.pathname) && url) {
             const next = routeUrl(url);
             host.navigate(
               next.pathname + next.search + next.hash,
