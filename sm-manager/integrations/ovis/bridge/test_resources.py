@@ -1,8 +1,8 @@
 import json
 import unittest
 from unittest.mock import Mock
-from . import resources
-from .chat_service import normalize_item
+from integrations.ovis.bridge import resources
+from integrations.ovis.bridge.chat_service import normalize_item
 
 
 class ResourceTests(unittest.TestCase):
