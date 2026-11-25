@@ -4,6 +4,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert/strict";
 import { fixtureApi, ui } from "./v2-fixtures";
+import { verifyAgentsShortcuts } from "./agents-shortcuts-browser";
+import { armShortcuts } from "./shortcuts-browser";
 import panes from "../integrations/ovis/app/site/demo/fixtures/panes.json";
 ui.ovis = true;
 const fixture = Bun.spawn(["python3", "tests/serve_v2_fixture.py"], {
@@ -45,9 +47,14 @@ const demo = await Bun.build({
 if (!demo.success) throw new Error(demo.logs.map(String).join("\n"));
 const setup = `const originalFetch=window.fetch;\n${await demo.outputs[0]!.text()}\nconst demoFetch=window.fetch,DemoSocket=window.WebSocket,DemoEvents=window.EventSource;
 window.__stOvisRequests=[];window.__stMedoState={title:localStorage.getItem('fixture:chat-name')||'Fixture conversation',status:'idle',updated:1,appearance:{sectionColor:'#142a2a',borderColor:'#3b6c60'}};
-window.fetch=(input,init)=>{const u=new URL(input instanceof Request?input.url:input,location.href);if(!u.pathname.startsWith('/ovis/api/'))return originalFetch(input,init);window.__stOvisRequests.push(u.pathname);u.pathname=u.pathname.slice(5);if(u.pathname==='/api/medo/catalog')return Promise.resolve(Response.json({projects:[{id:'garden',name:'Garden',path:'/fixtures/garden',folders:[],appearance:window.__stMedoState.appearance}],chats:[{id:'00000000-0000-4000-8000-000000000001',title:window.__stMedoState.title,project:'garden',cwd:'/fixtures/garden',updated:window.__stMedoState.updated,status:window.__stMedoState.status,archived:false,unavailable:null,folder:null,paneId:${JSON.stringify(panes.web)}}],organizationRevision:1}));if(u.pathname==='/api/medo/rename'){if(window.__stMedoState.renameFail)return Promise.resolve(Response.json({error:{message:'Fixture rename unavailable'}},{status:400}));const title=JSON.parse(init.body).name.trim();window.__stMedoState.title=title;localStorage.setItem('fixture:chat-name',title);return Promise.resolve(Response.json({ok:true,title}));}if(u.pathname==='/api/medo/style'){window.__stMedoState.appearance=JSON.parse(init.body).style;return Promise.resolve(Response.json({ok:true}));}if(u.pathname==='/api/medo/open')return Promise.resolve(Response.json({address:${JSON.stringify(panes.web)},reused:true}));return demoFetch(u.href,init);};
-window.WebSocket=function(url,protocols){const u=new URL(url,location.href);if(u.pathname==='/ovis/ws')u.pathname='/ws';return new DemoSocket(u.href,protocols);};Object.setPrototypeOf(window.WebSocket,DemoSocket);
-window.EventSource=function(url,options){const u=new URL(url,location.href);if(u.pathname.startsWith('/ovis/api/'))u.pathname=u.pathname.slice(5);return new DemoEvents(u.href,options);};Object.setPrototypeOf(window.EventSource,DemoEvents);
+window.__stCreatedProjects=[];
+const shortcutProjects=Array.from({length:10},(_,i)=>({id:i===0?'garden':'project-'+i,name:i===0?'Garden':i===1?'Orchard':'Project '+(i+1),path:'/fixtures/project-'+i,folders:i===0?[{id:'folder',name:'More conversations'}]:[]}));
+const fixturePanes=${JSON.stringify(Object.values(panes))};
+const endedChat={id:'00000000-0000-4000-8000-000000000099',title:'Finished garden plan',project:'garden',cwd:'/fixtures/garden',updated:0,archived:false,unavailable:'Terminal ended',folder:null};
+const shortcutChats=shortcutProjects.flatMap((project,p)=>Array.from({length:p===0?11:3},(_,i)=>({id:p===0&&i===0?'00000000-0000-4000-8000-000000000001':'chat-'+p+'-'+i,title:p===0&&i===0?'Fixture conversation':'Conversation '+(p+1)+'.'+(i+1),project:project.id,cwd:project.path,updated:100-i,archived:false,unavailable:null,folder:p===0&&i>=5?'folder':null,paneId:p===0&&i===0?${JSON.stringify(panes.web)}:fixturePanes[(p+i)%fixturePanes.length]})));
+window.fetch=(input,init)=>{const u=new URL(input instanceof Request?input.url:input,location.href);if(!u.pathname.startsWith('/agents/api/'))return originalFetch(input,init);window.__stOvisRequests.push(u.pathname);u.pathname=u.pathname.slice(7);if(u.pathname==='/api/medo/catalog')return Promise.resolve(Response.json(window.__stSavedFixture?{projects:[shortcutProjects[0]],chats:[shortcutChats[0],endedChat],organizationRevision:1}:window.__stExpandedShortcutsFixture?{projects:shortcutProjects,chats:shortcutChats,organizationRevision:1}:{projects:[{id:'garden',name:'Garden',path:'/fixtures/garden',folders:[],appearance:window.__stMedoState.appearance}],chats:[{id:'00000000-0000-4000-8000-000000000001',title:window.__stMedoState.title,project:'garden',cwd:'/fixtures/garden',updated:window.__stMedoState.updated,status:window.__stMedoState.status,archived:false,unavailable:null,folder:null,paneId:${JSON.stringify(panes.web)}}],organizationRevision:1}));if(u.pathname==='/api/medo/rename'){if(window.__stMedoState.renameFail)return Promise.resolve(Response.json({error:{message:'Fixture rename unavailable'}},{status:400}));const title=JSON.parse(init.body).name.trim();window.__stMedoState.title=title;localStorage.setItem('fixture:chat-name',title);return Promise.resolve(Response.json({ok:true,title}));}if(u.pathname==='/api/medo/style'){window.__stMedoState.appearance=JSON.parse(init.body).style;return Promise.resolve(Response.json({ok:true}));}if(u.pathname==='/api/medo/open')return new Promise(resolve=>setTimeout(()=>resolve(Response.json({address:shortcutChats.find(c=>c.id===JSON.parse(init.body).threadId)?.paneId??${JSON.stringify(panes.web)},reused:true})),window.__stOpenDelay??0));if(u.pathname==='/api/medo/new'){window.__stCreatedProjects.push(JSON.parse(init.body).projectId);return Promise.resolve(Response.json({address:${JSON.stringify(panes.web)},reused:true}));}if(u.pathname==='/api/medo/conversation'){u.pathname='/api/pane/conversation';u.searchParams.set('pane_id',${JSON.stringify(panes.web)});}return demoFetch(u.href,init);};
+window.WebSocket=function(url,protocols){const u=new URL(url,location.href);if(u.pathname==='/agents/ws')u.pathname='/ws';return new DemoSocket(u.href,protocols);};Object.setPrototypeOf(window.WebSocket,DemoSocket);
+window.EventSource=function(url,options){const u=new URL(url,location.href);if(u.pathname.startsWith('/agents/api/'))u.pathname=u.pathname.slice(7);return new DemoEvents(u.href,options);};Object.setPrototypeOf(window.EventSource,DemoEvents);
 `;
 const cache = join(homedir(), ".cache/ms-playwright");
 const folder = readdirSync(cache)
@@ -105,27 +112,49 @@ try {
     bg: getComputedStyle(el).backgroundColor,
     width: el.getBoundingClientRect().width,
   }));
-  await page.getByRole("link", { name: "Agents", exact: true }).click();
+  await armShortcuts(page);
+  await page.keyboard.press("a");
   await page
     .getByRole("button", { name: "Fixture conversation", exact: true })
     .click();
   await page.locator(".composer-text:visible").waitFor();
+  await page.waitForURL((url) => url.pathname === "/agents");
+  assert.equal(await page.title(), "ST - Fixture conversation");
+  assert.equal(
+    await page.getByRole("region", { name: "Ovis", exact: true }).count(),
+    0,
+  );
   const more = page.locator(".header-more-button:visible");
   await more.click();
   const menu = page.getByRole("menu", { name: "More", exact: true });
   await menu.waitFor();
   // Allow the menu's positioning loop to check the host's right edge repeatedly.
-  await page.evaluate(() => new Promise<void>((resolve) => {
-    let left = 8;
-    const frame = () => { if (--left === 0) resolve(); else requestAnimationFrame(frame); };
-    requestAnimationFrame(frame);
-  }));
-  assert(await menu.isVisible(), "Header More stays open in the embedded viewport");
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        let left = 8;
+        const frame = () => {
+          if (--left === 0) resolve();
+          else requestAnimationFrame(frame);
+        };
+        requestAnimationFrame(frame);
+      }),
+  );
+  assert(
+    await menu.isVisible(),
+    "Header More stays open in the embedded viewport",
+  );
   const menuBox = (await menu.boundingBox())!;
   const moreBox = (await more.boundingBox())!;
-  assert(Math.abs(menuBox.x + menuBox.width - (moreBox.x + moreBox.width)) < 2,
-    "Header More aligns with its button in the host viewport");
-  if (process.env.ST_V2_EVIDENCE) await page.screenshot({ path: process.env.ST_V2_EVIDENCE.replace(/\.png$/, "-more.png"), fullPage: true });
+  assert(
+    Math.abs(menuBox.x + menuBox.width - (moreBox.x + moreBox.width)) < 2,
+    "Header More aligns with its button in the host viewport",
+  );
+  if (process.env.ST_V2_EVIDENCE)
+    await page.screenshot({
+      path: process.env.ST_V2_EVIDENCE.replace(/\.png$/, "-more.png"),
+      fullPage: true,
+    });
   await page.keyboard.press("Escape");
   await menu.waitFor({ state: "hidden" });
   await more.click();
@@ -149,7 +178,7 @@ try {
       .getByRole("navigation", { name: "Main navigation" })
       .getByRole("link")
       .first()
-      .textContent(),
+      .innerText(),
     "Agents",
   );
   assert(
@@ -169,6 +198,51 @@ try {
   await page
     .locator(".composer-text:visible")
     .fill("Draft stays here until I send it.");
+  const conversationUrl = page.url();
+  await armShortcuts(page);
+  await page.keyboard.press("o");
+  await page.waitForURL(`${base}/overview`);
+  await armShortcuts(page);
+  await page.keyboard.press("a");
+  await page.waitForURL(conversationUrl);
+  await page.evaluate(
+    (expected) =>
+      new Promise<void>((resolve, reject) => {
+        if (document.title === expected) {
+          resolve();
+          return;
+        }
+        const timer = setTimeout(() => {
+          observer.disconnect();
+          reject(
+            new Error(`Expected title ${expected}, got ${document.title}`),
+          );
+        }, 5000);
+        const observer = new MutationObserver(() => {
+          if (document.title === expected) {
+            clearTimeout(timer);
+            observer.disconnect();
+            resolve();
+          }
+        });
+        observer.observe(document.head, {
+          childList: true,
+          characterData: true,
+          subtree: true,
+        });
+      }),
+    "ST - Fixture conversation",
+  );
+  assert.equal(
+    await page.title(),
+    "ST - Fixture conversation",
+    "Returning to Agents restores its conversation title",
+  );
+  assert.equal(
+    await page.locator(".composer-text:visible").inputValue(),
+    "Draft stays here until I send it.",
+    "Navigation consumes its letter and preserves the Agents draft and route",
+  );
   assert.equal(
     await page.locator("iframe").count(),
     0,
@@ -182,28 +256,61 @@ try {
     before,
     "Ovis does not restyle ST",
   );
-  await page.evaluate(() => Object.assign(Reflect.get(window, "__stMedoState"), { status: "working", updated: 2 }));
-  await page.getByRole("button", { name: "Refresh projects", exact: true }).click();
+  await page.evaluate(() =>
+    Object.assign(Reflect.get(window, "__stMedoState"), {
+      status: "working",
+      updated: 2,
+    }),
+  );
+  await page
+    .getByRole("button", { name: "Refresh projects", exact: true })
+    .click();
   await page.locator(".medo-chat .medo-spinner").waitFor();
-  await page.getByRole("button", { name: "Actions for project Garden", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Customize project", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Actions for project Garden", exact: true })
+    .click();
+  await page
+    .getByRole("menuitem", { name: "Customize project", exact: true })
+    .click();
   await page.locator(".st-ovis-root .medo-overlay").waitFor();
   // A completion behind a project dialog remains unread until the chat is visible again.
   await page.evaluate(() => {
-    Object.assign(Reflect.get(window, "__stMedoState"), { status: "done", updated: 3 });
+    Object.assign(Reflect.get(window, "__stMedoState"), {
+      status: "done",
+      updated: 3,
+    });
     window.dispatchEvent(new Event("focus"));
   });
   await page.locator(".medo-chat.is-unread").waitFor();
   await page.locator(".medo-chat .medo-spinner").waitFor({ state: "hidden" });
-  assert.equal(await page.locator('.medo-colors input[type="color"]').count(), 4);
+  assert.equal(
+    await page.locator('.medo-colors input[type="color"]').count(),
+    4,
+  );
   await page.getByLabel("Border color", { exact: true }).fill("#718d62");
-  assert.equal(await page.getByLabel("Appearance preview").evaluate((el) => getComputedStyle(el).borderTopColor), "rgb(113, 141, 98)");
-  await page.getByRole("button", { name: "Save appearance", exact: true }).click();
+  assert.equal(
+    await page
+      .getByLabel("Appearance preview")
+      .evaluate((el) => getComputedStyle(el).borderTopColor),
+    "rgb(113, 141, 98)",
+  );
+  await page
+    .getByRole("button", { name: "Save appearance", exact: true })
+    .click();
   await page.locator(".medo-overlay").waitFor({ state: "hidden" });
   await page.locator(".medo-chat.is-unread").waitFor({ state: "hidden" });
-  assert.equal(await page.locator(".medo-project").evaluate((el) => getComputedStyle(el).borderTopColor), "rgb(113, 141, 98)");
-  await page.getByRole("button", { name: "Actions for project Garden", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Customize project", exact: true }).click();
+  assert.equal(
+    await page
+      .locator(".medo-project")
+      .evaluate((el) => getComputedStyle(el).borderTopColor),
+    "rgb(113, 141, 98)",
+  );
+  await page
+    .getByRole("button", { name: "Actions for project Garden", exact: true })
+    .click();
+  await page
+    .getByRole("menuitem", { name: "Customize project", exact: true })
+    .click();
   await page.locator(".st-ovis-root .medo-overlay").waitFor();
   await page.keyboard.press("Escape");
   await page.locator(".medo-overlay").waitFor({ state: "hidden" });
@@ -231,8 +338,94 @@ try {
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Terminal", exact: true }).click();
   await page.locator(".xterm:visible").waitFor();
+  await page.locator(".xterm-helper-textarea").focus();
+  await page.keyboard.press("Control+c");
+  assert.equal(
+    await page.locator(".st-shortcut-indicator").getAttribute("data-step"),
+    "0",
+  );
+  await armShortcuts(page);
+  await page.keyboard.press("o");
+  await page.waitForURL(`${base}/overview`);
+  await armShortcuts(page);
+  await page.keyboard.press("a");
+  await page.locator(".xterm:visible").waitFor();
   await page.getByRole("button", { name: "Chat", exact: true }).click();
   await page.locator(".composer-text:visible").waitFor();
+  await verifyAgentsShortcuts(page);
+  await page.evaluate(() => Reflect.set(window, "__stSavedFixture", true));
+  await page.getByRole("button", { name: "Refresh projects" }).click();
+  const ended = page.getByRole("button", {
+    name: "Finished garden plan",
+    exact: true,
+  });
+  await ended.click();
+  const savedPage = page.locator(".medo-conversation-page");
+  await savedPage.waitFor();
+  await page.waitForURL(
+    (url) =>
+      url.searchParams.get("saved") === "00000000-0000-4000-8000-000000000099",
+  );
+  assert.equal(
+    await page.getByRole("dialog", { name: "Finished garden plan" }).count(),
+    0,
+  );
+  assert.match(await savedPage.innerText(), /Terminal ended/);
+  await savedPage.locator(".chat-turn").first().waitFor();
+  if (process.env.ST_SHORTCUT_EVIDENCE)
+    await page.screenshot({
+      path: `${process.env.ST_SHORTCUT_EVIDENCE}-saved.png`,
+    });
+  assert(
+    !new URL(page.url()).searchParams.has("pane"),
+    "Saved URLs do not depend on the previous live pane",
+  );
+  assert.equal(
+    await page.locator(".composer-text:visible").count(),
+    0,
+    "Saved history is read-only",
+  );
+  await page
+    .getByRole("button", { name: "Fixture conversation", exact: true })
+    .click();
+  await page.waitForURL((url) => !url.searchParams.has("saved"));
+  await page.locator(".composer-text:visible").waitFor();
+  await page.goBack();
+  await savedPage.waitFor();
+  await page.goForward();
+  await page.locator(".composer-text:visible").waitFor();
+  await page.keyboard.press("Control");
+  await page.keyboard.press("Control");
+  await page.keyboard.press("e");
+  const savedRecent = page
+    .getByRole("option")
+    .filter({ hasText: "Finished garden plan" });
+  await savedRecent.waitFor();
+  assert.match(await savedRecent.innerText(), /Terminal ended/);
+  await savedRecent.getByRole("img", { name: "codex" }).waitFor();
+  await savedRecent.click();
+  await savedPage.waitFor();
+  // A direct saved-history URL survives a reload and loads independently of a live pane.
+  await page.addInitScript(() =>
+    Reflect.set(
+      window,
+      "__stSavedFixture",
+      new URLSearchParams(location.search).has("saved"),
+    ),
+  );
+  await page.reload();
+  await savedPage.waitFor();
+  await page.getByRole("main", { name: "Finished garden plan" }).waitFor();
+  assert.equal(await page.title(), "ST - Finished garden plan");
+  await page
+    .getByRole("button", { name: "Fixture conversation", exact: true })
+    .click();
+  await page.locator(".composer-text:visible").waitFor();
+  await page.evaluate(() => {
+    Reflect.set(window, "__stSavedFixture", false);
+    Reflect.set(window, "__stExpandedShortcutsFixture", false);
+  });
+  await page.getByRole("button", { name: "Refresh projects" }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("link", { name: "Home", exact: true }).click();
   await page.getByRole("heading", { name: "Your services" }).waitFor();
@@ -276,35 +469,63 @@ try {
       await page.evaluate(
         () => Reflect.get(window, "__stOvisRequests") as string[],
       )
-    ).some((p) => p === "/ovis/api/medo/catalog"),
+    ).some((p) => p === "/agents/api/medo/catalog"),
   );
-  await page.getByRole("button", { name: "Fixture conversation", exact: true }).hover();
-  await page.getByRole("button", { name: "Actions for Fixture conversation", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Fixture conversation", exact: true })
+    .hover();
+  await page
+    .getByRole("button", {
+      name: "Actions for Fixture conversation",
+      exact: true,
+    })
+    .click();
   await page.getByRole("menuitem", { name: "Rename", exact: true }).click();
-  const rename = page.getByRole("dialog", { name: "Rename conversation", exact: true });
+  const rename = page.getByRole("dialog", {
+    name: "Rename conversation",
+    exact: true,
+  });
   const name = rename.getByLabel("Conversation name", { exact: true });
   await name.waitFor();
   assert.equal(await name.inputValue(), "Fixture conversation");
   assert(await name.evaluate((el) => document.activeElement === el));
   await name.fill("   ");
-  assert(await rename.getByRole("button", { name: "Save name", exact: true }).isDisabled());
+  assert(
+    await rename
+      .getByRole("button", { name: "Save name", exact: true })
+      .isDisabled(),
+  );
   await name.fill("Garden planning");
-  await page.evaluate(() => { Reflect.get(window, "__stMedoState").renameFail = true; });
+  await page.evaluate(() => {
+    Reflect.get(window, "__stMedoState").renameFail = true;
+  });
   await name.press("Enter");
   await rename.getByRole("alert").waitFor();
   assert.equal(await name.inputValue(), "Garden planning");
-  await page.getByRole("button", { name: "Fixture conversation", exact: true }).waitFor();
-  await page.evaluate(() => { Reflect.get(window, "__stMedoState").renameFail = false; });
+  await page
+    .getByRole("button", { name: "Fixture conversation", exact: true })
+    .waitFor();
+  await page.evaluate(() => {
+    Reflect.get(window, "__stMedoState").renameFail = false;
+  });
   await rename.getByRole("button", { name: "Save name", exact: true }).click();
   await rename.waitFor({ state: "hidden" });
-  await page.getByRole("button", { name: "Garden planning", exact: true }).waitFor();
-  await page.getByRole("button", { name: "Refresh projects", exact: true }).click();
-  await page.getByRole("button", { name: "Actions for Garden planning", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Garden planning", exact: true })
+    .waitFor();
+  await page
+    .getByRole("button", { name: "Refresh projects", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Actions for Garden planning", exact: true })
+    .click();
   await page.getByRole("menuitem", { name: "Rename", exact: true }).click();
   await name.fill("Discard this name");
   await name.press("Escape");
   await rename.waitFor({ state: "hidden" });
-  await page.getByRole("button", { name: "Garden planning", exact: true }).waitFor();
+  await page
+    .getByRole("button", { name: "Garden planning", exact: true })
+    .waitFor();
   assert.deepEqual(errors, []);
   console.log(
     "Native Ovis browser acceptance passed: dual sidebar, chat, scoped modal/styles, draft retention and hidden shortcuts.",
@@ -312,9 +533,10 @@ try {
 } catch (error) {
   const page = browser.contexts()[0]?.pages()[0];
   if (page) {
+    console.error("Fixture page:", page.url(), "title:", await page.title());
     console.error((await page.locator("body").innerText()).slice(-6000));
     await page.screenshot({
-      path: join(homedir(), ".cache/st-v2-ovis-failed.png"),
+      path: "/tmp/st-keyboard-ovis-failed.png",
     });
   }
   throw error;

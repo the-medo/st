@@ -17,7 +17,7 @@ test("preview auth and stream cookies cannot reuse or clear standalone credentia
         OVIS_STATE_DIR: join(dir, "ovis"),
         MEDO_PROJECTS: "1",
         ST_OVIS_COOKIE_PREFIX: "st_fixture",
-        ST_OVIS_BASE_PATH: "/ovis",
+        ST_OVIS_BASE_PATH: "/agents",
       },
       stdout: "pipe",
       stderr: "pipe",
@@ -32,12 +32,12 @@ test("preview auth and stream cookies cannot reuse or clear standalone credentia
     const result = JSON.parse(text);
     for (const cookie of result.cookies) {
       expect(cookie).toMatch(/^st_fixture_/);
-      expect(cookie).toContain("Path=/ovis;");
+      expect(cookie).toContain("Path=/agents;");
       expect(cookie).toContain("HttpOnly; SameSite=Strict;");
     }
     expect(result.old).toBe(null);
     expect(result.media).toBe(
-      "https://st.example.test/ovis/api/fs/page-media/",
+      "https://st.example.test/agents/api/fs/page-media/",
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });

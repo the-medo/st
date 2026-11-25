@@ -164,7 +164,7 @@ class Deployment:
         origin = f"http://127.0.0.1:{int(config['port'])}"
         paths = ["/api/health"]
         if config.get("v2"):
-            paths += ["/api/gateway-health", "/ovis/api/health?scope=bridge"]
+            paths += ["/api/gateway-health", "/agents/api/health?scope=bridge"]
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
@@ -172,9 +172,9 @@ class Deployment:
                 for path in paths:
                     with opener.open(origin + path, timeout=2) as response:
                         data = json.load(response)
-                        if not isinstance(data, dict) or (not path.startswith("/ovis/") and data.get("status") != "ok"):
+                        if not isinstance(data, dict) or (not path.startswith("/agents/") and data.get("status") != "ok"):
                             raise ValueError("Service is not ready")
-                        if path.startswith("/ovis/") and (data.get("ok") is not True or data.get("auth", {}).get("authenticated") is not True):
+                        if path.startswith("/agents/") and (data.get("ok") is not True or data.get("auth", {}).get("authenticated") is not True):
                             raise ValueError("Agents authentication is not ready")
                 return True
             except (OSError, ValueError, urllib.error.URLError):

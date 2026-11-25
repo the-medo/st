@@ -31,6 +31,9 @@ export function resolveLanguage(setting: LanguageSetting, languages: readonly st
 }
 
 let current: Language = "en";
+let applicationName = "Ovis";
+/** A host may name its embedded UI without rewriting user-supplied text. */
+export function setApplicationName(name: string): void { applicationName = name; }
 
 export function setCurrentLanguage(language: Language): void {
   current = language;
@@ -43,7 +46,8 @@ export function currentLocale(): string {
 export type Vars = Record<string, string | number>;
 
 export function translate(language: Language, key: string, vars?: Vars): string {
-  const text = DICTIONARIES[language][key] ?? key.split("|", 1)[0]!;
+  const template = DICTIONARIES[language][key] ?? key.split("|", 1)[0]!;
+  const text = template.replace(/\bOvis\b/g, () => applicationName);
   return vars === undefined ? text : text.replace(/\{(\w+)\}/g, (match, name: string) => (name in vars ? String(vars[name]) : match));
 }
 

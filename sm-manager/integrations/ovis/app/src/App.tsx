@@ -1,4 +1,8 @@
+import type { HostShortcuts } from "./lib/hostShortcuts.ts";
 import sheepIcon from './assets/brand/sheep.png';
+import type { MedoCatalog } from '../shared/medo.ts';
+import { MedoConversation } from './components/MedoConversation.tsx';
+import { savedConversation } from './lib/savedConversation.ts';
 import { MedoProjects } from './components/MedoProjects.tsx';
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bell, ChevronDown, ChevronLeft, Eye, Plus, CircleHelp, Ellipsis, FolderOpen, Inbox, Link, Menu, MessageCircle, MessageSquare, PanelLeft, PanelsTopLeft, Search, Settings as SettingsGlyph, SquareTerminal, Target, TextSearch, X } from "lucide-react";
@@ -245,11 +249,14 @@ function Brand() {
   );
 }
 
-export function App() {
+export function App({ hostShortcuts }: { hostShortcuts?: HostShortcuts } = {}) {
   const t = useT();
   const apple = /Mac|iPhone|iPad/.test(navigator.platform);
   const { settings, resolvedTheme, resolvedEntry, hostAppearance, update: updateSettings } = useSettings();
   const stConversations = hostAppearance !== undefined && import.meta.env.VITE_MEDO_PROJECTS === "1";
+  const [catalog, setCatalog] = useState<MedoCatalog | null>(null);
+  const [savedThreadId, setSavedThreadId] = useState(() => import.meta.env.VITE_MEDO_PROJECTS === "1" ? savedConversation(pageSearch()) : null);
+  const savedChat = catalog?.chats.find((chat) => chat.id === savedThreadId);
   const hiddenMachines = useHiddenMachines();
   const { alerts, alertsRef, alertsOn, alertsOnRef } = useAlertPrefs({ settings });
   const { machineSessions, machines, setMachines, machineRosterLoaded, setMachineRosterLoaded } = useRosterState();
@@ -453,10 +460,10 @@ export function App() {
     if (reload) window.location.reload();
   }, [auth?.via, clearPendingKeys, loadHealth, t]);
 
-  const { selectedMachineRef, selectTarget, selectTargetRef, picks } = useSelectTarget({ selectedMachineId, setConnected, setConnectedBefore, setSelectedMachineId, setSelectedPaneId, setAutoSelected, setDrawerOpen, setOutputStopped, setNotificationViewTarget, setTerminalPeek, pendingLink, pendingFile, setLinkLanded, selectionHint, selectionSince, rosterSeq, snapshot, selectedMachine, selectedPaneId, setHeaderNote, linkTick, movingPanes, onPick: (paneId) => { setupGuide.stepAside(); if (paneId !== null) inbox.leave(); },
+  const { selectedMachineRef, selectTarget, selectTargetRef, picks } = useSelectTarget({ selectedMachineId, setConnected, setConnectedBefore, setSelectedMachineId, setSelectedPaneId, setAutoSelected, setDrawerOpen, setOutputStopped, setNotificationViewTarget, setTerminalPeek, pendingLink, pendingFile, setLinkLanded, selectionHint, selectionSince, rosterSeq, snapshot, selectedMachine, selectedPaneId, setHeaderNote, linkTick, movingPanes, onPick: (paneId) => { setSavedThreadId(null); setupGuide.stepAside(); if (paneId !== null) inbox.leave(); },
     onLinkMiss: () => { if (inbox.enabled) inbox.show(); } });
 
-  const { selectPane } = useSelectPane({ pendingLink, pendingFile, setLinkLanded, selectionHint, selectedPaneId, setSelectedPaneId, setNotificationViewTarget, setTerminalPeek, setAutoSelected, setDrawerOpen, setHeaderNote, onPick: () => { picks.current += 1; setupGuide.stepAside(); inbox.leave(); } });
+  const { selectPane } = useSelectPane({ pendingLink, pendingFile, setLinkLanded, selectionHint, selectedPaneId, setSelectedPaneId, setNotificationViewTarget, setTerminalPeek, setAutoSelected, setDrawerOpen, setHeaderNote, onPick: () => { setSavedThreadId(null); picks.current += 1; setupGuide.stepAside(); inbox.leave(); } });
 
   const layoutRefused = useLayoutRefused(setLayoutNotice, t);
   const moveRefused = useMoveRefused(setLayoutNotice, t);
@@ -502,7 +509,7 @@ export function App() {
   const { selectedPane } = useSelectedPane({ snapshot, selectedPaneId });
   useScreenWakeLock(settings.keepScreenOn && locked === false && selectedPane !== null && !inbox.shown);
   const { selectedWorkspace, presentedPaneId } = useSelectedLayout({ selectedPane, snapshot, drawerOpen: drawerOpen || inbox.shown, selectedMachineId, selectedPaneId, setSelectedPaneId, setAutoSelected });
-  const tabStripMounted = selectedPane !== null && selectedWorkspace !== null;
+  const tabStripMounted = !stConversations && selectedPane !== null && selectedWorkspace !== null;
   const targetHerdr = selectedMachineId === "local" ? health?.herdr : selectedMachine?.herdr;
   const appLayout = appLayoutOf(targetHerdr);
   const herdrOn = (machineId: string) => machineId === "local" ? health?.herdr : machines.find((machine) => machine.id === machineId)?.herdr;
@@ -511,7 +518,8 @@ export function App() {
   const shownTerminal = machineSessions.peek(selectedMachineId)?.socket;
   const picturesByDefault = shownTerminal?.hasTerminalHistory() === true
     || (shownTerminal?.featuresListed() !== true && shownHerdr?.runtime === "herdr-core" && shownHerdr.terminal_attach !== false);
-  const selectedTitle = selectedPane ? displayPaneTitle(selectedPane) : null;
+  const selectedChat = selectedMachineId === "local" ? catalog?.chats.find((chat) => chat.paneId === selectedPaneId) : undefined;
+  const selectedTitle = savedThreadId ? savedChat?.title || 'Saved conversation' : selectedChat?.title || (selectedPane ? displayPaneTitle(selectedPane) : null);
   const tabPanelLabel = paneTabPanelLabel(snapshot, selectedPane, t);
   const selectedAgent = selectedPane?.agent ?? null;
   const desktopBrowser = useDesktopBrowser();
@@ -553,7 +561,7 @@ export function App() {
   const { splitOn, others, shownSlots, rects, follows, activateSlot, activateSlotOf, closeSlot, selectInSlot, dockSide, splitDragOn, paneDragOver, paneDragLeave, paneDrop, dividers, resizeDivider, gridPreview } = useSplitLayout({ machines, split, wideScreen, selectedPaneId, selectedPane, selectedMachineId, splitShownRef, health, machineRosterLoaded, endSplit, otherRecheck, otherRosterTick, setSplit, soloSlot, setConnected, setConnectedBefore, setSelectedMachineId, setSelectedPaneId, setAutoSelected, setOutputStopped, setHeaderNote, splitRef, selectPane, paneAreaRef, gridDrop, gridDropRef, clearDropPreview, tabDrag, showGridDrop, hideDropTarget, setPaneDragging, movingPanes, draggedPaneRef, markSwap, markMove, swapPanes, movePanes, followPaneMove, arrangeRefused: (machineId) => !appLayoutOn(machineId).arrange, threadDrawn: inMode && !inbox.shown });
 
   usePhoneSheetBack(() => { if (newSessionPending.current) return false; closeNewSession(); }, newSessionOpen && inbox.shown);
-  useAddressBar({ inbox, mode: { on: inMode, lands: inboxMode.at }, newSessionOpen, newSessionMachineId, selectedPane, selectedPaneId, selectedWorkspace, viewing, selectedMachineId, leaveFile, restoreFile, fileFromPop, forgetLeftFiles, locked, machines, snapshot, linkLanded, view, settingsOpen, settingsPage, settingsLinkPage, settingsLinkSection, wideScreen, sidebarCollapsed, newTab, newFields, autoSelected, pendingFile, selectedMachine, openFile, machinesRef, selectTargetRef, pendingLink, setLinkLanded, linkSince, rosterSeq, setNewSessionOpen, pendingCreate, newSessionPending, setHeaderNote, selectionRef });
+  useAddressBar({ savedThreadId, onSavedThreadChange: setSavedThreadId, inbox, mode: { on: inMode, lands: inboxMode.at }, newSessionOpen, newSessionMachineId, selectedPane, selectedPaneId, selectedWorkspace, viewing, selectedMachineId, leaveFile, restoreFile, fileFromPop, forgetLeftFiles, locked, machines, snapshot, linkLanded, view, settingsOpen, settingsPage, settingsLinkPage, settingsLinkSection, wideScreen, sidebarCollapsed, newTab, newFields, autoSelected, pendingFile, selectedMachine, openFile, machinesRef, selectTargetRef, pendingLink, setLinkLanded, linkSince, rosterSeq, setNewSessionOpen, pendingCreate, newSessionPending, setHeaderNote, selectionRef });
 
 
   const { bell, alertsOffDot } = alertsBell({ t, alertsOn, notifications, pushOn, enableNotifications, disableNotifications });
@@ -574,7 +582,7 @@ export function App() {
   const tabPlace = snapshot ? tabPosition(snapshot, selectedPaneId) : null;
   const position = tabPlace && { ...tabPlace, words: t("Tab {index} of {count}", { index: tabPlace.index, count: tabPlace.count }) };
 
-  const tabTitle = selectedPane && !inbox.shown ? tabPaneTitle(selectedPane) : null;
+  const tabTitle = savedThreadId ? selectedTitle : selectedPane && !inbox.shown ? (stConversations ? selectedTitle : tabPaneTitle(selectedPane)) : null;
   useEffect(() => {
     document.title = tabTitle ? `${tabTitle} · Ovis` : APP_TITLE;
   }, [tabTitle]);
@@ -902,7 +910,7 @@ export function App() {
   const stripInHeader = classicStripInHeader && !inMode;
   // from 769px with a mouse the pane column ends in the Herdr app's status bar: where the pane is, its branch,
   // the connection.
-  const statusBarShown = wideScreen && keyboardLikely && selectedPane !== null && crumb !== null && !guideShown && !inMode;
+  const statusBarShown = !savedThreadId && wideScreen && keyboardLikely && selectedPane !== null && crumb !== null && !guideShown && !inMode;
   const waitingDot = waitingInMore && !statusBarShown && !inboxWide;
   const openNewOn = (id: string): void => { setNewSessionMachineId(id); setNewTab(null); setNewSessionOpen(true); setDrawerOpen(false); };
   const threadDrawn = inMode && !inbox.shown;
@@ -910,6 +918,26 @@ export function App() {
   useShownCount("view_switch_pane", paneSplit, selectedMachineId);
   const listScreen = inMode && inbox.shown && !inboxWide;
   const tabRoom = inMode && !inboxWide && !inbox.shown && selectedPane !== null && !chatShown && !tabRowHidden(cramped, workspaceTabCount, tabsInHeader);
+
+  useEffect(() => {
+    hostShortcuts?.panes(machines.flatMap((machine) => (machine.snapshot?.panes ?? []).map((pane) => ({
+      machineId: machine.id, paneId: pane.pane_id, title: displayPaneTitle(pane),
+      agent: pane.agent ?? null, status: pane.agent_status, ended: !!pane.restore_error,
+    }))), machines.filter((machine) => machine.state === 'connected').map((machine) => machine.id));
+  }, [hostShortcuts, machines]);
+  useEffect(() => {
+    hostShortcuts?.selection(savedThreadId ? {
+      machineId: 'local', paneId: `medo:${savedThreadId}`, threadId: savedThreadId, view: 'chat', saved: true,
+      title: savedChat?.title || 'Saved conversation', workspace: catalog?.projects.find((project) => project.id === savedChat?.project)?.name || '', agent: 'codex',
+      open: () => { setSavedThreadId(savedThreadId); setDrawerOpen(false); },
+    } : selectedPaneId && selectedPane && !inbox.shown ? {
+      machineId: selectedMachineId, paneId: selectedPaneId, view,
+      title: selectedTitle ?? '', agent: selectedPane.agent,
+      workspace: selectedWorkspace?.label ?? selectedPane.workspace_id,
+      open: () => { selectTargetRef.current(selectedMachineId, selectedPaneId, view); setDrawerOpen(false); },
+    } : null);
+  }, [hostShortcuts, selectedMachineId, selectedPaneId, selectedPane?.workspace_id, selectedPane?.agent, selectedTitle, selectedWorkspace?.label, view, inbox.shown, savedThreadId]);
+  useEffect(() => () => hostShortcuts?.selection(null), [hostShortcuts]);
 
   if (locked === null) {
     // the auth state is unknown until /api/health or /api/session answers (ten seconds when
@@ -1031,7 +1059,12 @@ export function App() {
           {!inMode && !(stConversations && wideScreen && !sidebarCollapsed) && sidebarToggle}
         </div>
         <HeaderNote note={herdrPrefixWaiting ? t("herdr prefix: press a key") : note} />
-        {stripInHeader ? (
+        {stConversations || savedThreadId ? <div className="medo-conversation-heading">
+          <span className="context-title-text">{selectedTitle || 'Conversations'}</span>
+          {!savedThreadId && selectedPane && <button type="button" className="icon-button tab-strip-add" aria-label="New terminal" title="New terminal"
+            disabled={viewOnly(selectedMachineId) || selectedMachine?.state !== 'connected'}
+            onClick={() => { void actions.openTerminalTab().catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'Could not open a terminal.')); }}><Plus size={18} /></button>}
+        </div> : stripInHeader ? (
           <div className={`header-tabs${phoneTabRow ? " is-phone" : ""}`}>
             <RenderBoundary resetKey={`${selectedMachineId}:${selectedPane.pane_id}`} fallback={(retry) => <RegionCrash message={t("This pane can't be shown.")} retry={retry} />}>
             <PanePressContext.Provider value={pressPane}>
@@ -1100,11 +1133,11 @@ export function App() {
         ) : (
           <>{!stConversations && <Brand />}<span className="machine-context-name">{selectedMachine?.name ?? selectedMachineId}</span></>
         )}
-        {selectedPane && (isSheetWidth || inMode) && !inbox.shown && (
+        {!savedThreadId && selectedPane && (isSheetWidth || inMode) && !inbox.shown && (
           <LensToggle view={view} peek={terminalPeek !== null} terminalAttach={terminalAttach} thread={inMode}
             title={(label) => shortcutTitle(label, "toggle-view")} onToggle={() => actions.toggleView("header")} />
         )}
-        {selectedPane && !isSheetWidth && !inMode && (
+        {!savedThreadId && selectedPane && !isSheetWidth && !inMode && (
           <div className="view-switch" data-view={view} role="group" aria-label={`${t("Chat")} / ${t("Terminal")}`}>
             <button type="button" className="lens-option is-chat" aria-pressed={view === "chat"} aria-label={t("Chat")} title={shortcutTitle(t("Chat transcript"), "toggle-view")}
               onClick={() => { setView("chat", "header"); setDrawerOpen(false); }}>
@@ -1121,13 +1154,13 @@ export function App() {
             <span className="lens-thumb" aria-hidden="true" />
           </div>
         )}
-        {selectedPane && wideScreen && !inMode && (
+        {!savedThreadId && selectedPane && wideScreen && !inMode && (
           <button type="button" className="header-text-button header-files-button is-icon" aria-label={t("Browse files")} title={t("Files")} aria-pressed={filesDocked ? filesBeside : undefined} onClick={toggleFiles}>
             <FolderOpen aria-hidden="true" />
           </button>
         )}
         <div className="header-meta">
-          {!guideShown && !inbox.shown && <ConnectionChip
+          {!savedThreadId && !guideShown && !inbox.shown && <ConnectionChip
             connected={chipConnected}
             word={connWord}
             quiet={((headerConnection === "reconnecting" || headerConnection === "failed") && note === null && ((crumb !== null && !stripInHeader) || (phoneTabRow && stripInHeader))) || statusBarShown}
@@ -1140,7 +1173,7 @@ export function App() {
               : localFreshness === "unavailable" && (health?.herdr.runtime === "herdr-core"
                 ? <span className="pill pill-offline" title={t("Open the Herdr app on this PC, or check HC_SESSION and HC_SOCKET.")}>{t("herdr-core unavailable")}</span>
                 : <span className="pill pill-offline" title={t("Start herdr on this PC, or check HERDR_SOCKET.")}>{t("herdr unavailable")}</span>)}
-          {moreButton(false)}
+          {!savedThreadId && moreButton(false)}
         </div>
       </header>}
         {more && (
@@ -1179,7 +1212,8 @@ export function App() {
           {error && <div className="error-state" role="alert"><p>{error}</p><button className="btn" onClick={() => void load()}>{t("Retry")}</button></div>}
           <RenderBoundary resetKey={null} fallback={(retry) => <RegionCrash message={t("The sidebar can't be shown.")} retry={retry} />}>
             <CrashProbe region="sidebar" />
-            {import.meta.env.VITE_MEDO_PROJECTS === "1" ? <MedoProjects selectedPaneId={selectedPaneId}
+            {import.meta.env.VITE_MEDO_PROJECTS === "1" ? <MedoProjects selectedPaneId={selectedPaneId} hostShortcuts={hostShortcuts} selectedThreadId={savedThreadId} onCatalog={setCatalog}
+              onRead={(chat) => { setSavedThreadId(chat.id); setDrawerOpen(false); }}
               headerActions={stConversations ? (wideScreen ? (!sidebarCollapsed && sidebarToggle) : <button type="button" aria-label={t("Close workspace list")} title={t("Close workspace list")} onClick={() => setDrawerOpen(false)}><X size={18} /></button>) : undefined}
               onOpen={async (paneId, isCurrent) => { await load(); if (!isCurrent()) return; selectTarget("local", paneId, "chat"); setDrawerOpen(false); }}
               onNew={(project) => { setNewPrefill(project ? { cwd: project.path, name: null, agent: "codex" } : null); openNewOn("local"); }}
@@ -1231,7 +1265,7 @@ export function App() {
           onPaired={() => void loadHealth()}
           onOpened={(paneId, agentStarted) => { if (agentStarted) actions.agentStarted("local", paneId);
             if (agentStarted && setupGuide.guide?.reopened !== true) { try { armHints(window.localStorage); } catch {} } setupGuide.finish(() => selectTarget("local", paneId)); void load(); }} /></MachineContext.Provider>}
-        {guideShown ? null :
+        {savedThreadId ? <MedoConversation id={savedThreadId} chat={savedChat} loading={catalog === null} /> : guideShown ? null :
         <div ref={paneAreaRef} className={`pane-split${paneSplit ? " is-split" : ""}${inbox.shown ? " is-under-inbox" : ""}`} onDragEnterCapture={paneDragOver} onDragOverCapture={paneDragOver} onDragLeave={paneDragLeave} onDropCapture={paneDrop}>
           {inboxWide && <ThreadTop note={<HeaderNote note={herdrPrefixWaiting ? t("herdr prefix: press a key") : note} />}
             thread={!inbox.shown && selectedPane !== null && note === null ? { machines, activity, machineId: selectedMachineId, pane: selectedPane, connection: headerConnection, watching: viewOnly(selectedMachineId), severalPcs: sidebarMachines.length > 1 } : null}
@@ -1303,7 +1337,7 @@ export function App() {
                 <RenderBoundary resetKey={`${machineId}:${paneId ?? ""}`} fallback={(retry) => <>{slotBar}<RegionCrash message={t("This pane can't be shown.")} retry={retry} onShown={active ? paneLost : undefined} /></>}>
                 <CrashProbe region="pane" />
                 {!(slotSnapshot && pane && workspace) && slotBar}
-                {slotSnapshot && pane && workspace && !(active && classicStripInHeader) && !threadDrawn && (
+                {!stConversations && slotSnapshot && pane && workspace && !(active && classicStripInHeader) && !threadDrawn && (
                   <TabStrip snapshot={slotSnapshot} workspace={workspace} selectedPane={pane} panelId={slotPanelId} splitDrag={wideScreen} browserTabs={paneSplit && wideScreen && !tabsInHeader} onSelectPane={onSelect}
                     inHeader={tabsInHeader} sheet={active ? tabSheet : null} onSheetClose={closeTabSheet} end={slotEnd} closable={auth?.role !== "watch"}
                     renameRequest={active && renameRequest?.machineId === machineId && renameRequest.paneId === pane.pane_id ? renameRequest : null}

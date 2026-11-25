@@ -45,6 +45,7 @@ const backend = Bun.serve({
 });
 let gateway: ReturnType<typeof createGateway>;
 let owner = "owner@example.test";
+let entrySite: string | null = null;
 const ingress = Bun.serve({
   hostname: "127.0.0.1",
   port: 0,
@@ -52,6 +53,12 @@ const ingress = Bun.serve({
   async fetch(request) {
     const url = new URL(request.url),
       headers = new Headers(request.headers);
+    if (
+      entrySite === null &&
+      url.hostname === "st.example.test" &&
+      url.pathname === "/agents"
+    )
+      entrySite = headers.get("sec-fetch-site") ?? "missing";
     headers.delete("tailscale-user-login");
     if (url.hostname === "node.example.ts.net")
       headers.set("tailscale-user-login", owner);
@@ -105,11 +112,20 @@ const browser = await chromium.launch({
 try {
   const context = await browser.newContext({ ignoreHTTPSErrors: true });
   const page = await context.newPage();
-  await page.goto(origin + "/ovis?view=chat");
+  // Clicking from another site sends Fetch Metadata that page.goto does not.
+  await page.route("https://outside.example/", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: `<a href="${origin}/agents?view=chat">Open ST</a>`,
+    }),
+  );
+  await page.goto("https://outside.example/");
+  await page.getByRole("link", { name: "Open ST" }).click();
   await page
     .getByRole("heading", { name: "ST fixture" })
     .waitFor({ timeout: 10000 });
-  assert.equal(page.url(), origin + "/ovis?view=chat");
+  assert.equal(entrySite, "cross-site");
+  assert.equal(page.url(), origin + "/agents?view=chat");
   const cookies = await context.cookies();
   assert(
     cookies.some((c) => c.name === "__Host-st_owner" && c.secure && c.httpOnly),
@@ -117,7 +133,7 @@ try {
   assert(!cookies.some((c) => c.name === "__Host-st_login"));
   assert.equal(await page.evaluate(() => document.cookie), "");
   const api = await page.evaluate(async () =>
-    (await fetch("/ovis/api/health")).json(),
+    (await fetch("/agents/api/health")).json(),
   );
   assert.equal(api.authenticated, true);
   await page.reload();

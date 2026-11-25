@@ -1,0 +1,89 @@
+/* Also installed in the same-origin Planner document by the host controller. */
+[data-st-shortcut] {
+  position: relative;
+}
+[data-st-shortcut] > .st-context-key {
+  display: inline-flex;
+  box-sizing: border-box;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 20px;
+  min-width: 20px;
+  height: 20px;
+  margin-left: auto;
+  border: 1px solid var(--selected-line, var(--border, #435568));
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--surface, var(--bg, #15202e));
+  color: var(--selected-ink, var(--text-strong, #d9e7f5));
+  font:
+    500 11px/1 ui-monospace,
+    monospace;
+  box-shadow:
+    0 1px 2px #0003,
+    inset 0 1px 0 #ffffff08;
+  pointer-events: none;
+  animation: st-keycap-in 160ms ease-out;
+}
+:is(
+    .medo-row-action,
+    .medo-sidebar-actions button,
+    .tab-strip-add,
+    .header-files-button,
+    .header-more-button,
+    .lens-toggle
+  )[data-st-shortcut]
+  > .st-context-key {
+  position: absolute;
+  right: -5px;
+  top: -6px;
+  z-index: 2;
+  min-width: 16px;
+  height: 17px;
+  font-size: 10px;
+}
+[data-st-shortcut-selected="true"] {
+  outline: 1px solid var(--accent, #66b4ff);
+  outline-offset: -1px;
+  border-radius: 6px;
+}
+[data-st-calendar-new] {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  z-index: 3;
+  margin: 5px;
+  padding: 5px 8px;
+  border: 1px solid var(--border, #435568);
+  border-radius: 5px;
+  background: var(--background, #15202e);
+  color: var(--foreground, #d9e7f5);
+  font-size: 12px;
+  cursor: pointer;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-st-shortcut] > .st-context-key {
+    animation: none;
+  }
+}
+
+.st-ovis-root .medo-row-action[data-st-shortcut] {
+  opacity: 1;
+  flex-basis: 46px;
+  width: 46px;
+  gap: 4px;
+}
+.st-ovis-root .medo-row-action[data-st-shortcut] > .st-context-key {
+  position: static;
+  margin-left: 0;
+}
+.st-ovis-root
+  :is(.medo-chat-open, .medo-project-toggle)[data-st-shortcut]
+  > span:last-of-type {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

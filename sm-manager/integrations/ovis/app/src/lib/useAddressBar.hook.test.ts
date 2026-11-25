@@ -38,7 +38,7 @@ const roster = (): Snapshot => ({
 }) as unknown as Snapshot;
 
 let place: { machineId: string; paneId: string | null; newSessionOpen: boolean; newFields: Omit<CreateDraft, "kind"> | null; sidebarCollapsed: boolean; snapshot: Snapshot; viewing: Preview | null; linkLanded: boolean; inbox: { open: boolean; enabled: boolean }; dialogMachineId?: string; rosterOut?: boolean;
-  mode?: boolean };
+  mode?: boolean; savedThreadId?: string | null };
 let inboxCalls: string[];
 let reopenFiles: boolean;
 let asked: Array<string | null>;
@@ -69,6 +69,8 @@ function Probe() {
   refs.machines.current = rosterOut ? [] : [machine];
   useLayoutEffect(() => { refs.selection.current = { machineId, paneId, generation: 0 }; }, [machineId, paneId]);
   useAddressBar({
+    savedThreadId: place.savedThreadId,
+    onSavedThreadChange: (id) => { place.savedThreadId = id; draw(); },
     inbox: {
       shown: inbox.open && inbox.enabled, enabled: inbox.enabled,
       show: () => { inboxCalls.push("show"); place.inbox = { ...place.inbox, open: true }; draw(); },
@@ -666,4 +668,30 @@ it("Back from the shown list onto an entry that names only an absolute file befo
 
   expect(writes).toEqual([`replaceState 0 ${P1}&file=%2Ftmp%2Fnotes.txt`]);
   expect(addresses()).toEqual([`${P1}&file=%2Ftmp%2Fnotes.txt`, ""]);
+});
+
+
+it("saved history is a normal destination through Back and Forward", async () => {
+  const id = '00000000-0000-4000-8000-000000000099';
+  place.paneId = 'p1';
+  await mount([P1]);
+  await act(async () => { place.savedThreadId = id; draw(); });
+  expect(addresses()).toEqual([P1, `?saved=${id}`]);
+  await act(async () => { place.savedThreadId = null; draw(); });
+  expect(addresses()).toEqual([P1, `?saved=${id}`, P1]);
+  await back();
+  expect(place.savedThreadId).toBe(id);
+  await forward();
+  expect(place.savedThreadId).toBe(null);
+  expect(window.location.search).toBe(P1);
+});
+
+it("saved history writes its URL before a live roster is available", async () => {
+  const id = '00000000-0000-4000-8000-000000000099';
+  place.rosterOut = true;
+  place.linkLanded = false;
+  await mount(['']);
+  await act(async () => { place.savedThreadId = id; draw(); });
+  expect(window.location.search).toBe(`?saved=${id}`);
+  expect(asked).toEqual([]);
 });

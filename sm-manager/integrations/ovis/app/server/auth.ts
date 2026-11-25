@@ -22,7 +22,7 @@ import { badRequest, jsonResponse } from "./http.ts";
 export const configuredPrefix = process.env["ST_OVIS_COOKIE_PREFIX"];
 if (configuredPrefix && !/^[a-z0-9_]{1,64}$/.test(configuredPrefix)) throw new Error("Invalid ST_OVIS_COOKIE_PREFIX");
 const cookiePrefix = configuredPrefix || (process.env["MEDO_PROJECTS"] === "1" ? "medo_ovis" : "ovis");
-export const cookiePath = process.env["ST_OVIS_BASE_PATH"] === "/ovis" ? "/ovis" : "/";
+export const cookiePath = process.env["ST_OVIS_BASE_PATH"] === "/agents" ? "/agents" : "/";
 export const TOKEN_COOKIE = `${cookiePrefix}_token`;
 /** a paired device's own credential; the same flags as the token cookie */
 export const DEVICE_COOKIE = `${cookiePrefix}_device`;

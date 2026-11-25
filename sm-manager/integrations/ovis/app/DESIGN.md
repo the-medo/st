@@ -6549,3 +6549,45 @@ This follows the session-first sidebar described in
 [Claude Code's desktop redesign](https://claude.com/resources/articles/claude-code-desktop-redesign),
 with host branding removed to suit the requested two-sidebar ST layout. No code
 or artwork was copied. The standalone Ovis header retains its existing branding.
+
+
+## S.T. host shortcut scopes
+
+The embedded S.T. console owns an opt-in double-Control sequence and a separate
+Control+Shift entry for its main navigation. Entering Agents exposes numbered
+projects and lettered conversations; selecting a project narrows those labels to
+its conversations and quick actions. A fresh double-Control in a conversation
+exposes both the Agents sidebar and toolbar actions, opening a collapsed sidebar.
+Project numbers remain 1–9; conversation letters skip the toolbar's T/Y/F/O as
+well as the reserved E/Q to keep each key unambiguous. The host draws keycaps
+only while that scope is armed.
+Escape always exits; Shift alone or Left Arrow goes to the S.T. sidebar.
+Standalone Ovis keeps its existing shortcuts through an optional host interface.
+
+The recent conversation/terminal picker follows [Zed's tab switcher](https://zed.dev/docs/tab-switcher):
+recent-use order, the previous item initially selected, a stable list while
+cycling, and confirmation before navigation. S.T. uses E / Shift+E and arrows
+inside its opt-in mode, Enter to open, and Escape to cancel, as requested by the
+owner. No source code or artwork was adapted. Chat and terminal visits are
+separate entries; the host keeps a bounded in-memory history, not a new server
+store. Project shortcuts call the same selection paths as the sidebar, including
+its stale-request guard, and quick actions invoke existing controls.
+
+The embedded host establishes a containing block for fixed-position portals.
+Row menus measure both their anchor and clipping ancestors in that block's
+coordinates, so the More menu stays open and visible beside the right edge.
+
+The picker now uses the conversation catalogue's names and project labels, with
+live status beneath each name and the existing agent mark at the right. Metadata
+refreshes keep the highlighted row and order stable, following the same Zed
+switcher model. In the embedded S.T. view, recents and the sidebar replace the
+top tab strip; its + action remains available to create a terminal. Standalone
+Ovis keeps its tab strip. Saved histories occupy the normal conversation area,
+with a read-only notice and a `saved` URL parameter for reload and Back/Forward.
+
+S.T. names the embedded feature Agents throughout its loading and translated UI
+copy. Its only namespace is `/agents` (including APIs and WebSockets); removed
+`/ovis` URLs have no redirects or aliases. Browser titles use `ST - Agents` or
+`ST - <conversation name>` and retain that title when returning from another
+S.T. page. This keeps the existing Zed-inspired named navigation model. The
+standalone app, source attribution and stored user preferences keep their names.

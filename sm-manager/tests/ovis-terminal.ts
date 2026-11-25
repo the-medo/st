@@ -33,7 +33,7 @@ const env = {
   PORT: String(port),
   HOST: "127.0.0.1",
   ST_OVIS_COOKIE_PREFIX: "st_terminal_fixture",
-  ST_OVIS_BASE_PATH: "/ovis",
+  ST_OVIS_BASE_PATH: "/agents",
 };
 // The inherited environment must not redirect either side into an existing session.
 for (const key of [
@@ -108,7 +108,7 @@ try {
     );
     let sent = false,
       output = "";
-    ws = new WebSocket(`ws://127.0.0.1:${gateway!.port}/ovis/ws`, {
+    ws = new WebSocket(`ws://127.0.0.1:${gateway!.port}/agents/ws`, {
       headers: { Origin: `http://127.0.0.1:${gateway!.port}` },
     });
     ws.onopen = () =>

@@ -92,7 +92,7 @@ def main():
     p.write(ovis_unit, unit('Ovis', [args.bun, p.ROOT / 'services/ovis/index.ts'], args.env_file.resolve(), {
         'HOST':'127.0.0.1', 'PORT':ports[1], 'OVIS_STATE_DIR':p.DATA / 'ovis',
         'OVIS_TELEMETRY':'off', 'OVIS_AUTO_UPDATE':'0', 'OVIS_TAILSCALE_SERVE_ONLY':'1',
-        'ST_OVIS_BASE_PATH':'/ovis', 'ST_OVIS_COOKIE_PREFIX':'st_ovis_' + p.KEY,
+        'ST_OVIS_BASE_PATH':'/agents', 'ST_OVIS_COOKIE_PREFIX':'st_ovis_' + p.KEY,
         'MEDO_PROJECTS':'1',
     }))
     p.write(config_path, json.dumps(config, indent=2) + '\n')
@@ -118,7 +118,7 @@ def main():
         p.run('systemctl','--user','daemon-reload')
         p.run('systemctl','--user','restart',p.NAME)
         raise
-    print(profile['url'] + '/ovis')
+    print(profile['url'] + '/agents')
 
 
 def wait_ovis(port):

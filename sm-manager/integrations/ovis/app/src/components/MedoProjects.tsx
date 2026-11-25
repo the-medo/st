@@ -1,3 +1,4 @@
+import type { HostShortcuts } from "../lib/hostShortcuts.ts";
 import { focusInOtherModal, useFocusTrap } from '../lib/useFocusTrap.ts';
 import { usePhoneSheetBack } from '../lib/sheetHistory.ts';
 import { createPortal } from 'react-dom';
@@ -5,7 +6,6 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Reac
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Circle, Ellipsis, Folder, LoaderCircle, MessageCircle, Pencil, Plus, RefreshCw, Search, Settings, X } from 'lucide-react';
 import type { MedoCatalog, MedoChat, MedoOpen, MedoProject, MedoStyle } from '../../shared/medo.ts';
 import { apiFetch } from '../lib/api-request-id.ts';
-import { ChatView } from './ChatView.tsx';
 import { RowMenu } from './RowMenu.tsx';
 import './MedoProjects.css';
 import {useResourceUrl} from '../lib/useResourceUrl.ts';
@@ -40,7 +40,9 @@ export function MedoDialog({ title, children, onClose, wide = false }: { title: 
     <header><h2>{title}</h2><button aria-label="Close" onClick={onClose}><X size={18} /></button></header>{children}
   </div></div>, document.body);
 }
-export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, headerActions }: {
+export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, headerActions, hostShortcuts, selectedThreadId, onRead, onCatalog }: {
+  selectedThreadId: string | null; onRead: (chat: MedoChat) => void; onCatalog: (catalog: MedoCatalog) => void;
+  hostShortcuts?: HostShortcuts;
   headerActions?: ReactNode;
   selectedPaneId: string | null; onOpen: (paneId: string, isCurrent: () => boolean) => Promise<void>; onNew: (project?: MedoProject) => void; onSettings: () => void;
 }) {
@@ -56,13 +58,12 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
   const [creating, setCreating] = useState(false);
   const [move, setMove] = useState<MedoChat | null>(null);
   const [edit, setEdit] = useState<MedoProject | null>(null);
-  const [reader, setReader] = useState<MedoChat | null>(null);
   const [chatMenu, setChatMenu] = useState<{ chat: MedoChat; anchor: HTMLElement } | null>(null);
   const [projectMenu, setProjectMenu] = useState<{ project: MedoProject; anchor: HTMLElement } | null>(null);
   const [reordering, setReordering] = useState(false);
   const reorderPending = useRef(false);
   const [rename, setRename] = useState<MedoChat | null>(null);
-  const readState = useMedoReadState(catalog?.chats, selectedPaneId, Boolean(newProject || move || edit || reader || rename || chatMenu || projectMenu), reader?.id);
+  const readState = useMedoReadState(catalog?.chats, selectedThreadId ? null : selectedPaneId, Boolean(newProject || move || edit || rename || chatMenu || projectMenu), selectedThreadId ?? undefined);
   const pending = useRef<Promise<void> | null>(null);
   const revision = useRef(0);
   const mounted = useRef(false);
@@ -106,13 +107,15 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
   };
   const organize = (change: Record<string, unknown>) => call('organize', { change });
   const toggle = (key: string) => setClosed((current) => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
+  const read = (chat: MedoChat) => {
+    selectionTicket.current++; openingRef.current = null; setOpening(null); setError(''); onRead(chat);
+  };
   const open = async (chat: MedoChat) => {
     if (openingRef.current === chat.id) return;
     const ticket = ++selectionTicket.current;
     openingRef.current = chat.id;
     setError('');
-    if (chat.archived || chat.unavailable) { setOpening(null); openingRef.current = null; setReader(chat); return; }
-    setReader(null);
+    if (chat.archived || chat.unavailable) { setOpening(null); openingRef.current = null; read(chat); return; }
     setOpening(chat.id);
     try {
       const result = await call<MedoOpen>('open', { threadId: chat.id });
@@ -126,15 +129,22 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
   };
   const openDraft = async (address: string) => {
     const ticket = ++selectionTicket.current;
-    openingRef.current = null; setOpening(null); setReader(null); setError('');
+    openingRef.current = null; setOpening(null); setError('');
     try { await onOpen(address, () => ticket === selectionTicket.current); }
     catch (cause) { if (ticket === selectionTicket.current) setError(cause instanceof Error ? cause.message : 'The conversation could not open.'); }
   };
+  useEffect(() => { if (catalog) onCatalog(catalog); }, [catalog, onCatalog]);
+  useEffect(() => {
+    if (catalog) hostShortcuts?.catalog(catalog, (id, saved) => {
+      const chat = catalog.chats.find((item) => item.id === id);
+      if (chat) { if (saved) read(chat); else void open(chat); }
+    });
+  });
   const start = async (project: MedoProject) => {
     if (creatingRef.current) return;
     creatingRef.current = true; setCreating(true);
     const ticket = ++selectionTicket.current;
-    openingRef.current = null; setOpening(null); setReader(null); setError('');
+    openingRef.current = null; setOpening(null); setError('');
     setNewProject(false);
     try {
       const result = await call<MedoOpen>('new', { projectId: project.id });
@@ -154,6 +164,24 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
     try { await action(() => organize({ operation: 'move-project', projectId: projectMenu.project.id, relativeTo: relative.id, direction })); }
     finally { reorderPending.current = false; if (mounted.current) setReordering(false); }
   };
+  useEffect(() => {
+    hostShortcuts?.projects((id) => {
+      const project = catalog?.projects.find((item) => item.id === id);
+      if (!project) return;
+      const draft = drafts.find((item) => item.project === id);
+      const first = [null, ...project.folders.map((folder) => folder.id)].flatMap((folder) =>
+        chats.filter((chat) => chat.project === id && chat.folder === folder).sort((a, b) => b.updated - a.updated),
+      )[0];
+      setClosed((current) => {
+        const next = new Set(current); next.delete(id);
+        if (!draft && first?.folder) next.delete(`${id}/${first.folder}`);
+        return next;
+      });
+      if (draft) void openDraft(draft.address);
+      else if (first) void open(first);
+    });
+  });
+  useEffect(() => () => hostShortcuts?.projects(null), [hostShortcuts]);
   const rows = (project: MedoProject, folder: string | null) => {
     const key = `${project.id}/${folder ?? ''}`;
     const group = chats.filter((chat) => chat.project === project.id && chat.folder === folder).sort((a, b) => b.updated - a.updated);
@@ -163,7 +191,7 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
       const finished = !chat.status || chat.status === 'idle' || chat.status === 'done';
       const unread = !working && finished && readState.get(chat.id)?.unread;
       const status = opening === chat.id ? 'Opening conversation' : working ? 'Working' : unread ? 'Unread conversation' : chat.paneId ? 'Open session' : 'Saved conversation';
-      return <div key={chat.id} className={`medo-chat${chat.paneId && chat.paneId === selectedPaneId ? ' is-selected' : ''}${unread ? ' is-unread' : ''}`}>
+      return <div key={chat.id} className={`medo-chat${chat.id === selectedThreadId || (!selectedThreadId && chat.paneId && chat.paneId === selectedPaneId) ? ' is-selected' : ''}${unread ? ' is-unread' : ''}`}>
       <button className="medo-chat-open" disabled={opening === chat.id} onClick={() => void open(chat)} title={chat.title} aria-label={chat.title || 'Untitled conversation'} aria-description={status} aria-busy={opening === chat.id}>
         <span className={`medo-indicator${working ? ' is-working' : ''}`} title={status} role="img" aria-label={status}>{working ? <LoaderCircle className="medo-spinner" size={14} strokeWidth={2} /> : <Circle size={7} fill={unread || chat.paneId ? 'currentColor' : 'none'} />}</span>
         <span className="medo-chat-title">{chat.title || 'Untitled conversation'}</span>
@@ -182,14 +210,14 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
         const projectDrafts = drafts.filter((draft) => draft.project === project.id);
         const matching = chats.filter((chat) => chat.project === project.id).length + projectDrafts.length;
         if (query && !matching) return null;
-        return <section key={project.id} className="medo-project" style={projectColors(style)}>
+        return <section key={project.id} className="medo-project" data-st-project={project.id} style={projectColors(style)}>
           <div className="medo-project-head"><button className="medo-project-toggle" onClick={() => toggle(project.id)} aria-expanded={!hidden}>
             {hidden ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
             <ProjectIcon style={style} />
             <span>{project.name}</span></button>
             {project.path && <button className="medo-row-action" disabled={creating} aria-label={`New conversation in ${project.name}`} onClick={() => void start(project)}><Plus size={15} /></button>}
             <button className="medo-row-action" aria-label={`Actions for project ${project.name}`} aria-haspopup="menu" aria-expanded={projectMenu?.project.id === project.id} onClick={(event) => setProjectMenu(projectMenu?.project.id === project.id ? null : { project, anchor: event.currentTarget })}><Ellipsis size={15} /></button>
-          </div>{!hidden && <div className="medo-project-chats">{projectDrafts.map((draft) => <div key={draft.address} className={`medo-chat${draft.address === selectedPaneId ? ' is-selected' : ''}`}><button className="medo-chat-open" onClick={() => void openDraft(draft.address)}><span className="medo-indicator"><Circle size={7} /></span><span>{draft.title}</span></button></div>)}{rows(project, null)}{project.folders.map((folder) => {
+          </div>{!hidden && <div className="medo-project-chats">{projectDrafts.map((draft) => <div key={draft.address} className={`medo-chat${!selectedThreadId && draft.address === selectedPaneId ? ' is-selected' : ''}`}><button className="medo-chat-open" onClick={() => void openDraft(draft.address)}><span className="medo-indicator"><Circle size={7} /></span><span>{draft.title}</span></button></div>)}{rows(project, null)}{project.folders.map((folder) => {
             const key = `${project.id}/${folder.id}`;
             const folded = !query && closed.has(key);
             return <div className="medo-folder" key={folder.id}><button className="medo-folder-head" aria-expanded={!folded} onClick={() => toggle(key)}>{folded ? <ChevronRight size={12} /> : <ChevronDown size={12} />}<Folder size={13} /><span>{folder.name}</span></button>{!folded && rows(project, folder.id)}</div>;
@@ -206,7 +234,7 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
     {chatMenu && <RowMenu anchor={chatMenu.anchor} title="Conversation actions" subtitle={chatMenu.chat.title} onClose={() => setChatMenu(null)} items={[
       { id: 'rename', label: 'Rename', icon: Pencil, disabled: chatMenu.chat.archived, ...(chatMenu.chat.archived ? { hint: 'Unarchive in Codex to rename' } : {}), run: () => setRename({ ...chatMenu.chat }) },
       { id: 'move', label: 'Move to folder', icon: Folder, run: () => setMove(chatMenu.chat) },
-      { id: 'read', label: 'Read saved conversation', icon: MessageCircle, run: () => setReader(chatMenu.chat) },
+      { id: 'read', label: 'Read saved conversation', icon: MessageCircle, run: () => read(chatMenu.chat) },
     ]} />}
     {rename && <RenameChat key={rename.id} chat={rename} onClose={() => setRename((current) => current === rename ? null : current)} onSave={async (name) => {
       const result = await call<{ title: string }>('rename', { threadId: rename.id, name });
@@ -214,9 +242,8 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
       setCatalog((current) => current && ({ ...current, chats: current.chats.map((chat) => chat.id === rename.id ? { ...chat, title: result.title } : chat) }));
     }} />}
     {newProject && <MedoDialog title="New conversation" onClose={() => setNewProject(false)}><div className="medo-folder-choices">{catalog?.projects.filter((project) => project.path).map((project) => <button className="btn medo-project-choice" key={project.id} aria-label={project.name} style={projectColors(project.appearance ?? {})} onClick={() => void start(project)}><ProjectIcon style={project.appearance ?? {}} /><span>{project.name}</span></button>)}<button className="btn" onClick={() => { setNewProject(false); onNew(); }}>Other folder or agent…</button></div></MedoDialog>}
-    {move && <MedoDialog title="Move to folder" onClose={() => setMove(null)}><p className="medo-muted">{move.title}</p><div className="medo-folder-choices">{[{ id: '', name: 'No folder' }, ...(catalog?.projects.find((project) => project.id === move.project)?.folders ?? [])].map((folder) => <button key={folder.id} className="btn" onClick={() => void action(() => organize({ operation: 'move', projectId: move.project, threadId: move.id, folderId: folder.id || null })).then((ok) => { if (ok) setMove(null); })}><Folder size={15} />{folder.name}</button>)}</div><button className="btn" onClick={() => { setReader(move); setMove(null); }}>Read saved conversation</button></MedoDialog>}
+    {move && <MedoDialog title="Move to folder" onClose={() => setMove(null)}><p className="medo-muted">{move.title}</p><div className="medo-folder-choices">{[{ id: '', name: 'No folder' }, ...(catalog?.projects.find((project) => project.id === move.project)?.folders ?? [])].map((folder) => <button key={folder.id} className="btn" onClick={() => void action(() => organize({ operation: 'move', projectId: move.project, threadId: move.id, folderId: folder.id || null })).then((ok) => { if (ok) setMove(null); })}><Folder size={15} />{folder.name}</button>)}</div><button className="btn" onClick={() => { read(move); setMove(null); }}>Read saved conversation</button></MedoDialog>}
     {currentEdit && <ProjectEditor key={currentEdit.id} project={currentEdit} onClose={() => setEdit(null)} onSave={(style) => action(() => call('style', { projectId: currentEdit.id, style }))} onFolder={(change) => action(() => organize({ ...change, projectId: currentEdit.id }))} />}
-    {reader && <MedoDialog title={reader.title} wide onClose={() => setReader(null)}><p className="medo-muted">{reader.unavailable || (reader.archived ? 'Archived conversation — unarchive it in Codex to continue.' : 'Read-only preview of saved history.')}</p><div className="medo-reader-body"><ChatView paneId={`medo:${reader.id}`} refreshKey={0} connected ended agent="codex" watching cwd={reader.cwd} /></div></MedoDialog>}
   </div>;
 }
 function RenameChat({ chat, onClose, onSave }: { chat: MedoChat; onClose: () => void; onSave: (name: string) => Promise<void> }) {

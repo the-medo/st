@@ -319,7 +319,7 @@ export function forgetPageMedia(owner: MediaOwnerKey): void {
 export function pageMediaSource(host: string | null, secure: boolean, forwardedHost: string | null = null): string | null {
   const asked = forwardedHost?.split(",")[0]?.trim() || host;
   if (asked === null || !/^(?:[a-z0-9.-]+|\[[0-9a-f:.]+\])(?::\d{1,5})?$/i.test(asked)) return null;
-  return `${secure ? "https" : "http"}://${asked}${process.env["ST_OVIS_BASE_PATH"] === "/ovis" ? "/ovis" : ""}${PAGE_MEDIA_PATH}`;
+  return `${secure ? "https" : "http"}://${asked}${process.env["ST_OVIS_BASE_PATH"] === "/agents" ? "/agents" : ""}${PAGE_MEDIA_PATH}`;
 }
 
 /**
