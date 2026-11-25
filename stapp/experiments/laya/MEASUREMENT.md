@@ -4,6 +4,10 @@ Compare Laya multilingual, Kev 0.8B, Kev 4B, LiquidAI d1 2B, and hosted Cloudfla
 Clef Flash. The user explicitly selected these five, rather than the full Unsloth
 catalog, and authorized synthetic transcript requests to Cloudflare.
 
+After this comparison the owner selected Clef Flash and removed local models
+and their service. Local instructions below document reproduction after
+reinstallation. Existing result directories remain immutable.
+
 ## Comparable inputs
 
 Use the same frozen 100-transcript corpus and action-wording catalog for every
@@ -113,6 +117,7 @@ existing service cgroup. Each output directory must be new:
 ```sh
 python3 experiments/laya/benchmark.py \
   --model kev-0.8b \
+  --catalog experiments/laya/results/action-wording/catalog.json \
   --api-key-file "$HOME/.config/st-laya/api-key" \
   --cgroup /sys/fs/cgroup/USER_SERVICE_CGROUP \
   --output /tmp/st-kev-new-run
@@ -122,17 +127,25 @@ Obtain the cgroup using `systemctl --user show st-laya.service -p ControlGroup
 --value`, prefixed with `/sys/fs/cgroup`. A fresh service restart and the settings
 above are necessary to reproduce the unloaded baseline and initial request.
 
-For the explicitly enabled Cloudflare comparison:
+For new classifier-only Cloudflare evaluations, after creating the dedicated
+token described in [the setup guide](../../docs/assistant-routing.md#cloudflare-authentication-and-maintenance):
 
 ```sh
-wrangler whoami
 python3 experiments/laya/benchmark.py \
   --provider cloudflare --model clef-flash \
-  --cloudflare-config "$HOME/.config/st-laya/cloudflare-account.json" \
+  --cloudflare-config "$HOME/.config/st-assistant/cloudflare.json" \
   --output /tmp/st-clef-flash-new-run
 ```
 
-The private JSON file has `account_id` and `wrangler_auth_file` properties. The
-runner reads the latter TOML's OAuth token in memory, checks expiration and never
-writes the token to logs or results. It only permits the selected Cloudflare
-model; the original `evaluate.py` continues to accept local endpoints only.
+The private JSON file has `account_id` and `api_token_file` properties. Relative
+token paths resolve against the config directory; `~` is also accepted. Only the
+prepared configuration exists until the owner supplies the dashboard token.
+
+For historical reproduction, pass
+`--catalog experiments/laya/results/action-wording/catalog.json`. The old private
+`~/.config/st-laya/cloudflare-account.json` explicitly uses `wrangler_auth_file`;
+run `wrangler whoami` before that mode to refresh the developer OAuth login.
+Configure exactly one auth source; there is no silent credential fallback.
+The runner checks OAuth expiration, never writes secrets to logs/results, and
+only permits Clef Flash for cloud calls. The original `evaluate.py` accepts local
+endpoints only and defaults to the frozen local action-wording catalog.

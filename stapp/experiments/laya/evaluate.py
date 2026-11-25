@@ -36,7 +36,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default="http://127.0.0.1:18888")
     parser.add_argument("--api-key-file", type=Path, required=True)
-    parser.add_argument("--catalog", type=Path, default=CATALOG)
+    # Historical local evaluator: the active catalog now selects hosted Clef Flash.
+    parser.add_argument("--catalog", type=Path, default=HERE / "results/action-wording/catalog.json")
     parser.add_argument("--corpus", type=Path, default=HERE / "transcripts.jsonl")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--timeout", type=float, default=45)

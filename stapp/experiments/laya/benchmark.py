@@ -21,6 +21,33 @@ from evaluate import CATALOG, HERE, NoRedirect, percentile
 from resources import Sampler
 
 
+def cloudflare_credentials(config_path):
+    """Prefer a dedicated token; retain explicit Wrangler auth for historical runs."""
+    config = json.loads(config_path.read_text())
+    account = config.get("account_id")
+    if not isinstance(account, str) or not re.fullmatch(r"[a-f0-9]{32}", account):
+        raise ValueError("Invalid Cloudflare account ID")
+    sources = [key for key in ("api_token_file", "wrangler_auth_file") if key in config]
+    if len(sources) != 1:
+        raise ValueError("Configure exactly one of api_token_file or wrangler_auth_file")
+    source = sources[0]
+    path = Path(config[source]).expanduser()
+    if not path.is_absolute():
+        path = config_path.resolve().parent / path
+    if source == "api_token_file":
+        token = path.read_text().strip()
+    else:
+        auth = tomllib.loads(path.read_text())
+        token = auth["oauth_token"]
+        expiry = datetime.fromisoformat(auth["expiration_time"].replace("Z", "+00:00"))
+        if expiry <= datetime.now(timezone.utc):
+            raise ValueError("Wrangler login expired; run wrangler whoami to refresh it")
+    if not isinstance(token, str) or not token or any(c.isspace() for c in token):
+        raise ValueError("Credential is empty or contains whitespace")
+    endpoint = f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/run/@cf/cloudflare/clef-flash"
+    return endpoint, token
+
+
 def evaluate_answer(response, criteria, policy, expected):
     if response.get("truncated"):
         raise ValueError("Truncated input")
@@ -113,16 +140,7 @@ def main():
     else:
         if args.model != "clef-flash" or not args.cloudflare_config or args.cgroup:
             parser.error("Cloud runs require clef-flash and --cloudflare-config, without --cgroup")
-        config = json.loads(args.cloudflare_config.read_text())
-        account = config["account_id"]
-        if not re.fullmatch(r"[a-f0-9]{32}", account):
-            parser.error("Invalid Cloudflare account ID")
-        auth = tomllib.loads(Path(config["wrangler_auth_file"]).read_text())
-        token = auth["oauth_token"]
-        expiry = datetime.fromisoformat(auth["expiration_time"].replace("Z", "+00:00"))
-        if expiry <= datetime.now(timezone.utc):
-            parser.error("Wrangler login expired; run wrangler whoami to refresh it")
-        endpoint = f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/run/@cf/cloudflare/clef-flash"
+        endpoint, token = cloudflare_credentials(args.cloudflare_config)
     if not token:
         parser.error("Credential is empty")
     args.output.mkdir(parents=True, exist_ok=False)

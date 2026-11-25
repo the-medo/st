@@ -1,7 +1,7 @@
 # Decision models: accuracy, latency and machine resources
 
-Measured on the Steam Machine on 2026-11-25. **Recommend Cloudflare Clef Flash for
-the next assistant implementation phase.** It scored 97/100 and was fastest at
+Measured on the Steam Machine on 2026-11-25. **The owner selected Cloudflare Clef
+Flash for the next assistant implementation phase.** It scored 97/100 and was fastest at
 the median while requiring no resident local decision model. If local routing is
 preferred, LiquidAI d1 2B is the best practical compromise from these tests.
 
@@ -120,21 +120,20 @@ idle minutes. A separate explicit unload check with d1 released its model proces
 in 308 ms and reduced resident service RAM from 2.47 GiB to **411 MiB**. Studio
 itself still needs memory after the model is unloaded.
 
-**Final state:** `st-laya.service` is stopped and disabled at login. The temporary
+**State immediately after measurement:** `st-laya.service` was stopped and disabled at login. The temporary
 benchmark override was removed and original backend/context settings restored.
-Model files and credentials remain on disk for future experiments. This avoids
-leaving either a local model or the Studio process running between experiments.
+Model files and credentials initially remained on disk. Neither a local model
+nor the Studio process was left running between experiments.
 See [the cleanup measurement](results/comparison/cleanup.json).
 
-To start the original Laya trial again:
-
-```sh
-systemctl --user start st-laya.service
-```
-
-The private local endpoint is still configured at `127.0.0.1:18888`; it becomes
-available after starting the service. The live ST assistant was not rewired to a
-new router by this experiment.
+**Current state after provider selection:** at the owner's request, all four
+local decision-model caches (including Laya's shared blobs and d1's projector)
+and the `st-laya.service` unit were removed. Reclaimed allocation: **8,023,908,352
+bytes (8.02 GB / 7.47 GiB)**. Unsloth software remains installed but has no running
+service or downloaded decision models. Benchmark evidence is unchanged; see
+[the retirement record](retirement.json). Reproducing local runs now requires
+restoring the service and downloading the pinned models. The live ST worker has
+not been rewired by this selection.
 
 ## Cloudflare access and estimated cost
 
@@ -143,6 +142,12 @@ reused. The benchmark called the documented REST endpoint directly from the
 Steam Machine. The connected MCP rejected this Cloudflare-hosted model as a
 third-party model before sending it; the direct authorized Workers AI request
 worked. No new Worker, account or subscription was created.
+
+The unattended assistant will use a dedicated account API token with no expiry,
+rather than that developer login. Token provisioning is still pending: the
+current connection lacks Account API Tokens permission. Token-file support and
+private configuration are prepared; see
+[authentication and maintenance](../../docs/assistant-routing.md#cloudflare-authentication-and-maintenance).
 
 The 100 scored calls used 43,703 input tokens. At the published $0.038 per million
 input tokens, their estimated cost is **$0.001660714**, before any free allowance.

@@ -5,8 +5,10 @@ Clef Flash, see [the comparison report](COMPARISON.md) and
 [measurement methodology](MEASUREMENT.md). The original two runs below remain
 unchanged.
 
-Run on the Steam Machine on 2026-11-25. **Laya is running locally, but its routes
-are not reliable enough to restrict an agent's capabilities.** Use the result as
+Run on the Steam Machine on 2026-11-25. **Historical experiment: Clef Flash is now
+selected, all local decision models have been deleted, and their service removed.**
+Laya's measured routes were not reliable enough to restrict an agent's
+capabilities. Use the result as
 an initial context hint, preserve the complete transcript, and allow discovery.
 
 The [implementation plan](../../IMPLEMENTATION.md) replaces the earlier assistant
@@ -86,7 +88,8 @@ alternative criteria, or a direct-agent baseline on fresh examples.
 - [Baseline summary](results/baseline/summary.json) and [all responses](results/baseline/results.jsonl).
 - [Action-wording summary](results/action-wording/summary.json) and [all responses](results/action-wording/results.jsonl).
 - Each result directory contains the exact catalog used. The active
-  [catalog](../../assistant/routing/catalog.json) matches the action-wording run.
+  [catalog](../../assistant/routing/catalog.json) retains the action-wording
+  criteria but now selects Clef Flash; use the frozen copy for exact reproduction.
 - [Environment and model checksums](environment.json) record installed revisions.
 
 The corpus SHA-256 is
@@ -122,13 +125,13 @@ be truncated. A separate overlong synthetic request checks that behavior after
 restart. Future coordinators must fall back to general handling with the full
 transcript on that error; trimming a spoken command can discard its real intent.
 
-## Installed service
+## Historical service setup
 
-The persistent installation is independent of this disposable Git worktree:
-
-After the five-model comparison the service was stopped and disabled at login
-to release idle RAM. The installed models remain available; use
-`systemctl --user start st-laya.service` to start the original Laya trial again.
+The following describes the original installation, independent of the disposable
+Git worktree. **The model cache and user service were subsequently removed.**
+Unsloth software and private experimental configuration remain. Commands below
+require recreating the unit and downloading the pinned models; they do not
+describe a currently available endpoint. See [retirement details](COMPARISON.md).
 
 | Item | Location |
 | --- | --- |
@@ -170,10 +173,9 @@ ssh -N -L 18888:127.0.0.1:18888 YOUR_STEAM_MACHINE_SSH_HOST
 ```
 
 Then open `http://127.0.0.1:18888` on that computer. Do not embed this API key in
-Windows/Android clients; the eventual coordinator calls Laya on their behalf.
-The service is installed in the user's service manager and currently disabled.
-An eventual local assistant can warm the model on wake and unload it after idle
-time; compare that with hosted routing using the newer resource report.
+Windows/Android clients; a local experiment coordinator would call it on their behalf.
+The original service ran in the user's service manager. Hosted Clef Flash is
+now selected; there is no automatic local model fallback.
 
 To stop the experiment service persistently:
 

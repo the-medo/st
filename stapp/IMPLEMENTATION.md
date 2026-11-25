@@ -1,6 +1,6 @@
 # S.T. voice assistant implementation plan
 
-Status: design and local routing experiment, 2026-11-25. The experiment sends
+Status: design; Cloudflare Clef Flash selected by the owner, 2026-11-25. The experiment sends
 synthetic text to decision models only; it does not submit jobs to agents or
 integrations. The later comparison includes explicitly authorized Cloudflare
 inference as well as local Unsloth models.
@@ -22,20 +22,17 @@ working transport, planner rules, device ownership and durable job history.
    See [future work](docs/assistant-future.md).
 6. A skill explaining how agents extend the assistant's capabilities.
 
-The local classifier, experiment, skill and plan are the current deliverables.
+The routing evaluation, catalog, skill and plan are the current deliverables.
 Live dispatch and native client rollout are subsequent implementation phases.
 
-Measured on 100 synthetic transcripts: the revised catalog scored 64/100, with
-296 ms median / 334 ms p95 warm HTTP latency and 16 confidently wrong routes.
-Use Laya only as an advisory context hint. Start with generic acknowledgements
-and keep capability discovery available even when its probability is high.
-
-The [five-model comparison](experiments/laya/COMPARISON.md) now recommends
-**Cloudflare Clef Flash** for the next implementation phase: 97/100, 190 ms median,
-448 ms p95, and no resident local decision model. LiquidAI d1 2B is the preferred
-local alternative from these tests: 88/100, 2.30 s median, 2.47 GiB idle RAM.
-These are proposed provider choices; the live worker is unchanged. The local
-experiment service is stopped and disabled at login to avoid idle resource use.
+The [five-model comparison](experiments/laya/COMPARISON.md) supports the selected
+**Cloudflare Clef Flash**: 97/100, 190 ms median, 448 ms p95, and no resident local
+decision model. Keep routing advisory, generic acknowledgements and capability
+discovery: even Clef Flash produced confidently wrong routes. All four local
+model caches and their service have been removed; benchmark evidence is retained.
+The live worker is unchanged. Dedicated account-token provisioning is still
+pending; the benchmark used Wrangler OAuth. See the
+[authentication setup](docs/assistant-routing.md#cloudflare-authentication-and-maintenance).
 
 ## Existing implementation: retain or replace
 
@@ -77,8 +74,7 @@ working → speaking → idle`. Also handle `waiting_for_answer`, `cancelled`,
    pending-request reference. The authenticated bridge owns device identity.
 4. Resolve pending clarification and continuation before classification. A bare
    “yes” is not a new command; identify the request if several are pending.
-5. Call the explicitly configured decision provider with transcript and short
-   criteria: proposed default Cloudflare Clef Flash, or local Unsloth. Persist
+5. Call Cloudflare Clef Flash with transcript and short criteria. Persist
    raw result, effective route, provider/model/catalog revision and timings.
 6. Select trusted context, durably enqueue the agent turn, then issue one routing
    acknowledgement. Routing selects context; it does not grant permissions.
@@ -113,8 +109,7 @@ and can request more context or correct the route.
 Long transcripts need an explicit token budget. Never silently discard the tail
 to fit the classifier. If the request cannot fit intact, bypass to `other` and
 give the agent the full transcript. Do not add a summarization model just to fit
-the decision model. Local Unsloth returns HTTP 422 when state would be truncated;
-treat that as general routing. Hosted Clef Flash can truncate long text to fit,
+the decision model. Hosted Clef Flash can truncate long text to fit,
 so enforce its input budget before sending rather than relying on an error.
 Also reject truncation flags if a provider returns them in a successful response.
 
@@ -129,8 +124,8 @@ C ABI wrapper for keyword spotting, VAD and ASR; verify exact binding coverage.
 - Start with the existing small keyword model and multilingual Whisper-base.
   Benchmark stronger recognition if Czech, names or technical words fail.
 - Keep ASR resident or preload on wake. A later provider interface can reuse
-  `gpt-transcribe` when explicitly configured. Any local decision model stays on
-  the Steam Machine; endpoint clients call the coordinator, not the model API.
+  `gpt-transcribe` when explicitly configured. Endpoint clients call the
+  coordinator; only the coordinator holds the Cloudflare credential.
 - Replace RMS-only endpointing with VAD, pre-roll and hangover. Test quiet speech,
   pauses, fans, TV and game sound. Never execute on interim transcription.
 - Package pinned native libraries/model checksums. Released desktop clients
@@ -202,7 +197,7 @@ follow actual tool permissions and user intent, never classifier risk estimates.
 | Phase | Work | Gate |
 | --- | --- | --- |
 | 0: experiment | Four local models plus hosted Clef Flash, frozen corpus/catalog, 100 cases each | Real HTTP answers, revisions, CPU/RAM and separate initialization, zero agent calls |
-| 1: shadow coordinator | Catalog/context builder, router fallback, additive job events | Timeout/outage/bad response/long input use general routing; retries deduplicate |
+| 1: shadow coordinator | Clef Flash with dedicated account token, context builder, fallback, additive job events | Missing/revoked token, timeout/outage/quota/bad response/long input use general routing; retries deduplicate |
 | 2: text agent path | Dedicated project, warm app-server, Luna/low, selected tools, compact output | Isolated planner/store tests; Herdr visibility; origin-thread follow-ups |
 | 3: Steam Machine | Native wake/VAD/ASR/TTS and both phrases | Seat/mic recordings, false wakes, game noise, reconnect, Gaming Mode |
 | 4: Windows | Packaged native core, popup, startup and speech | Native test machine; no focus stealing; suspend/mic removal/server disconnect |
@@ -221,22 +216,21 @@ held-out accuracy; obtain fresh examples before route-dependent tool restriction
 
 ## Resource policy for occasional use
 
-Compare decision providers using [the resource benchmark](experiments/laya/COMPARISON.md)
-before choosing the implementation default. Measure microphone wake detection,
+Clef Flash was selected using [the resource benchmark](experiments/laya/COMPARISON.md).
+Measure microphone wake detection,
 ASR and TTS separately; routing measurements do not describe the full assistant.
 
 - Keep only the wake listener continuously active on endpoints. Measure its idle
   CPU and RAM as part of desktop acceptance.
-- Make the decision provider an explicit configuration choice. A hosted provider
-  needs no resident local decision model; local mode keeps transcripts local at
-  this stage and uses bounded CPU/memory settings.
-- In local mode, warm on wake when useful so loading can overlap dictation, then
-  unload after inactivity. The current llama.cpp integration has a five-minute
-  idle unload, but Studio itself still consumes memory; stopping the entire
-  experiment service releases its remaining process memory.
-- Preserve a bounded routing deadline and general-agent fallback. Do not leave
-  users waiting indefinitely for model startup, and do not silently switch an
-  explicitly local configuration to a cloud provider.
+- Use hosted Clef Flash without a local decision-model daemon. Speech recognition,
+  wake detection and speech output have separate resource budgets.
+- Give routing an initial two-second total deadline, then pass the full transcript
+  to general-agent discovery. Tune the deadline against end-to-end measurements.
+- On 401/403, stop repeated classifier calls and expose an actionable credential
+  status. On 429, honor Retry-After without delaying the current agent request;
+  back off on outages. Reload a replaced token without losing queued requests.
+- Check credential availability at startup; never depend on a developer's
+  Wrangler login or silently switch to that login when the dedicated token fails.
 - Report resource use while a game runs before household rollout. CPU-only
   benchmarks do not establish GPU latency, gaming impact or power consumption.
 
@@ -246,13 +240,14 @@ Add a router/profile switch; keep existing behavior until acceptance passes. Kee
 request IDs, thread history and jobs; database migrations are additive/versioned.
 The new profile replaces the old Granite/keyword routing with an explicit
 provider setting and general-agent fallback. A provider failure or deadline
-uses general discovery; local mode never silently calls a cloud classifier.
+uses general discovery with the full transcript and ordinary action permissions.
 Retire each Python client only after
 its native replacement passes testing; never run two wake listeners on one mic.
 
-Stopping `st-laya.service` disables classification only. The eventual assistant
-continues through general discovery. Installation, model cache and credentials
-remain outside Git. See the experiment runbook for restart and reproducibility.
+Disabling Clef Flash bypasses classification only; the eventual assistant
+continues through general discovery. Keep credentials outside Git and off client
+devices. The retired local experiment can only be reproduced after reinstalling
+its service and model files; it is not an automatic fallback.
 
 ## Adding capabilities
 

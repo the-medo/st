@@ -2,15 +2,14 @@
 
 This is a design contract backed by a classifier-only experiment. It is not yet
 wired into `runtime/worker.py`. See [the plan](../IMPLEMENTATION.md) and
-[five-model comparison](../experiments/laya/COMPARISON.md). The proposed next
-default is hosted Cloudflare Clef Flash; local Unsloth remains an explicit option.
-The catalog's `model` field retains the original local evaluator default; the
-comparison runner selects providers/models separately. No production provider
-configuration has been wired up yet.
+[five-model comparison](../experiments/laya/COMPARISON.md). The owner selected
+hosted **Cloudflare Clef Flash**; the active catalog now records that selection.
+Local decision models and their service have been removed. Frozen experiment
+catalogs retain the original model metadata. Production dispatch is not wired yet.
 
-## Input to Laya
+## Input to Clef Flash
 
-Send the complete final transcript as `state`, model `laya-multilingual`, and a
+Send the complete final transcript as `state`, model `clef-flash`, and a
 single `choice` question whose criteria come from
 [`assistant/routing/catalog.json`](../assistant/routing/catalog.json).
 Send short descriptions, not manuals, credentials, file contents or tool outputs.
@@ -18,7 +17,7 @@ The experiment intentionally does not supply expected labels or evaluation tags.
 
 ```json
 {
-  "model": "laya-multilingual",
+  "model": "clef-flash",
   "state": "Remind me tomorrow to check the air quality.",
   "questions": {
     "route": {
@@ -35,8 +34,9 @@ The experiment intentionally does not supply expected labels or evaluation tags.
 ```
 
 The three-option snippet illustrates the shape; the experiment uses all 12.
-The expected intent is planner, but the measured model misroutes this example.
-Its decision must therefore remain a hint, not a hard restriction.
+The expected intent is planner; Clef Flash classified this example correctly in
+the 12-option evaluation. Other examples were misrouted, including two confidently
+wrong decisions, so its decision remains a hint rather than a hard restriction.
 
 Future optional questions include `is_followup`, `has_multiple_requests`, and
 `needs_live_data` (`noul` probabilities). These have not been benchmarked here.
@@ -74,35 +74,99 @@ capabilities, not silently drop all but the most likely route.
 
 The experimental threshold is top probability >= 0.65 and top-two margin >= 0.20.
 Below either, choose `other` for context discovery. Explicit `other` is always valid.
-These thresholds still accept many wrong decisions; see the report. Do not use
+These thresholds still accept wrong decisions; see the report. Do not use
 them to restrict the agent irreversibly or to announce the specific action as done.
 
-Unknown labels, invalid probabilities, HTTP errors, timeout, model-loading failure,
+Unknown labels, invalid probabilities, HTTP errors, timeout,
 or truncation must also produce `other`. Validate against the server-owned catalog.
 Record the raw answer and fallback reason separately. Do not copy a model-supplied
 path, shell command, device identity or permission into an executable instruction.
 
-The multilingual checkpoint has 1,024 total tokens and a smaller question/options
-budget. The installed Unsloth version refuses oversized option/instruction heads;
-its public endpoint returns HTTP 422 when long state would be truncated. The
-coordinator must count tokens or conservatively bypass, and handle that error
-without losing the full agent transcript. Check truncation flags too if a future
-provider includes them in successful responses.
-
-For hosted Clef Flash, use the same question/criteria with model `clef-flash`
-through the coordinator's configured Workers AI account. Its documented behavior
-can truncate long text to its context window, so enforce an input budget before
+Clef Flash has a documented 24,576-token context window and can silently truncate
+long text to fit, so enforce an input budget before
 sending; do not rely solely on a response flag. Keep provider credentials on the
 coordinator. This provider choice must be explicit, including whether transcripts
 may leave the machine. On a routing deadline or failure, continue through general
 agent discovery rather than chaining additional classifiers.
+
+## Cloudflare authentication and maintenance
+
+The coordinator makes an HTTPS POST to
+`https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/@cf/cloudflare/clef-flash`
+with `Authorization: Bearer <token>` and the JSON above. Read the decision from
+`result.answers.route`; validate the response envelope and catalog labels.
+No separate Worker deployment is required.
+[Model/API documentation](https://developers.cloudflare.com/workers-ai/models/clef-flash/).
+
+The measured run used the existing **Wrangler OAuth login**, with an expiring
+access token and a refresh token. `wrangler whoami` refreshed it before testing;
+the benchmark itself does not refresh OAuth. This is developer authentication,
+not an unattended-service credential. The connected Cloudflare tool also uses
+its own authorization; that connection is not the assistant's runtime credential.
+
+For the assistant, provision an **account-owned API token**, named
+`ST assistant Clef Flash`, scoped to this account's Workers AI permissions. Follow
+Cloudflare's documented Workers AI Read/Edit permission setup; do not grant DNS,
+token-management or unrelated service permissions. Leave expiration unset to
+avoid scheduled renewals. Account-owned tokens support Workers AI and are
+independent of a user's login session. A token remains usable until revoked or
+otherwise invalidated; no-expiry does not guarantee perpetual service or quota.
+[Account token lifecycle](https://developers.cloudflare.com/fundamentals/api/get-started/account-owned-tokens/),
+[Workers AI token setup](https://developers.cloudflare.com/workers-ai/get-started/rest-api/).
+
+**Current setup:** the existing connection can run models but listing account
+tokens returned HTTP 403 because it lacks Account API Tokens permission. A
+dedicated token has therefore **not** been created or tested. Create it once in
+the Cloudflare dashboard under **Manage account → Account API tokens**. This does
+not require widening the developer connection's permissions.
+
+Private configuration has been prepared at
+`~/.config/st-assistant/cloudflare.json` (outside Git, mode 0600):
+
+```json
+{
+  "account_id": "YOUR_ACCOUNT_ID",
+  "api_token_file": "cloudflare-ai.token"
+}
+```
+
+Save the dashboard's one-time secret into the adjacent `cloudflare-ai.token`
+file with mode 0600. This command prompts without echoing or storing it in shell
+history; run it on the coordinator after creating the token:
+
+```sh
+python3 - <<'PY'
+import getpass
+import os
+from pathlib import Path
+p = Path.home() / ".config/st-assistant/cloudflare-ai.token"
+token = getpass.getpass("Cloudflare Workers AI token: ").strip()
+if not token or any(c.isspace() for c in token):
+    raise SystemExit("Token is empty or contains whitespace")
+fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+with os.fdopen(fd, "w") as stream:
+    stream.write(token + "\n")
+PY
+```
+
+The classifier-only benchmark accepts this configuration; see
+[the reproduction command](../experiments/laya/MEASUREMENT.md#reproduction).
+The new assistant worker must use its own token file, not read Wrangler state.
+Windows/Android clients authenticate to ST and never receive this credential.
+
+Implement a two-second total routing deadline and generic-agent fallback on
+missing credentials, 401/403, quota/rate limit, network failure or invalid output.
+Expose router health without speaking repeated errors; stop retrying bad
+credentials until replaced, honor Retry-After, and reload a replacement token.
+Cloudflare routing failure must not discard the transcript or block the action
+agent. These are acceptance requirements; the live worker has not changed yet.
 
 ## Input to the agent
 
 Load trusted common instructions and relevant manual excerpts separately from
 the quoted user transcript. Resolve files through the catalog and registered
 project paths. Keep fixed instructions stable for caching and include only the
-small schemas/context needed to start. Manuals are not sent to Laya.
+small schemas/context needed to start. Manuals are not sent to Clef Flash.
 
 Conceptual envelope (not an already implemented endpoint):
 
@@ -115,16 +179,16 @@ Conceptual envelope (not an already implemented endpoint):
   "language": "en",
   "transcript": "Remind me tomorrow to check the air quality.",
   "routing": {
-    "provider": "local-unsloth",
-    "model": "laya-multilingual",
-    "catalog_version": "2026-11-25-v2-experiment",
-    "raw_choice": "air_quality",
+    "provider": "cloudflare",
+    "model": "clef-flash",
+    "catalog_version": "2026-11-25-v3-clef-selected",
+    "raw_choice": "planner",
     "role": "advisory"
   },
   "conversation": {"thread_id": null, "parent_request_id": null},
   "context": {
     "common_instructions": ["stapp/assistant/AGENTS.md"],
-    "initial_manuals": ["sm-manager/README.md#air-quality"],
+    "initial_manuals": ["stapp/docs/planner.md"],
     "capability_discovery": true,
     "available_capabilities": ["planner", "air_quality", "other"]
   },
@@ -132,9 +196,9 @@ Conceptual envelope (not an already implemented endpoint):
 }
 ```
 
-The agent sees that this is actually a planner request, obtains planner context
-and the supported reminder/task semantics, then acts or asks a necessary question.
-The initial hint must not lose the transcript or force an air sensor query.
+The agent verifies the requested action against the transcript and supported
+reminder/task semantics, then acts or asks a necessary question. If a route is
+wrong, it can obtain the correct context through capability discovery.
 
 Carry entity IDs/current versions only from trusted context or confirmed reads.
 Use a dedicated context budget (initial target: <= 2,000 tokens excluding the

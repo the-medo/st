@@ -1,0 +1,21 @@
+{
+  "retired_at": "2026-11-25T22:45:37.385034+00:00",
+  "selected_provider": "cloudflare",
+  "selected_model": "clef-flash",
+  "removed_model_caches": [
+    "models--LiquidAI--d1-2B-GGUF",
+    "models--convaiinnovations--laya",
+    "models--ggml-org--Kev-0.8B-GGUF",
+    "models--ggml-org--Kev-4B-GGUF"
+  ],
+  "removed_allocated_bytes": 8023908352,
+  "local_model_cache_exists": false,
+  "local_service_state": {
+    "LoadState": "not-found",
+    "ActiveState": "inactive",
+    "MainPID": "0"
+  },
+  "unsloth_runtime_retained": true,
+  "benchmark_evidence_retained": true,
+  "agent_invocations": 0
+}

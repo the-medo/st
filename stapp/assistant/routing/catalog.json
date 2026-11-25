@@ -1,7 +1,9 @@
 {
   "schema_version": 1,
-  "catalog_version": "2026-11-25-v2-experiment",
-  "model": "laya-multilingual",
+  "catalog_version": "2026-11-25-v3-clef-selected",
+  "provider": "cloudflare",
+  "model": "clef-flash",
+  "provider_model_id": "@cf/cloudflare/clef-flash",
   "instructions": "What action does the user want? Select the best assistant capability, or other if none fits.",
   "provisional_policy": {
     "minimum_probability": 0.65,
