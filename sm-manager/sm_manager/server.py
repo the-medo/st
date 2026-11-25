@@ -17,6 +17,7 @@ from .collector import Collector, cleanup_plan
 from .air_quality import AirQuality
 from .dbs import read_db_catalog
 from .history import RETENTION_HOURS
+from .github import GitHubDashboard
 from .home import service_cards, ui_config
 from . import web
 from .zed import read_catalog
@@ -67,7 +68,8 @@ def read_faceplate_frame(path):
     return {"display": "SCR-SM1", "timestamp": timestamp, "image": image}
 
 
-def handler_for(collector, config, air_quality=None, night_control=night_request):
+def handler_for(collector, config, air_quality=None, night_control=night_request, github=None):
+    github = github if github is not None else GitHubDashboard(config)
     token = secrets.token_urlsafe(32)
     dave = DaveBridge(config["dave_port"], config["dave_credentials_path"]) if config.get("dave_port") else None
     class Handler(BaseHTTPRequestHandler):
@@ -258,6 +260,8 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
             if url.path == "/api/night-mode":
                 return self.respond(200, {**night_control("status"), "token": token})
             if url.path.startswith("/api/"):
+                if url.path == "/api/github":
+                    return self.respond(200, github.get(force=parse_qs(url.query).get("refresh") == ["1"]))
                 if url.path == "/api/ui-config":
                     return self.respond(200, ui_config(config))
                 if url.path == "/api/air-quality":

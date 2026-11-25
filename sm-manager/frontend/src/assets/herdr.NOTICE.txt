@@ -1,0 +1,9 @@
+Herdr app icon
+
+Unmodified assets/icons/herdr-ui-icon-clean.svg from herdrdev/herdr-app,
+revision a2e8e3ffa84439d4a245a1e6aa8947ef0dd20a1b:
+https://github.com/herdrdev/herdr-app/blob/a2e8e3ffa84439d4a245a1e6aa8947ef0dd20a1b/assets/icons/herdr-ui-icon-clean.svg
+
+The icon credits the original Herdr ram artwork at
+https://github.com/herdrdev/herdr/blob/HEAD/assets/logo.svg.
+Licensed under Apache-2.0; see herdr.LICENSE. Original SVG metadata is retained.

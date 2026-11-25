@@ -3,7 +3,7 @@ import json
 from pathlib import Path, PurePosixPath
 
 WEB = Path(__file__).parent / "web"
-PAGES = {"/", "/overview", "/projects", "/containers", "/codex", "/storage",
+PAGES = {"/", "/overview", "/projects", "/containers", "/github", "/storage",
          "/zed", "/dbs", "/air-quality", "/faceplate", "/ovis"}
 PUBLIC = {"st-logo.svg", "favicon.svg", "zed.svg", "db.svg", "prusa-connect.svg", "ydistri.svg", "home-icons.svg"}
 

@@ -1,4 +1,5 @@
 import type { Snapshot, UiConfig } from "../frontend/src/lib/types";
+import { githubFixture } from "./github-fixture";
 export const snapshot: Snapshot = {
   timestamp: Date.now() / 1000,
   interval: 10,
@@ -146,6 +147,7 @@ export function fixtureApi(url: URL, method: string) {
   const p = url.pathname;
   const now = Date.now() / 1000;
   if (p === "/api/ui-config") return ui;
+  if (p === "/api/github") return githubFixture;
   if (p === "/api/health") return { status: "ok" };
   if (p === "/api/snapshot") return snapshot;
   if (p === "/api/history")

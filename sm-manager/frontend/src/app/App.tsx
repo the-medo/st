@@ -1,4 +1,5 @@
-import { Bot } from "lucide-react";
+import { GitPullRequest as GithubIcon } from "lucide-react";
+import herdrIcon from "../assets/herdr.svg";
 import { isWorkmode, withWorkmode } from "../lib/workmode";
 import { lazy, Suspense, useEffect, useRef } from "react";
 import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
@@ -18,8 +19,8 @@ const Projects = lazy(() =>
 const Containers = lazy(() =>
   import("../features/Resources").then((m) => ({ default: m.Containers })),
 );
-const Codex = lazy(() =>
-  import("../features/Resources").then((m) => ({ default: m.Codex })),
+const GitHub = lazy(() =>
+  import("../features/GitHub").then((m) => ({ default: m.GitHub })),
 );
 const Storage = lazy(() =>
   import("../features/Catalogs").then((m) => ({ default: m.Storage })),
@@ -40,7 +41,7 @@ const navigation = [
   ["overview", "Overview", "◫"],
   ["projects", "Projects", "⌘"],
   ["containers", "Containers", "▤"],
-  ["codex", "Codex", "✳"],
+  ["github", "GitHub", "github"],
   ["storage", "Storage", "▥"],
   ["zed", "Zed", "/zed.svg"],
   ["dbs", "DBs", "/db.svg"],
@@ -111,12 +112,18 @@ export function App() {
         <nav aria-label="Main navigation">
           {config.data?.ovis && (
             <NavLink
-              className="nav-link"
+              className="nav-link nav-agents"
               title="Agents"
               aria-label="Agents"
               to={withWorkmode(ovisAddress.current, workmode)}
             >
-              <Bot className="nav-icon" aria-hidden="true" size={17} />
+              <img
+                className="nav-icon nav-herdr-icon"
+                src={herdrIcon}
+                alt=""
+                width="22"
+                height="22"
+              />
               Agents
             </NavLink>
           )}
@@ -128,7 +135,9 @@ export function App() {
               key={path}
               to={`/${path}${workmode ? "?workmode=1" : ""}`}
             >
-              {icon.startsWith("/") ? (
+              {icon === "github" ? (
+                <GithubIcon className="nav-icon" aria-hidden="true" size={17} />
+              ) : icon.startsWith("/") ? (
                 <img
                   className="nav-icon"
                   src={icon}
@@ -291,7 +300,7 @@ export function App() {
                 ["overview", <Overview />],
                 ["projects", <Projects />],
                 ["containers", <Containers />],
-                ["codex", <Codex />],
+                ["github", <GitHub />],
                 ["storage", <Storage />],
                 ["zed", <Zed />],
                 ["dbs", <Dbs />],

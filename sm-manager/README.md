@@ -597,6 +597,7 @@ Same-origin, read-only HTTP endpoints:
 | `GET /api/snapshot` | Projects, worktrees, processes, containers, Codex, host |
 | `GET /api/zed` | Published checkout groups with revisions and Zed URLs, plus links for monitor-only directories |
 | `GET /api/dbs` | Database connections, ownership, last check time, freshness, and validated CloudBeaver links |
+| `GET /api/github` | Cached GitHub sprint, backlog and open PRs; `?refresh=1` requests a background refresh |
 | `GET /api/history?hours=24&entity=host` | Time-bucketed CPU and memory |
 | `GET /api/air-quality?hours=6&bucket=300` | AirQ readings, per-bucket means and peaks, and daily particle averages; bucket is seconds or `auto` |
 | `GET /api/cleanup-plan/<worktree-id>` | Resource identities and a cleanup brief |
@@ -616,10 +617,64 @@ instructions, and use its documented lifecycle command. PID start ticks and full
 container IDs are included so a stale brief is never treated as a kill list.
 The suggested cleanup preserves volumes, databases, source files, and worktrees.
 
+## GitHub
+
+The React console’s **GitHub** page replaces the former Codex resource page.
+It shows issues assigned to the signed-in GitHub user in the current **Sprint**
+iteration, including **Done** and **Delivered**. Open pull requests authored by
+that user are listed across the organization, with draft state, checks,
+conflicts and links. The expandable **Backlog** shows only issues assigned to
+that user. It excludes Done and Delivered and includes current and older sprint
+issues. Search and repository filters apply
+to all three tables. Archived and inaccessible project items are omitted.
+
+The defaults are organization `ydistri`, project `6`, sprint view `2` and backlog
+view `5`. Install `gh` on the monitor host and authenticate as its service user:
+
+```sh
+gh auth login -h github.com
+gh auth refresh -h github.com -s read:project
+```
+
+Private repositories also require repository access (`repo` for a classic OAuth
+token); authorize organization SSO if required. Credentials remain in GitHub
+CLI’s private login store or its supported environment variables, never in the
+browser, repository or API response. The integration only sends GraphQL queries.
+The CLI must be on the service PATH, or specify an absolute `gh_binary` below.
+
+Optional settings in the private monitor configuration:
+
+```json
+{
+  "github": {
+    "organization": "ydistri",
+    "project_number": 6,
+    "sprint_field": "Sprint",
+    "status_field": "Status"
+  }
+}
+```
+
+Set `github.username` to override the authenticated user. The active sprint is
+determined by the iteration’s date range using the server’s local date, with an
+exclusive end boundary. The sprint and backlog selection follows the rules above;
+other custom GitHub view filters are not interpreted.
+
+`GET /api/github` returns a shared, in-memory cache and starts a background fetch
+on first access or after one hour. The page checks for updates while visible;
+there is no scheduled fetch when nobody uses it and no issue data saved to disk.
+`GET /api/github?refresh=1` requests an earlier refresh, coalescing concurrent
+requests and allowing at most one refresh every 30 seconds. Failed fetches retry
+after five minutes on access. Each section keeps its last successful data and
+reports its timestamp/error independently. Cache resets when the monitor restarts.
+Project items and PR search results are paginated; oversized or incomplete results
+produce an error rather than silently replacing a good cache with partial data.
+
 ## Privacy and access
 
-No telemetry, external fonts, CDNs, or remote data services. The UI, API, and
-SQLite history stay on your machine. No command-line arguments, environment
+No telemetry, external fonts or CDNs. The GitHub page contacts GitHub through
+the server’s authenticated CLI when requested. The UI, API, and SQLite history
+stay on your machine. No command-line arguments, environment
 variables, Codex prompts, authentication files, or container environment are
 stored or exposed. Metadata includes local paths, branch names, container image
 names, process names, and resource identities; keep dashboard access private.
