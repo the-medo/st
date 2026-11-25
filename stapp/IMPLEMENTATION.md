@@ -1,7 +1,9 @@
 # S.T. voice assistant implementation plan
 
 Status: design and local routing experiment, 2026-11-25. The experiment sends
-synthetic text only to Laya; it does not submit jobs to agents or integrations.
+synthetic text to decision models only; it does not submit jobs to agents or
+integrations. The later comparison includes explicitly authorized Cloudflare
+inference as well as local Unsloth models.
 
 This replaces the earlier six-step plan. The assistant introduced in commit
 `bc065262bb9470951de31b07d6696670b3906aa4` remains the starting point. Preserve
@@ -9,8 +11,8 @@ working transport, planner rules, device ownership and durable job history.
 
 ## Product scope
 
-1. A local Unsloth/Laya classifier, a capability catalog, and a reproducible
-   100-transcript evaluation. See [the experiment](experiments/laya/README.md).
+1. A capability catalog and reproducible 100-transcript evaluation across local
+   Unsloth models and hosted Clef Flash. See [the comparison](experiments/laya/COMPARISON.md).
 2. A coordinator that uses routing as a context hint, runs Luna in a dedicated
    assistant project, and returns compact, confirmed results.
 3. A background Rust Steam Machine client activated by **Hey ST** or **Okay ST**.
@@ -28,6 +30,13 @@ Measured on 100 synthetic transcripts: the revised catalog scored 64/100, with
 Use Laya only as an advisory context hint. Start with generic acknowledgements
 and keep capability discovery available even when its probability is high.
 
+The [five-model comparison](experiments/laya/COMPARISON.md) now recommends
+**Cloudflare Clef Flash** for the next implementation phase: 97/100, 190 ms median,
+448 ms p95, and no resident local decision model. LiquidAI d1 2B is the preferred
+local alternative from these tests: 88/100, 2.30 s median, 2.47 GiB idle RAM.
+These are proposed provider choices; the live worker is unchanged. The local
+experiment service is stopped and disabled at login to avoid idle resource use.
+
 ## Existing implementation: retain or replace
 
 | Component | Existing behavior | Decision |
@@ -37,7 +46,7 @@ and keep capability discovery available even when its probability is high.
 | `apps/st-voice` | Rust CPAL capture, mono/16 kHz conversion, wake claim and submission | Extend shared native core; improve streaming resampling |
 | `runtime/speech.py` | Python sherpa keyword spotting and Whisper-base; Hey ST variants; RMS endpointing; ~11-second cap | Replace endpoint runtime with Rust bindings; add Okay ST, VAD and longer dictation |
 | `runtime/client.py` | Python supervision, Windows tray notifications, room-only Piper output; subprocess per reply | Replace with native lifecycle/UI/playback; keep voice models warm |
-| `runtime/worker.py` | Keyword shortcut, optional Cloudflare Granite router, general fallback; app-server launched per job | Replace routing with Laya hint/general fallback; warm app-server; explicitly select Luna/low |
+| `runtime/worker.py` | Keyword shortcut, optional Cloudflare Granite router, general fallback; app-server launched per job | Replace routing with the selected decision provider/general fallback; warm app-server; explicitly select Luna/low |
 | `runtime/mcp.py`, planner adapters | Authenticated tools and recurrence/version rules | Retain; select capability tools and provide discovery/clarification |
 | Herdr dictation | Browser recording; optional OpenAI transcription/polishing; browser recognition fallback | Reuse browser UX/contract where useful; native clients own their audio |
 | Herdr integration | Project/conversation visibility and native session bridging | Reuse backend APIs; do not automate terminal keystrokes |
@@ -53,7 +62,7 @@ itself a voice tool. Mark integration availability explicitly in the catalog.
 
 ## Request flow
 
-`local wake → capture/VAD → transcription → durable submission → Laya hint →
+`local wake → capture/VAD → transcription → durable submission → decision hint →
 context selection → Luna/tools → confirmed result → local speech`
 
 Endpoint states: `idle → listening → transcribing → submitted → acknowledged →
@@ -68,8 +77,9 @@ working → speaking → idle`. Also handle `waiting_for_answer`, `cancelled`,
    pending-request reference. The authenticated bridge owns device identity.
 4. Resolve pending clarification and continuation before classification. A bare
    “yes” is not a new command; identify the request if several are pending.
-5. Call local Unsloth with transcript and short criteria. Persist raw result,
-   effective route, model/catalog revision and timings.
+5. Call the explicitly configured decision provider with transcript and short
+   criteria: proposed default Cloudflare Clef Flash, or local Unsloth. Persist
+   raw result, effective route, provider/model/catalog revision and timings.
 6. Select trusted context, durably enqueue the agent turn, then issue one routing
    acknowledgement. Routing selects context; it does not grant permissions.
 7. Execute through the integration's business API. Persist results before claiming
@@ -103,9 +113,10 @@ and can request more context or correct the route.
 Long transcripts need an explicit token budget. Never silently discard the tail
 to fit the classifier. If the request cannot fit intact, bypass to `other` and
 give the agent the full transcript. Do not add a summarization model just to fit
-Laya. The installed endpoint returns HTTP 422 when state would be truncated;
-treat that as general routing, and also reject truncation flags if a future
-provider returns them in a successful response.
+the decision model. Local Unsloth returns HTTP 422 when state would be truncated;
+treat that as general routing. Hosted Clef Flash can truncate long text to fit,
+so enforce its input budget before sending rather than relying on an error.
+Also reject truncation flags if a provider returns them in a successful response.
 
 ## Shared Rust audio core
 
@@ -118,7 +129,8 @@ C ABI wrapper for keyword spotting, VAD and ASR; verify exact binding coverage.
 - Start with the existing small keyword model and multilingual Whisper-base.
   Benchmark stronger recognition if Czech, names or technical words fail.
 - Keep ASR resident or preload on wake. A later provider interface can reuse
-  `gpt-transcribe` when explicitly configured. Laya stays on the Steam Machine.
+  `gpt-transcribe` when explicitly configured. Any local decision model stays on
+  the Steam Machine; endpoint clients call the coordinator, not the model API.
 - Replace RMS-only endpointing with VAD, pre-roll and hangover. Test quiet speech,
   pauses, fans, TV and game sound. Never execute on interim transcription.
 - Package pinned native libraries/model checksums. Released desktop clients
@@ -189,7 +201,7 @@ follow actual tool permissions and user intent, never classifier risk estimates.
 
 | Phase | Work | Gate |
 | --- | --- | --- |
-| 0: experiment | Unsloth/Laya, frozen corpus/catalog, 100-case report | Real HTTP answers, model revision, warmup separate, zero agent calls |
+| 0: experiment | Four local models plus hosted Clef Flash, frozen corpus/catalog, 100 cases each | Real HTTP answers, revisions, CPU/RAM and separate initialization, zero agent calls |
 | 1: shadow coordinator | Catalog/context builder, router fallback, additive job events | Timeout/outage/bad response/long input use general routing; retries deduplicate |
 | 2: text agent path | Dedicated project, warm app-server, Luna/low, selected tools, compact output | Isolated planner/store tests; Herdr visibility; origin-thread follow-ups |
 | 3: Steam Machine | Native wake/VAD/ASR/TTS and both phrases | Seat/mic recordings, false wakes, game noise, reconnect, Gaming Mode |
@@ -207,12 +219,35 @@ Written transcripts do not validate microphones, ASR or wake words. Add an
 independent recorded-audio set. Do not call tuning on the development corpus
 held-out accuracy; obtain fresh examples before route-dependent tool restriction.
 
+## Resource policy for occasional use
+
+Compare decision providers using [the resource benchmark](experiments/laya/COMPARISON.md)
+before choosing the implementation default. Measure microphone wake detection,
+ASR and TTS separately; routing measurements do not describe the full assistant.
+
+- Keep only the wake listener continuously active on endpoints. Measure its idle
+  CPU and RAM as part of desktop acceptance.
+- Make the decision provider an explicit configuration choice. A hosted provider
+  needs no resident local decision model; local mode keeps transcripts local at
+  this stage and uses bounded CPU/memory settings.
+- In local mode, warm on wake when useful so loading can overlap dictation, then
+  unload after inactivity. The current llama.cpp integration has a five-minute
+  idle unload, but Studio itself still consumes memory; stopping the entire
+  experiment service releases its remaining process memory.
+- Preserve a bounded routing deadline and general-agent fallback. Do not leave
+  users waiting indefinitely for model startup, and do not silently switch an
+  explicitly local configuration to a cloud provider.
+- Report resource use while a game runs before household rollout. CPU-only
+  benchmarks do not establish GPU latency, gaming impact or power consumption.
+
 ## Migration and rollback
 
 Add a router/profile switch; keep existing behavior until acceptance passes. Keep
 request IDs, thread history and jobs; database migrations are additive/versioned.
-The new profile replaces Cloudflare routing with Laya/general fallback. Do not
-silently fall back to a cloud classifier. Retire each Python client only after
+The new profile replaces the old Granite/keyword routing with an explicit
+provider setting and general-agent fallback. A provider failure or deadline
+uses general discovery; local mode never silently calls a cloud classifier.
+Retire each Python client only after
 its native replacement passes testing; never run two wake listeners on one mic.
 
 Stopping `st-laya.service` disables classification only. The eventual assistant
@@ -229,6 +264,7 @@ outgrowing the option-text budget by using discovery or hierarchical routing.
 ## Sources checked
 
 - [Unsloth Laya](https://unsloth.ai/docs/models/decision-laya)
+- [Cloudflare Clef Flash](https://developers.cloudflare.com/workers-ai/models/clef-flash/)
 - [sherpa-onnx platforms/functions](https://k2-fsa.github.io/sherpa/intro.html)
 - [Custom keyword spotting](https://k2-fsa.github.io/sherpa/onnx/kws/index.html)
 - [Luna model](https://developers.openai.com/api/docs/models/gpt-6-luna)

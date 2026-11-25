@@ -1,5 +1,10 @@
 # Local Laya routing experiment
 
+For the later five-model comparison, including RAM, CPU and hosted Cloudflare
+Clef Flash, see [the comparison report](COMPARISON.md) and
+[measurement methodology](MEASUREMENT.md). The original two runs below remain
+unchanged.
+
 Run on the Steam Machine on 2026-11-25. **Laya is running locally, but its routes
 are not reliable enough to restrict an agent's capabilities.** Use the result as
 an initial context hint, preserve the complete transcript, and allow discovery.
@@ -121,6 +126,10 @@ transcript on that error; trimming a spoken command can discard its real intent.
 
 The persistent installation is independent of this disposable Git worktree:
 
+After the five-model comparison the service was stopped and disabled at login
+to release idle RAM. The installed models remain available; use
+`systemctl --user start st-laya.service` to start the original Laya trial again.
+
 | Item | Location |
 | --- | --- |
 | Studio and decisions | `http://127.0.0.1:18888`, `POST /v1/systemone` |
@@ -162,8 +171,9 @@ ssh -N -L 18888:127.0.0.1:18888 YOUR_STEAM_MACHINE_SSH_HOST
 
 Then open `http://127.0.0.1:18888` on that computer. Do not embed this API key in
 Windows/Android clients; the eventual coordinator calls Laya on their behalf.
-The service is enabled for the user's service manager. Keep a future assistant
-startup prewarm so model initialization is not paid by the first spoken request.
+The service is installed in the user's service manager and currently disabled.
+An eventual local assistant can warm the model on wake and unload it after idle
+time; compare that with hosted routing using the newer resource report.
 
 To stop the experiment service persistently:
 

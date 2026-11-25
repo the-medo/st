@@ -1,0 +1,87 @@
+{
+  "unload_elapsed_ms": 307.67,
+  "before_pss_bytes": 2651174912,
+  "after_unload_pss_bytes": 431147008,
+  "after_unload_resources": {
+    "scope": "Unsloth service and descendants",
+    "sample_interval_seconds": 0.5,
+    "sampling_errors": [],
+    "logical_cpu_count": 12,
+    "phases": {
+      "loaded_before_unload": {
+        "samples": 1,
+        "pss_bytes": {
+          "median": 2651174912,
+          "max": 2651174912
+        },
+        "rss_bytes": {
+          "median": 2664738816,
+          "max": 2664738816
+        },
+        "private_bytes": {
+          "median": 2648719360,
+          "max": 2648719360
+        },
+        "cgroup_current_bytes": {
+          "median": 690774016,
+          "max": 690774016
+        },
+        "cgroup_anon_bytes": {
+          "median": 686419968,
+          "max": 686419968
+        },
+        "cgroup_file_bytes": {
+          "median": 602112,
+          "max": 602112
+        },
+        "cgroup_swap_bytes": {
+          "median": 0,
+          "max": 0
+        }
+      },
+      "unloaded_after_d1": {
+        "samples": 31,
+        "pss_bytes": {
+          "median": 431147008,
+          "max": 431147008
+        },
+        "rss_bytes": {
+          "median": 435814400,
+          "max": 435814400
+        },
+        "private_bytes": {
+          "median": 431017984,
+          "max": 431017984
+        },
+        "cgroup_current_bytes": {
+          "median": 336502784,
+          "max": 338391040
+        },
+        "cgroup_anon_bytes": {
+          "median": 334282752,
+          "max": 334282752
+        },
+        "cgroup_file_bytes": {
+          "median": 573440,
+          "max": 573440
+        },
+        "cgroup_swap_bytes": {
+          "median": 0,
+          "max": 0
+        },
+        "wall_seconds": 15.0,
+        "cpu_seconds": 0.06047899999998663,
+        "cpu_percent_one_core": 0.4031933333332442,
+        "cpu_percent_machine": 0.033599444444437014
+      }
+    }
+  },
+  "restored_settings": {
+    "enabled": true,
+    "backend": "pytorch",
+    "native_ctx": 16384
+  },
+  "temporary_override_removed": true,
+  "final_service_state": "ActiveState=inactive\nSubState=dead\nUnitFileState=disabled\nMainPID=0\n",
+  "reason": "Occasional-use experiment; avoid retaining model/Studio memory or starting it at login. Cached model files and credentials remain available."
+}

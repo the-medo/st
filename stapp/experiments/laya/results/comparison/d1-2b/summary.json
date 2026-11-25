@@ -1,0 +1,421 @@
+{
+  "started_at": "2026-11-25T21:52:45.220507+00:00",
+  "finished_at": "2026-11-25T21:57:23.398292+00:00",
+  "provider": "local",
+  "model": "d1-2b",
+  "catalog_version": "2026-11-25-v2-experiment",
+  "catalog_sha256": "25379eeccca6309f99a7f1f265320ef3157beb65c0dee6ea6966380f8ebefb75",
+  "corpus_sha256": "212c509f4434eb4068bb061a713982e4005c9be55eecb665db1f28a0935544f7",
+  "policy": {
+    "minimum_probability": 0.65,
+    "minimum_margin": 0.2,
+    "fallback": "other",
+    "note": "Experimental thresholds, not calibrated guarantees; routing never authorizes actions."
+  },
+  "first_request": {
+    "elapsed_ms": 2930.24,
+    "cpu_seconds": 5.171615000000001,
+    "attempts": 1,
+    "response": {
+      "model": "d1-2b",
+      "answers": {
+        "route": {
+          "type": "choice",
+          "choice": "system",
+          "confidence": 0.9308544301737496,
+          "probabilities": {
+            "planner": 0.0016149290046432701,
+            "notes": 0.001415111413429634,
+            "agents": 0.00217655392848536,
+            "system": 0.9308544301737496,
+            "databases": 0.0029782363961626955,
+            "air_quality": 0.0018069878551720854,
+            "display": 0.0015687675518194371,
+            "photos": 0.0010561844715775974,
+            "shopping": 0.000737291629559499,
+            "printing": 0.0014428224647773003,
+            "documents": 0.0018179263058239429,
+            "other": 0.052530758804799314
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 211,
+        "output_tokens": 0
+      }
+    },
+    "note": "First request after local service restart with files cached; cloud coldness unknown."
+  },
+  "request_count": 100,
+  "successful_responses": 100,
+  "raw_correct": 88,
+  "effective_correct": 81,
+  "uncertain_fallbacks": 19,
+  "accepted_specific_routes": 71,
+  "accepted_specific_correct": 70,
+  "confident_errors": [
+    "084",
+    "096"
+  ],
+  "latency_ms": {
+    "median": 2302.1000000000004,
+    "p95": 2420.01,
+    "max": 2491.13
+  },
+  "cpu_seconds_per_request": {
+    "mean": 4.552010000000001,
+    "median": 4.545238000000012,
+    "total": 455.2010000000001
+  },
+  "by_group": {
+    "language": {
+      "cs": {
+        "count": 24,
+        "correct": 19
+      },
+      "en": {
+        "count": 76,
+        "correct": 69
+      }
+    },
+    "tag": {
+      "cross-domain": {
+        "count": 8,
+        "correct": 6
+      },
+      "destructive": {
+        "count": 1,
+        "correct": 1
+      },
+      "direct": {
+        "count": 68,
+        "correct": 60
+      },
+      "disfluent": {
+        "count": 1,
+        "correct": 1
+      },
+      "empty-command": {
+        "count": 1,
+        "correct": 1
+      },
+      "follow-up": {
+        "count": 2,
+        "correct": 1
+      },
+      "instruction-in-data": {
+        "count": 1,
+        "correct": 1
+      },
+      "mutation": {
+        "count": 4,
+        "correct": 4
+      },
+      "physical-action": {
+        "count": 2,
+        "correct": 2
+      },
+      "purchase": {
+        "count": 1,
+        "correct": 1
+      },
+      "research": {
+        "count": 1,
+        "correct": 1
+      },
+      "unavailable-capability": {
+        "count": 2,
+        "correct": 1
+      },
+      "unrelated": {
+        "count": 6,
+        "correct": 6
+      },
+      "unsupported-detail": {
+        "count": 2,
+        "correct": 2
+      }
+    },
+    "expected_route": {
+      "agents": {
+        "count": 8,
+        "correct": 7
+      },
+      "air_quality": {
+        "count": 8,
+        "correct": 7
+      },
+      "databases": {
+        "count": 8,
+        "correct": 8
+      },
+      "display": {
+        "count": 8,
+        "correct": 6
+      },
+      "documents": {
+        "count": 8,
+        "correct": 7
+      },
+      "notes": {
+        "count": 8,
+        "correct": 8
+      },
+      "other": {
+        "count": 12,
+        "correct": 10
+      },
+      "photos": {
+        "count": 8,
+        "correct": 7
+      },
+      "planner": {
+        "count": 8,
+        "correct": 8
+      },
+      "printing": {
+        "count": 8,
+        "correct": 7
+      },
+      "shopping": {
+        "count": 8,
+        "correct": 7
+      },
+      "system": {
+        "count": 8,
+        "correct": 6
+      }
+    }
+  },
+  "confusion": {
+    "planner": {
+      "planner": 8
+    },
+    "notes": {
+      "notes": 8
+    },
+    "agents": {
+      "agents": 7,
+      "air_quality": 1
+    },
+    "system": {
+      "system": 6,
+      "other": 1,
+      "planner": 1
+    },
+    "databases": {
+      "databases": 8
+    },
+    "air_quality": {
+      "air_quality": 7,
+      "system": 1
+    },
+    "display": {
+      "display": 6,
+      "other": 1,
+      "photos": 1
+    },
+    "photos": {
+      "photos": 7,
+      "system": 1
+    },
+    "shopping": {
+      "shopping": 7,
+      "other": 1
+    },
+    "printing": {
+      "printing": 7,
+      "other": 1
+    },
+    "documents": {
+      "documents": 7,
+      "other": 1
+    },
+    "other": {
+      "other": 10,
+      "planner": 2
+    }
+  },
+  "resources": {
+    "scope": "Unsloth service and descendants",
+    "sample_interval_seconds": 0.5,
+    "sampling_errors": [],
+    "logical_cpu_count": 12,
+    "phases": {
+      "startup": {
+        "samples": 1,
+        "pss_bytes": {
+          "median": 427048960,
+          "max": 427048960
+        },
+        "rss_bytes": {
+          "median": 431718400,
+          "max": 431718400
+        },
+        "private_bytes": {
+          "median": 426921984,
+          "max": 426921984
+        },
+        "cgroup_current_bytes": {
+          "median": 332480512,
+          "max": 332480512
+        },
+        "cgroup_anon_bytes": {
+          "median": 330182656,
+          "max": 330182656
+        },
+        "cgroup_file_bytes": {
+          "median": 131072,
+          "max": 131072
+        },
+        "cgroup_swap_bytes": {
+          "median": 0,
+          "max": 0
+        }
+      },
+      "unloaded_idle": {
+        "samples": 29,
+        "pss_bytes": {
+          "median": 427323392,
+          "max": 427339776
+        },
+        "rss_bytes": {
+          "median": 431992832,
+          "max": 432009216
+        },
+        "private_bytes": {
+          "median": 427196416,
+          "max": 427212800
+        },
+        "cgroup_current_bytes": {
+          "median": 332345344,
+          "max": 332623872
+        },
+        "cgroup_anon_bytes": {
+          "median": 330444800,
+          "max": 330473472
+        },
+        "cgroup_file_bytes": {
+          "median": 131072,
+          "max": 131072
+        },
+        "cgroup_swap_bytes": {
+          "median": 0,
+          "max": 0
+        },
+        "wall_seconds": 14.152999999999999,
+        "cpu_seconds": 0.058237000000000094,
+        "cpu_percent_one_core": 0.41148166466473607,
+        "cpu_percent_machine": 0.03429013872206134
+      },
+      "first_request": {
+        "samples": 6,
+        "pss_bytes": {
+          "median": 2649772032.0,
+          "max": 2649773056
+        },
+        "rss_bytes": {
+          "median": 2663276544.0,
+          "max": 2663276544
+        },
+        "private_bytes": {
+          "median": 2647322624.0,
+          "max": 2647322624
+        },
+        "cgroup_current_bytes": {
+          "median": 688330752.0,
+          "max": 688869376
+        },
+        "cgroup_anon_bytes": {
+          "median": 685158400.0,
+          "max": 685158400
+        },
+        "cgroup_file_bytes": {
+          "median": 147456.0,
+          "max": 147456
+        },
+        "cgroup_swap_bytes": {
+          "median": 0.0,
+          "max": 0
+        },
+        "wall_seconds": 2.5509999999999984,
+        "cpu_seconds": 4.582088000000001,
+        "cpu_percent_one_core": 179.61928655429256,
+        "cpu_percent_machine": 14.96827387952438
+      },
+      "warm_requests": {
+        "samples": 450,
+        "pss_bytes": {
+          "median": 2650657792.0,
+          "max": 2650772480
+        },
+        "rss_bytes": {
+          "median": 2664226816.0,
+          "max": 2664341504
+        },
+        "private_bytes": {
+          "median": 2648207360.0,
+          "max": 2648322048
+        },
+        "cgroup_current_bytes": {
+          "median": 689557504.0,
+          "max": 691810304
+        },
+        "cgroup_anon_bytes": {
+          "median": 686043136.0,
+          "max": 686157824
+        },
+        "cgroup_file_bytes": {
+          "median": 376832.0,
+          "max": 602112
+        },
+        "cgroup_swap_bytes": {
+          "median": 0.0,
+          "max": 0
+        },
+        "wall_seconds": 229.67000000000002,
+        "cpu_seconds": 454.093272,
+        "cpu_percent_one_core": 197.71553620411893,
+        "cpu_percent_machine": 16.476294683676578
+      },
+      "loaded_idle": {
+        "samples": 59,
+        "pss_bytes": {
+          "median": 2650772480,
+          "max": 2650773504
+        },
+        "rss_bytes": {
+          "median": 2664341504,
+          "max": 2664341504
+        },
+        "private_bytes": {
+          "median": 2648322048,
+          "max": 2648322048
+        },
+        "cgroup_current_bytes": {
+          "median": 689991680,
+          "max": 690515968
+        },
+        "cgroup_anon_bytes": {
+          "median": 686157824,
+          "max": 686157824
+        },
+        "cgroup_file_bytes": {
+          "median": 602112,
+          "max": 602112
+        },
+        "cgroup_swap_bytes": {
+          "median": 0,
+          "max": 0
+        },
+        "wall_seconds": 29.656000000000006,
+        "cpu_seconds": 0.13053000000002157,
+        "cpu_percent_one_core": 0.4401470191530265,
+        "cpu_percent_machine": 0.03667891826275221
+      }
+    }
+  },
+  "fatal_error": null,
+  "agent_invocations": 0,
+  "measurement": "Sequential synchronous HTTP from Steam Machine; no connection pooling, proxies or redirects. Downloads completed before local measurement."
+}

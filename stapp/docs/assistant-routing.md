@@ -2,7 +2,11 @@
 
 This is a design contract backed by a classifier-only experiment. It is not yet
 wired into `runtime/worker.py`. See [the plan](../IMPLEMENTATION.md) and
-[measured results](../experiments/laya/README.md).
+[five-model comparison](../experiments/laya/COMPARISON.md). The proposed next
+default is hosted Cloudflare Clef Flash; local Unsloth remains an explicit option.
+The catalog's `model` field retains the original local evaluator default; the
+comparison runner selects providers/models separately. No production provider
+configuration has been wired up yet.
 
 ## Input to Laya
 
@@ -84,6 +88,14 @@ its public endpoint returns HTTP 422 when long state would be truncated. The
 coordinator must count tokens or conservatively bypass, and handle that error
 without losing the full agent transcript. Check truncation flags too if a future
 provider includes them in successful responses.
+
+For hosted Clef Flash, use the same question/criteria with model `clef-flash`
+through the coordinator's configured Workers AI account. Its documented behavior
+can truncate long text to its context window, so enforce an input budget before
+sending; do not rely solely on a response flag. Keep provider credentials on the
+coordinator. This provider choice must be explicit, including whether transcripts
+may leave the machine. On a routing deadline or failure, continue through general
+agent discovery rather than chaining additional classifiers.
 
 ## Input to the agent
 
