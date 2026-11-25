@@ -54,7 +54,13 @@ Opening Agents or Planner with a main-sidebar shortcut keeps the mode ready:
   conversations and terminals, with the previous visit highlighted. **E** or
   **Down** advances; **Shift+E** or **Up** goes back. **Enter** opens the selection;
   **Escape** cancels without navigating. Visits remain in memory for this page
-  session, with chat and terminal views tracked separately.
+  session, with chat and terminal views tracked separately. Rows show conversation
+  names, project names, live status, and agent icons. Status/name updates keep the
+  order and highlighted selection stable.
+- **Saved histories:** ended and archived conversations open in the main page,
+  with read-only history and support for reload and browser Back/Forward. The
+  embedded Agents view uses recents and the sidebar instead of top tabs; **+**
+  still creates a terminal.
 
 A quiet, local dashboard for the projects running on your machine. See which app,
 branch, worktree, or Docker container is using memory and CPU without asking an

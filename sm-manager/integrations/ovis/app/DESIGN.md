@@ -6576,3 +6576,11 @@ its stale-request guard, and quick actions invoke existing controls.
 The embedded host establishes a containing block for fixed-position portals.
 Row menus measure both their anchor and clipping ancestors in that block's
 coordinates, so the More menu stays open and visible beside the right edge.
+
+The picker now uses the conversation catalogue's names and project labels, with
+live status beneath each name and the existing agent mark at the right. Metadata
+refreshes keep the highlighted row and order stable, following the same Zed
+switcher model. In the embedded S.T. view, recents and the sidebar replace the
+top tab strip; its + action remains available to create a terminal. Standalone
+Ovis keeps its tab strip. Saved histories occupy the normal conversation area,
+with a read-only notice and a `saved` URL parameter for reload and Back/Forward.

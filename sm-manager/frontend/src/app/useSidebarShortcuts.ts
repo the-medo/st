@@ -9,6 +9,7 @@ import {
 import {
   agentsSelection,
   recentConversations,
+  recentDetails,
   type RecentConversation,
 } from "../features/ovis/shortcuts";
 import {
@@ -196,9 +197,9 @@ export function useSidebarShortcuts(
     };
     const openRecent = (index: number) => {
       const item = current.recent?.items[index];
-      if (!item) return;
+      if (!item || !recentDetails(item).available) return;
       reset();
-      item.open();
+      recentDetails(item).open();
     };
     const showRecent = () => {
       clearTimeout(timer);

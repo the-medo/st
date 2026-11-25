@@ -306,3 +306,59 @@
     }
   }
 }
+
+@scope (.st-app) to (.st-ovis-root) {
+  .st-recent-list > button > .st-recent-copy {
+    flex: 1;
+  }
+  .st-recent-list > button > .st-recent-trailing {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 12px;
+  }
+  .st-recent-trailing .agent-mark {
+    display: inline-flex;
+    opacity: 0.85;
+  }
+  .st-recent-status {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 5px;
+    font-size: 11px;
+  }
+  .st-recent-status i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.65;
+  }
+  .st-recent-status.is-working {
+    color: var(--accent);
+  }
+  .st-recent-status.is-working i {
+    animation: st-status-pulse 1.3s ease-in-out infinite;
+  }
+  .st-recent-status.is-blocked {
+    color: var(--st-warning);
+  }
+  .st-recent-status.is-finished {
+    color: var(--st-success);
+  }
+  .st-recent-list > button[aria-disabled="true"] {
+    opacity: 0.6;
+    cursor: default;
+  }
+  @keyframes st-status-pulse {
+    50% {
+      opacity: 0.25;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .st-recent-status.is-working i {
+      animation: none;
+    }
+  }
+}

@@ -1,5 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { History, MessageSquare, Terminal, X } from "lucide-react";
+import { AgentMark } from "../../../integrations/ovis/app/src/components/AgentMark";
+import {
+  recentDetails,
+  recentStatusLabels,
+  subscribeRecent,
+  recentRevision,
+} from "../features/ovis/shortcuts";
 import type { RecentPicker } from "../app/useSidebarShortcuts";
 
 export function RecentConversations({
@@ -11,6 +18,7 @@ export function RecentConversations({
   onOpen: (index: number) => void;
   onClose: () => void;
 }) {
+  useSyncExternalStore(subscribeRecent, recentRevision);
   const list = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const frame = document.activeElement as HTMLIFrameElement | null;
@@ -66,31 +74,44 @@ export function RecentConversations({
             picker.items.length ? `st-recent-${picker.index}` : undefined
           }
         >
-          {picker.items.map((item, index) => (
-            <button
-              key={item.id}
-              id={`st-recent-${index}`}
-              type="button"
-              role="option"
-              tabIndex={-1}
-              aria-selected={index === picker.index}
-              onClick={() => onOpen(index)}
-            >
-              {item.view === "terminal" ? (
-                <Terminal size={18} />
-              ) : (
-                <MessageSquare size={18} />
-              )}
-              <span>
-                <strong>{item.title}</strong>
-                <small>
-                  {item.workspace} ·{" "}
-                  {item.view === "terminal" ? "Terminal" : "Conversation"}
-                </small>
-              </span>
-              {index === picker.index && <kbd>↵</kbd>}
-            </button>
-          ))}
+          {picker.items.map((entry, index) => {
+            const item = recentDetails(entry);
+            return (
+              <button
+                key={item.id}
+                id={`st-recent-${index}`}
+                type="button"
+                role="option"
+                tabIndex={-1}
+                aria-selected={index === picker.index}
+                aria-disabled={!item.available}
+                onClick={() => {
+                  if (item.available) onOpen(index);
+                }}
+              >
+                {item.view === "terminal" ? (
+                  <Terminal size={18} />
+                ) : (
+                  <MessageSquare size={18} />
+                )}
+                <span className="st-recent-copy">
+                  <strong>{item.title}</strong>
+                  <small>
+                    {item.workspace} ·{" "}
+                    {item.view === "terminal" ? "Terminal" : "Conversation"}
+                    <span className={`st-recent-status is-${item.status}`}>
+                      <i aria-hidden="true" />
+                      {recentStatusLabels[item.status]}
+                    </span>
+                  </small>
+                </span>
+                <span className="st-recent-trailing">
+                  {index === picker.index && item.available && <kbd>↵</kbd>}
+                  {item.agent && <AgentMark agent={item.agent} size={20} />}
+                </span>
+              </button>
+            );
+          })}
           {!picker.items.length && (
             <p className="st-recent-empty">
               Your conversations and terminals will appear here as you open

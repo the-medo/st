@@ -15,7 +15,9 @@ export async function verifyAgentsShortcuts(page: Page) {
     Reflect.set(window, "__stExpandedShortcutsFixture", true),
   );
   await page.getByRole("button", { name: "Refresh projects" }).click();
-  await page.getByRole("button", { name: "Actions for project Orchard" }).waitFor();
+  await page
+    .getByRole("button", { name: "Actions for project Orchard" })
+    .waitFor();
   await armShortcuts(page);
   await page.keyboard.press("a");
   await page
@@ -185,6 +187,14 @@ export async function verifyAgentsShortcuts(page: Page) {
   });
   await recent.waitFor();
   assert.match(
+    await recent.locator('[aria-selected="true"] strong').innerText(),
+    /Fixture conversation/,
+  );
+  await recent.locator('[aria-selected="true"] .st-recent-status').waitFor();
+  await recent
+    .locator('[aria-selected="true"] .agent-mark svg[role="img"]')
+    .waitFor();
+  assert.match(
     await recent.locator('[aria-selected="true"]').innerText(),
     /Terminal/,
   );
@@ -229,10 +239,13 @@ export async function verifyAgentsShortcuts(page: Page) {
 
   await armPage(page);
   await page.keyboard.press("t");
+  await page.waitForURL((url) => url.searchParams.get("pane") !== panes.web);
+  assert.equal(
+    await page.locator(".tab-strip, .header-tabs-sheet, .context-tabs").count(),
+    0,
+  );
   await page
-    .locator('.tab-strip [role="tab"]')
-    .filter({ hasText: "2" })
-    .first()
+    .getByRole("button", { name: "New terminal", exact: true })
     .waitFor();
   await page.locator(".xterm:visible").waitFor();
   await armPage(page);

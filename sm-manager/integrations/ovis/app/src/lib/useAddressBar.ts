@@ -1,3 +1,4 @@
+import { savedConversation, withSavedConversation } from "./savedConversation.ts";
 import { type Dispatch, type RefObject, type SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 import type { HerdrPane, HerdrWorkspace } from "../../shared/protocol.ts";
 import { LOCAL_MACHINE, type Machine } from "../../shared/machines.ts";
@@ -24,7 +25,9 @@ export function popUnread(dispatching: Event | undefined, read: Event | null): b
   return dispatching !== undefined && dispatching.type === "popstate" && dispatching !== read;
 }
 
-export function useAddressBar({ inbox, mode, newSessionOpen, newSessionMachineId, selectedPane, selectedPaneId, selectedWorkspace, viewing, selectedMachineId, leaveFile, restoreFile, fileFromPop, forgetLeftFiles, locked, machines, snapshot, linkLanded, view, settingsOpen, settingsPage, settingsLinkPage, settingsLinkSection, wideScreen, sidebarCollapsed, newTab, newFields, autoSelected, pendingFile, selectedMachine, openFile, machinesRef, selectTargetRef, pendingLink, setLinkLanded, linkSince, rosterSeq, setNewSessionOpen, pendingCreate, newSessionPending, setHeaderNote, selectionRef }: {
+export function useAddressBar({ savedThreadId = null, onSavedThreadChange, inbox, mode, newSessionOpen, newSessionMachineId, selectedPane, selectedPaneId, selectedWorkspace, viewing, selectedMachineId, leaveFile, restoreFile, fileFromPop, forgetLeftFiles, locked, machines, snapshot, linkLanded, view, settingsOpen, settingsPage, settingsLinkPage, settingsLinkSection, wideScreen, sidebarCollapsed, newTab, newFields, autoSelected, pendingFile, selectedMachine, openFile, machinesRef, selectTargetRef, pendingLink, setLinkLanded, linkSince, rosterSeq, setNewSessionOpen, pendingCreate, newSessionPending, setHeaderNote, selectionRef }: {
+  savedThreadId?: string | null;
+  onSavedThreadChange?: (id: string | null) => void;
   inbox: Pick<ReturnType<typeof useInbox>, "shown" | "enabled" | "show" | "leave">;
   mode?: { on: boolean; lands(): boolean };
   newSessionOpen: boolean;
@@ -69,6 +72,8 @@ export function useAddressBar({ inbox, mode, newSessionOpen, newSessionMachineId
 }): void {
   // Nothing is written while locked or before the roster is in, so a
   // link survives the access gate and a slow first read.
+  const writtenSaved = useRef(savedThreadId);
+  const savedRef = useRef({ id: savedThreadId, change: onSavedThreadChange }); savedRef.current = { id: savedThreadId, change: onSavedThreadChange };
   const writtenLink = useRef<AppLink | null>(null);
   const poppedTo = useRef(false);
   const newSessionOpenRef = useRef(newSessionOpen); newSessionOpenRef.current = newSessionOpen;
@@ -112,11 +117,25 @@ export function useAddressBar({ inbox, mode, newSessionOpen, newSessionMachineId
   }, [fileLeft, fileLanding, viewing, leaveFile, paneLive]);
   useEffect(() => { forgetLeftFiles(paneLive); }, [machines, forgetLeftFiles, paneLive]);
   useEffect(() => {
-    if (locked !== false || machines.length === 0 || snapshot === null || !linkLanded) return;
+    if (locked !== false) return;
     // A sheet's own traversal (its step off its entry, or its way back onto the entry a Back left)
     // has the history on another entry until it lands; release the write when its popstate lands,
     // or when the sheets say it is over with none (a way back dropped, then the entry made by a tap).
     if (sheetTraversalPending()) { heldWrite.current = true; return; }
+    if (savedThreadId) {
+      if (popUnread(window.event, readPop.current)) { heldWrite.current = true; return; }
+      const search = withSavedConversation(pageSearch(), savedThreadId);
+      const moved = writtenSaved.current !== savedThreadId;
+      writtenSaved.current = savedThreadId;
+      const popped = poppedTo.current; poppedTo.current = false;
+      if (search !== pageSearch()) {
+        const url = pageAddress(window.location.pathname, search, window.location.hash);
+        if (moved && !popped) window.history.pushState({ [NAV_KEY]: true }, '', url);
+        else window.history.replaceState(window.history.state, '', url);
+      }
+      return;
+    }
+    if (machines.length === 0 || snapshot === null || !linkLanded) return;
     if (linkWorkspaceId === undefined) {
       const written = writtenLink.current;
       if (listWritten.current && !newSessionOpen && written?.create && !popUnread(window.event, readPop.current)) {
@@ -137,11 +156,13 @@ export function useAddressBar({ inbox, mode, newSessionOpen, newSessionMachineId
       sidebar: wideScreen && sidebarCollapsed ? "hidden" : null,
       create: newSessionOpen ? { kind: newTab ? "tab" : "workspace", cwd: newFields?.cwd ?? null, name: newFields?.name ?? null, agent: newFields?.agent ?? null } : null,
     };
+    const leftSaved = writtenSaved.current !== null;
+    writtenSaved.current = null;
     const previous = writtenLink.current;
     writtenLink.current = link;
     const leftInbox = listWritten.current && !inboxShown;
     listWritten.current = inboxShown;
-    const search = linkSearch(link, pageSearch());
+    const search = withSavedConversation(linkSearch(link, pageSearch()), null);
     const popped = poppedTo.current;
     poppedTo.current = false;
     // a kept file is this run's alone, written or not: left set, a later replace would take the file off another entry
@@ -149,7 +170,7 @@ export function useAddressBar({ inbox, mode, newSessionOpen, newSessionMachineId
     fileKept.current = false;
     if (search === pageSearch()) return;
     const url = pageAddress(window.location.pathname, search, window.location.hash);
-    const moved = leftInbox ? inboxEnabled && link.pane !== null : previous !== null && !autoSelected && isNavigation(previous, link);
+    const moved = leftSaved || (leftInbox ? inboxEnabled && link.pane !== null : previous !== null && !autoSelected && isNavigation(previous, link));
     if (!popped && !settingsOpen && !newSessionOpen && moved) {
       const state = leftInbox ? { [NAV_KEY]: true, [INBOX_FROM_KEY]: true } : { [NAV_KEY]: true };
       if (modeOn && !leftInbox) window.history.replaceState(fileLeft ? withoutFile(window.history.state) : window.history.state, "", url);
@@ -157,7 +178,7 @@ export function useAddressBar({ inbox, mode, newSessionOpen, newSessionMachineId
       else window.history.pushState(state, "", url);
       if (selectedPaneId !== null) restoreFileRef.current(selectedMachineId, selectedPaneId);
     } else window.history.replaceState(kept && !popped ? withoutFile(window.history.state) : window.history.state, "", url);
-  }, [locked, machines.length, snapshot, linkLanded, selectedMachine?.state, selectedMachineId, selectedPaneId, linkWorkspaceId, linkSlug, linkFile, fileLeft, view, settingsOpen, settingsPage, settingsLinkPage, settingsLinkSection, newSessionOpen, newSessionMachineId, newTab, newFields, wideScreen, sidebarCollapsed, autoSelected, released, inboxShown, inboxEnabled, modeOn]);
+  }, [savedThreadId, locked, machines.length, snapshot, linkLanded, selectedMachine?.state, selectedMachineId, selectedPaneId, linkWorkspaceId, linkSlug, linkFile, fileLeft, view, settingsOpen, settingsPage, settingsLinkPage, settingsLinkSection, newSessionOpen, newSessionMachineId, newTab, newFields, wideScreen, sidebarCollapsed, autoSelected, released, inboxShown, inboxEnabled, modeOn]);
   useEffect(() => {
     shownSelection.current = { machineId: selectedMachineId, paneId: selectedPaneId };
   }, [selectedMachineId, selectedPaneId]);
@@ -180,6 +201,12 @@ export function useAddressBar({ inbox, mode, newSessionOpen, newSessionMachineId
       if (sheetSteppedOff()) return;
       if (settingsSteppedOff()) { sayShown(); return; }
       if (newSessionPending.current && newSessionOpenRef.current && inboxRef.current.shown) { sayShown(); return; }
+      const saved = savedRef.current.change ? savedConversation(pageSearch()) : null;
+      if (saved !== savedRef.current.id) {
+        poppedTo.current = true; popMoving.current = true;
+        savedRef.current.change?.(saved);
+      }
+      if (saved) return;
       const link = readLink(pageSearch());
       if (machinesRef.current.length === 0) {
         if (!link.pane && !link.workspace && !link.create) {

@@ -203,7 +203,11 @@ export function agentsBindings(
       '.medo-project-head button[aria-label^="New conversation in "]',
       section,
     );
-    add("O", '.medo-project-head button[aria-label^="Actions for project "]', section);
+    add(
+      "O",
+      '.medo-project-head button[aria-label^="Actions for project "]',
+      section,
+    );
   }
   if (scope === "conversation") {
     add("T", ".tab-strip-add");
