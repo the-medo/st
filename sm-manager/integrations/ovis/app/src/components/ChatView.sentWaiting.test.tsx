@@ -123,18 +123,20 @@ test("a send with pasted tabs leaves no waiting copy once Pi's transcript record
   } finally { act(() => { forgetWaitingSends(key); }); }
 });
 
-test.each([false, true])("a Codex message has no waiting copy below its working turn (follow-up=%p)", async (followup) => {
+test.each([false, true].flatMap((followup) => [false, true].map((missingTime) => ({ followup, missingTime }))))("a Codex message has no waiting copy below its working turn (%p)", async ({ followup, missingTime }) => {
   const paneId = "waiting-first-codex-message";
   const key = waitingKey("local", paneId);
   const started = Math.floor(Date.now() / 1000) - 10;
   const sentAt = started * 1000 + (followup ? 8000 : 400);
+  const stamp = (started * 1000 + 600).toString(16).padStart(12, "0");
+  const turnId = `${stamp.slice(0, 8)}-${stamp.slice(8)}-7000-8000-000000000001`;
   const text = "Create a new branch and fix the conversation display.\n\nKeep the first message visible once.";
   const prior = [
     { id: "original", role: "user", text: "Start working on the project." },
     { id: "earlier-command", role: "activity", kind: "commandExecution", text: "git status" },
   ];
   const exchange = (items: object[]) => medoConversation({ version: "first-turn", thread: { id: "fixture" }, active: true,
-    turns: [{ id: "turn-1", startedAt: started, items }] });
+    turns: [{ id: turnId, startedAt: missingTime ? null : started, items }] });
   if (followup) settleWaitingSends(key, exchange(prior).turns, sentAt - 1, true, "codex-transcript");
   answer = exchange([
       ...(followup ? prior : []),

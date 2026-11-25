@@ -21,13 +21,21 @@ export async function medoCall(payload: Record<string, unknown>, timeoutMs = 75_
   } finally { clearTimeout(timeout); }
 }
 
+function nativeTurnTime(id: unknown): string | null {
+  // Codex can omit startedAt from persisted turns. A native UUIDv7 still carries
+  // its creation time (RFC 9562 §5.7); never substitute the time of this read.
+  if (typeof id !== 'string' || !/^[\da-f]{8}-[\da-f]{4}-7[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/i.test(id)) return null;
+  return new Date(Number.parseInt(id.slice(0, 8) + id.slice(9, 13), 16)).toISOString();
+}
+
 export function medoConversation(data: any): RecognizedConversation {
   const turns: ConversationTurn[] = [];
-  const time = (value: number | undefined) => value ? new Date(value * 1000).toISOString() : null;
+  const time = (value: number | null | undefined) => typeof value === 'number' && Number.isFinite(value) ? new Date(value * 1000).toISOString() : null;
   for (const turn of data.turns) {
+    const started = time(turn.startedAt) ?? nativeTurnTime(turn.id);
     let assistant: ConversationPart[] = [];
     const flush = () => {
-      if (assistant.length) turns.push({ role: 'assistant', ts: time(turn.startedAt), ...(turn.completedAt ? { end_ts: time(turn.completedAt)! } : {}), parts: assistant });
+      if (assistant.length) turns.push({ role: 'assistant', ts: started, ...(turn.completedAt ? { end_ts: time(turn.completedAt)! } : {}), parts: assistant });
       assistant = [];
     };
     for (const item of turn.items) {
@@ -40,7 +48,7 @@ export function medoConversation(data: any): RecognizedConversation {
         const userText = mentioned.reduce((text, file) => text.replace(`@${file.path}`, ''), selected?.request ?? String(item.text)).trim();
         const attachments = files.map((f: any) => /\.(png|jpe?g|webp|gif)$/i.test(f.path)
           ? `![${f.name}](<${f.path}>)` : `[${f.name}](<${f.path}>)`).join('\n');
-        turns.push({ role: 'user', ts: time(turn.startedAt), message_id: item.id, turn_id: turn.id,
+        turns.push({ role: 'user', ts: started, message_id: item.id, turn_id: turn.id,
           parts: [{ kind: 'text', text: [userText, attachments].filter(Boolean).join('\n\n') }] });
         for (const skill of selected?.skills ?? []) assistant.push({ kind: 'skill', skill });
       } else if (item.role === 'assistant') {
@@ -56,7 +64,7 @@ export function medoConversation(data: any): RecognizedConversation {
     if (turn.error) assistant.push({ kind: 'text', text: `Error: ${typeof turn.error === 'string' ? turn.error : turn.error.message || JSON.stringify(turn.error)}`, failed: true });
     flush();
   }
-  return { source: 'codex-transcript', history_id: `medo:${data.thread.id}`, turns, cursor: data.ovisCursor ?? null, version: createHash('sha256').update(JSON.stringify([data.version, data.turns, data.thread.model, data.thread.effort])).digest('hex'),
+  return { source: 'codex-transcript', history_id: `medo:${data.thread.id}`, turns, cursor: data.ovisCursor ?? null, version: createHash('sha256').update(JSON.stringify([data.version, turns, data.thread.model, data.thread.effort])).digest('hex'),
     metadata: { model: data.thread.model ?? null, reasoning_effort: data.thread.effort ?? null },
     activity: data.active ? 'working' : 'idle' };
 }
