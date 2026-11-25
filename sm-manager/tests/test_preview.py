@@ -52,3 +52,41 @@ class PreviewTests(unittest.TestCase):
             self.assertEqual([f.read_text() for f in [unit, config, saved]], originals)
             self.assertEqual(stop.call_args.args[0], ['systemctl','--user','disable','--now','preview-monitor.service','preview-ovis.service'])
             self.assertEqual(calls.call_args.args, ('systemctl','--user','restart','preview.service'))
+
+    def test_gateway_and_agents_share_a_private_preview_credential(self):
+        with tempfile.TemporaryDirectory() as directory:
+            gateway = Path(directory) / 'gateway.json'
+            gateway.write_text(json.dumps({'ownerLogin': 'owner@example.test'}))
+            auth_file, token = preview.provision_auth(gateway)
+            self.assertGreaterEqual(len(token), 48)
+            self.assertEqual(json.loads(gateway.read_text())['ovisToken'], token)
+            self.assertIn('OVIS_TOKEN=' + preview.p.unit_quote(token), auth_file.read_text())
+            self.assertEqual(auth_file.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(gateway.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(preview.provision_auth(gateway)[1], token)
+            unit = preview.unit('test', ['/bin/bun', 'index.ts'], Path('/private/original.env'),
+                                {'PORT': 19000}, auth_file=auth_file)
+            self.assertLess(unit.index('EnvironmentFile=/private/original.env'), unit.index('EnvironmentFile=' + str(auth_file)))
+            self.assertNotIn(token, unit)
+            self.assertNotIn('OVIS_TOKEN=', unit)
+
+    def test_private_credential_requires_an_owner_gate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            gateway = Path(directory) / 'gateway.json'
+            gateway.write_text('{}')
+            with self.assertRaises(ValueError): preview.provision_auth(gateway)
+            self.assertFalse((gateway.parent / 'agents-auth.env').exists())
+
+    def test_ready_requires_authentication_not_just_http_200(self):
+        from unittest.mock import Mock
+        response = Mock(status=200)
+        response.read.return_value = b'{"auth":{"required":true,"authenticated":false}}'
+        connection = Mock()
+        connection.getresponse.return_value = response
+        with patch('http.client.HTTPConnection', return_value=connection), patch.object(preview.time, 'monotonic', side_effect=[0, 1, 31]), patch.object(preview.time, 'sleep'):
+            with self.assertRaisesRegex(RuntimeError, 'sign-in did not become ready'):
+                preview.wait_ovis(19000, path='/agents/api/health?scope=bridge')
+        response.read.return_value = b'{"auth":{"required":true,"authenticated":true}}'
+        with patch('http.client.HTTPConnection', return_value=connection):
+            preview.wait_ovis(19000, 'fixture-secret')
+        connection.request.assert_called_with('GET', '/api/health?scope=bridge', headers={'Authorization': 'Bearer fixture-secret'})

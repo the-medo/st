@@ -82,7 +82,10 @@ the existing shortcut/navigation acceptance. Set `ST_V2_EVIDENCE` to a private P
 path to save before/after screenshots. Real chats are never used for screenshots.
 
 A private branch preview uses `scripts/preview-v2.py` and `preview-ovis.py`, with
-separate state and services. Its chat bridge must run this checkout's
+separate state and services. The preview gateway uses a private backend credential
+after checking the Tailscale owner; the browser should never need an Ovis pairing
+code. Startup checks authenticated health through both the backend and gateway.
+Its chat bridge must run this checkout's
 `integrations.ovis.bridge.chat_service` on its own socket to preserve the new
 structured activity fields; the existing shared bridge remains unchanged. Keep
 that unit in the preview profile's `units` array so the normal preview lifecycle
