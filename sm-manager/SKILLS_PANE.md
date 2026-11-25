@@ -1,7 +1,9 @@
 # Skills and MCP pane experiment
 
 The Agents header's book button opens **Skills & MCPs** beside the conversation.
-On a narrow screen it opens a sheet. This branch is a read-only experiment.
+Press and release **Ctrl** twice, then **S**, to toggle it; the button shows an S
+keycap while shortcuts are ready. On a narrow screen it opens a sheet. This
+branch is a read-only experiment.
 
 ## Assessment
 

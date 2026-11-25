@@ -6558,7 +6558,7 @@ Control+Shift entry for its main navigation. Entering Agents exposes numbered
 projects and lettered conversations; selecting a project narrows those labels to
 its conversations and quick actions. A fresh double-Control in a conversation
 exposes both the Agents sidebar and toolbar actions, opening a collapsed sidebar.
-Project numbers remain 1–9; conversation letters skip the toolbar's T/Y/F/O as
+Project numbers remain 1–9; conversation letters skip the toolbar's T/Y/F/S/O as
 well as the reserved E/Q to keep each key unambiguous. The host draws keycaps
 only while that scope is armed.
 Escape always exits; Shift alone or Left Arrow goes to the S.T. sidebar.
@@ -6602,3 +6602,8 @@ Used is recorded conversation evidence; Available is the agent's current catalog
 update management is outside this experiment. Unknown connection states remain
 explicit. No upstream code was copied. See the host
 project's `SKILLS_PANE.md` for scope, source analysis and test commands.
+
+The inspector uses S in the host's existing double-Control shortcut mode, with
+a keycap on its book button. The same sequence opens and closes it through the
+button's normal action. S is reserved from conversation letters to keep the
+sidebar and toolbar bindings distinct, following S.T.'s existing shortcut scopes.

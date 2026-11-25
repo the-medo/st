@@ -171,7 +171,7 @@ export function agentsBindings(
     // keys distinct, including while a toolbar control is temporarily unavailable.
     const alphabet =
       scope === "conversation"
-        ? "ABCDFGHIJKLMNOPRSTUVWXYZ".replace(/[FOTY]/g, "")
+        ? "ABCDFGHIJKLMNOPRSTUVWXYZ".replace(/[FOSTY]/g, "")
         : "ABCDFGHIJKLMNOPRSTUVWXYZ";
     elements(root, ".medo-chat-open", true)
       .slice(0, alphabet.length)
@@ -213,6 +213,7 @@ export function agentsBindings(
     add("T", ".tab-strip-add");
     add("Y", '.view-switch button[aria-pressed="false"], .lens-toggle');
     add("F", ".header-files-button");
+    add("S", ".header-resources-button");
     add("O", ".header-more-button");
   }
   return bindings;

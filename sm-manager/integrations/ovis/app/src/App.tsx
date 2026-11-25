@@ -1167,7 +1167,7 @@ export function App({ hostShortcuts }: { hostShortcuts?: HostShortcuts } = {}) {
             <FolderOpen aria-hidden="true" />
           </button>
         )}
-        {stConversations && selectedMachineId === "local" && (savedThreadId || selectedAgent === "codex") && <button type="button" className="header-text-button is-icon" title="Skills & MCPs" aria-label="Skills & MCPs" aria-expanded={resourcesOpen} aria-controls="resources-panel" onClick={() => { setResourcesOpen(value => !value); setFilesOpen(false); closeFile(); closeWebPage(); setBrowserTab(null); }}><BookOpen size={18} /></button>}
+        {stConversations && selectedMachineId === "local" && (savedThreadId || selectedAgent === "codex") && <button type="button" className="header-text-button header-resources-button is-icon" title="Skills & MCPs" aria-label="Skills & MCPs" aria-expanded={resourcesOpen} aria-controls="resources-panel" onClick={() => { setResourcesOpen(value => !value); setFilesOpen(false); closeFile(); closeWebPage(); setBrowserTab(null); }}><BookOpen size={18} /></button>}
         <div className="header-meta">
           {!savedThreadId && !guideShown && !inbox.shown && <ConnectionChip
             connected={chipConnected}
