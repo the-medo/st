@@ -1,0 +1,180 @@
+{
+  "schema_version": 1,
+  "catalog_version": "2026-11-25-v1",
+  "model": "laya-multilingual",
+  "instructions": "Choose the capability responsible for the action the user requests. Classify intent, not an incidental topic: a reminder about air belongs to planner, a software fix belongs to agents. Use other for requests outside these categories. Do not execute the request.",
+  "provisional_policy": {
+    "minimum_probability": 0.65,
+    "minimum_margin": 0.2,
+    "fallback": "other",
+    "note": "Experimental thresholds, not calibrated guarantees; routing never authorizes actions."
+  },
+  "routes": [
+    {
+      "id": "planner",
+      "description": "Tasks, reminders, calendar events, schedules and task lists.",
+      "status": "existing",
+      "manuals": [
+        "stapp/docs/planner.md",
+        "stapp/runtime/mcp.py"
+      ],
+      "tools": [
+        "list_records",
+        "get_record",
+        "save_record",
+        "complete_task",
+        "delete_record",
+        "list_task_projects",
+        "save_task_project"
+      ],
+      "acknowledgement": "I’ll check your planner."
+    },
+    {
+      "id": "notes",
+      "description": "Save or retrieve personal notes, ideas and remembered information.",
+      "status": "existing",
+      "manuals": [
+        "stapp/runtime/mcp.py"
+      ],
+      "tools": [
+        "list_records",
+        "save_record"
+      ],
+      "acknowledgement": "I’ll look at your notes."
+    },
+    {
+      "id": "agents",
+      "description": "Coding, repositories, software changes, agent conversations and project work.",
+      "status": "existing-partial",
+      "manuals": [
+        "stapp/README.md",
+        "sm-manager/integrations/ovis/app/docs/herdr-core-layout.md"
+      ],
+      "tools": [
+        "list_projects",
+        "start_project_task"
+      ],
+      "acknowledgement": "I’ll take a look at that project request."
+    },
+    {
+      "id": "system",
+      "description": "Computer resources, processes, services, containers and disk usage.",
+      "status": "adapter-needed",
+      "manuals": [
+        "sm-manager/README.md",
+        "sm-manager/sm_manager/__main__.py"
+      ],
+      "tools": [
+        "st status",
+        "st monitor cleanup-plan"
+      ],
+      "acknowledgement": "I’ll check the system."
+    },
+    {
+      "id": "databases",
+      "description": "Database connections, schemas, SQL queries, database contents and backups.",
+      "status": "adapter-needed",
+      "manuals": [
+        "sm-manager/README.md",
+        "sm-manager/sm_manager/dbs.py"
+      ],
+      "tools": [
+        "GET /api/dbs"
+      ],
+      "acknowledgement": "I’ll look into the database request."
+    },
+    {
+      "id": "air_quality",
+      "description": "Indoor air readings, pollution, CO2, particulates and ventilation.",
+      "status": "adapter-needed",
+      "manuals": [
+        "sm-manager/README.md",
+        "sm-manager/sm_manager/air_quality.py"
+      ],
+      "tools": [
+        "GET /api/air-quality"
+      ],
+      "acknowledgement": "I’ll check the air readings."
+    },
+    {
+      "id": "display",
+      "description": "Faceplate screen power, brightness, clock, dashboards and displayed views.",
+      "status": "existing-partial",
+      "manuals": [
+        "stapp/README.md",
+        "sm-manager/README.md"
+      ],
+      "tools": [
+        "show_view",
+        "save_view",
+        "publish_app",
+        "st night"
+      ],
+      "acknowledgement": "I’ll check the display request."
+    },
+    {
+      "id": "photos",
+      "description": "Find, browse or show photographs and albums in Immich.",
+      "status": "existing",
+      "manuals": [
+        "stapp/docs/immich.md"
+      ],
+      "tools": [
+        "photos_status",
+        "photos_albums",
+        "photos_recent",
+        "photos_search",
+        "photos_show"
+      ],
+      "acknowledgement": "I’ll look through the photos."
+    },
+    {
+      "id": "shopping",
+      "description": "Groceries, products, prices, shopping carts and ordering purchases.",
+      "status": "existing-partial",
+      "manuals": [
+        "stapp/assistant/.agents/skills/shopping/SKILL.md"
+      ],
+      "tools": [
+        "Rohlik MCP when configured"
+      ],
+      "acknowledgement": "I’ll look into the shopping request."
+    },
+    {
+      "id": "printing",
+      "description": "3D printers, print jobs, filament, slicing and printable models.",
+      "status": "external-setup",
+      "manuals": [
+        "sm-manager/README.md"
+      ],
+      "tools": [
+        "Prusa Local adapter to be added"
+      ],
+      "acknowledgement": "I’ll look into the printing request."
+    },
+    {
+      "id": "documents",
+      "description": "Find, read or organize scanned documents, invoices, receipts and Paperless.",
+      "status": "external-setup",
+      "manuals": [
+        "sm-manager/sm_manager/home.py"
+      ],
+      "tools": [
+        "Paperless adapter to be added"
+      ],
+      "acknowledgement": "I’ll look for the document."
+    },
+    {
+      "id": "other",
+      "description": "Anything else: general questions, research, weather, entertainment or unclear requests.",
+      "status": "fallback",
+      "manuals": [
+        "stapp/assistant/AGENTS.md"
+      ],
+      "tools": [
+        "General agent capability discovery"
+      ],
+      "acknowledgement": "I’ll take a look."
+    }
+  ]
+}

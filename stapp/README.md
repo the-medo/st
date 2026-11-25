@@ -4,6 +4,11 @@ Say “Hey S.T., add oatmeal to Rohlík” at the Windows desk or in the living 
 
 ![Device and service diagram](docs/device-map.svg)
 
+The next voice-assistant iteration is described in the
+[implementation plan](IMPLEMENTATION.md), with a
+[local Unsloth/Laya routing experiment](experiments/laya/README.md).
+The experiment is separate from the currently deployed assistant.
+
 ## Try it on the Steam Machine
 
 Open the private faceplate URL printed by the installer. Choose **Views → 3D clock** to rotate the clock, then **Home** to restore the dashboard. Tap the landscape swatch in the lower right to choose Alpenglow, Canopy, Dune, or Blue Hour. STapp remembers the theme and updates connected faceplates, including the 3D dial. While offline, the panel can preview any installed theme and returns to the shared selection when it reconnects. The browser controls the actual selected view. SM Manager’s **Faceplate** tab is a read-only view of frames sent by the physical panel host. It shows a waiting message until that host publishes its first frame.
