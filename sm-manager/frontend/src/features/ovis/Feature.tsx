@@ -1,3 +1,4 @@
+import { setApplicationName } from "../../../../integrations/ovis/app/src/lib/i18n";
 import { agentsShortcuts } from "./shortcuts";
 import { ovisTheme } from "@st/theme/ovis";
 import { themeName } from "@st/theme";
@@ -19,6 +20,7 @@ import { watchSheetExits } from "../../../../integrations/ovis/app/src/lib/sheet
 import { FileReader } from "../../../../integrations/ovis/app/src/components/FileReader.tsx";
 import { readerFromSearch } from "../../../../integrations/ovis/app/src/lib/fileReader.ts";
 import { ovisUrl } from "./host";
+setApplicationName("Agents");
 setTransport({ ...nativeTransport, resourceUrl: ovisUrl });
 const reader = readerFromSearch(window.location.search);
 const hostThemes = {

@@ -18,16 +18,16 @@ export function ovisUrl(input: string | URL) {
     url.host === globalThis.location.host &&
     (/^\/api\//.test(url.pathname) || url.pathname === "/ws")
   )
-    url.pathname = "/ovis" + url.pathname;
+    url.pathname = "/agents" + url.pathname;
   return url.href;
 }
 function routeUrl(input: string | URL) {
   const u = new URL(String(input), globalThis.location.href);
   if (
     u.origin === globalThis.location.origin &&
-    !/^\/ovis(?:\/|$)/.test(u.pathname)
+    !/^\/agents(?:\/|$)/.test(u.pathname)
   )
-    u.pathname = "/ovis" + (u.pathname === "/" ? "" : u.pathname);
+    u.pathname = "/agents" + (u.pathname === "/" ? "" : u.pathname);
   return u;
 }
 export const hostFetch = (input: RequestInfo | URL, init?: RequestInit) =>
@@ -158,7 +158,7 @@ export const hostDocument = new Proxy({} as Document, {
   },
   set(_target, key, value) {
     if (key === "title" && host) {
-      if (host.active) host.title(String(value));
+      host.title(String(value));
       return true;
     }
     return Reflect.set(globalThis.document, key, value);

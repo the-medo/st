@@ -56,7 +56,7 @@ const ingress = Bun.serve({
     if (
       entrySite === null &&
       url.hostname === "st.example.test" &&
-      url.pathname === "/ovis"
+      url.pathname === "/agents"
     )
       entrySite = headers.get("sec-fetch-site") ?? "missing";
     headers.delete("tailscale-user-login");
@@ -116,7 +116,7 @@ try {
   await page.route("https://outside.example/", (route) =>
     route.fulfill({
       contentType: "text/html",
-      body: `<a href="${origin}/ovis?view=chat">Open ST</a>`,
+      body: `<a href="${origin}/agents?view=chat">Open ST</a>`,
     }),
   );
   await page.goto("https://outside.example/");
@@ -125,7 +125,7 @@ try {
     .getByRole("heading", { name: "ST fixture" })
     .waitFor({ timeout: 10000 });
   assert.equal(entrySite, "cross-site");
-  assert.equal(page.url(), origin + "/ovis?view=chat");
+  assert.equal(page.url(), origin + "/agents?view=chat");
   const cookies = await context.cookies();
   assert(
     cookies.some((c) => c.name === "__Host-st_owner" && c.secure && c.httpOnly),
@@ -133,7 +133,7 @@ try {
   assert(!cookies.some((c) => c.name === "__Host-st_login"));
   assert.equal(await page.evaluate(() => document.cookie), "");
   const api = await page.evaluate(async () =>
-    (await fetch("/ovis/api/health")).json(),
+    (await fetch("/agents/api/health")).json(),
   );
   assert.equal(api.authenticated, true);
   await page.reload();

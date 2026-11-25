@@ -2,7 +2,7 @@ import { GitPullRequest as GithubIcon } from "lucide-react";
 import herdrIcon from "../assets/herdr.svg";
 import { RecentConversations } from "../components/RecentConversations";
 import { isWorkmode, withWorkmode } from "../lib/workmode";
-import { lazy, Suspense, useEffect, useRef } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
 import { Home } from "../features/Home";
 import { Notice } from "../components/Ui";
@@ -10,7 +10,7 @@ import { usePoll } from "../lib/api";
 import type { UiConfig } from "../lib/types";
 import { useMonitor } from "../features/MonitorContext";
 import { Planner } from "../features/Planner";
-import { Ovis } from "../features/ovis/Ovis";
+import { Agents } from "../features/ovis/Agents";
 import {
   ShortcutIndicator,
   ShortcutKey,
@@ -64,11 +64,13 @@ export function App() {
   const config = usePoll<UiConfig>("/api/ui-config", 60000);
   const { snapshot: monitor, projects } = useMonitor();
   const planner = location.pathname.startsWith("/planner/");
-  const ovis = location.pathname.startsWith("/ovis");
+  const agents =
+    location.pathname === "/agents" || location.pathname.startsWith("/agents/");
+  const [agentsTitle, setAgentsTitle] = useState("Agents");
   const workmode = isWorkmode(location.search);
-  const ovisAddress = useRef("/ovis");
-  if (ovis)
-    ovisAddress.current = location.pathname + location.search + location.hash;
+  const agentsAddress = useRef("/agents");
+  if (agents)
+    agentsAddress.current = location.pathname + location.search + location.hash;
   const connection = monitor.error
     ? "Reconnecting"
     : !monitor.data
@@ -76,8 +78,8 @@ export function App() {
       : monitor.data.stale
         ? "Stale"
         : "Connected";
-  const title = ovis
-    ? "Agents"
+  const title = agents
+    ? agentsTitle
     : location.pathname === "/"
       ? "Home"
       : (navigation.find((n) => `/${n[0]}` === location.pathname)?.[1] ??
@@ -97,8 +99,8 @@ export function App() {
     }
   }, [location.hash, location.pathname, location.search, navigate]);
   useEffect(() => {
-    document.title = `ST · ${title}`;
-  }, [title]);
+    document.title = agents ? `ST - ${title}` : `ST · ${title}`;
+  }, [agents, title]);
   useEffect(() => {
     document
       .querySelector('meta[name="theme-color"]')
@@ -136,7 +138,7 @@ export function App() {
               className="nav-link nav-agents"
               title="Agents"
               aria-label="Agents"
-              to={withWorkmode(ovisAddress.current, workmode)}
+              to={withWorkmode(agentsAddress.current, workmode)}
             >
               <img
                 className="nav-icon nav-herdr-icon"
@@ -316,7 +318,7 @@ export function App() {
           id="dashboard"
           data-view={location.pathname.slice(1) || "home"}
           className="st-content"
-          hidden={planner || ovis}
+          hidden={planner || agents}
         >
           {config.error && (
             <Notice retry={config.refresh}>{config.error}</Notice>
@@ -355,7 +357,7 @@ export function App() {
                 <Route key={String(path)} path={`/${path}`} element={element} />
               ))}
               <Route path="/planner/*" element={null} />
-              <Route path="/ovis/*" element={null} />
+              <Route path="/agents/*" element={null} />
               <Route
                 path="*"
                 element={
@@ -370,12 +372,18 @@ export function App() {
         {config.data?.planner && (
           <Planner active={planner} onFrameLoad={shortcuts.connectPlanner} />
         )}
-        {config.data?.ovis && <Ovis active={ovis} workmode={workmode} />}
+        {config.data?.ovis && (
+          <Agents
+            active={agents}
+            workmode={workmode}
+            onTitle={setAgentsTitle}
+          />
+        )}
         {planner && config.data && !config.data.planner && (
           <Notice>Planner is not configured on this instance.</Notice>
         )}
-        {ovis && config.data && !config.data.ovis && (
-          <Notice>Ovis is not configured on this instance.</Notice>
+        {agents && config.data && !config.data.ovis && (
+          <Notice>Agents is not configured on this instance.</Notice>
         )}
       </main>
       <ShortcutIndicator step={shortcuts.step} scope={shortcuts.scope} />

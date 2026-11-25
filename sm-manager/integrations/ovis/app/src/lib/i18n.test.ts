@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { JA, JA_PARTS } from "./i18n.ja.ts";
 import { KO, KO_PARTS } from "./i18n.ko.ts";
 import { ZH, ZH_PARTS } from "./i18n.zh.ts";
-import { resolveLanguage, translate } from "./i18n.ts";
+import { resolveLanguage, translate, setApplicationName } from "./i18n.ts";
 
 const root = join(import.meta.dir, "..");
 
@@ -280,4 +280,14 @@ describe("translate", () => {
     expect(resolveLanguage("system", ["tr-TR", "en-US"])).toBe("en");
     expect(resolveLanguage("system", ["tr-TR"])).toBe("en");
   });
+});
+
+
+it("brands embedded UI templates without rewriting user names or upstream defaults", () => {
+  try {
+    setApplicationName('Agents');
+    expect(translate('en', 'Connecting to Ovis…')).toBe('Connecting to Agents…');
+    expect(translate('en', '{name} in Ovis', { name: 'My Ovis conversation' })).toBe('My Ovis conversation in Agents');
+  } finally { setApplicationName('Ovis'); }
+  expect(translate('en', 'Connecting to Ovis…')).toBe('Connecting to Ovis…');
 });

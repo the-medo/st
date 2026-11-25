@@ -1,6 +1,11 @@
 /** S.T. owns deployment. This entry has no upstream updater or runtime installer. */
-import { createServer } from "../../integrations/ovis/app/server/index";
-import { startRuntime } from "../../integrations/ovis/app/server/herdr-core/runtime";
+process.env["ST_OVIS_BASE_PATH"] = "/agents";
+const { createServer } = await import(
+  "../../integrations/ovis/app/server/index"
+);
+const { startRuntime } = await import(
+  "../../integrations/ovis/app/server/herdr-core/runtime"
+);
 const stateDir = process.env["OVIS_STATE_DIR"];
 const port = Number(process.env["PORT"]);
 if (!stateDir || !Number.isInteger(port) || port < 1024 || port > 65535)
@@ -22,4 +27,4 @@ for (const signal of ["SIGINT", "SIGTERM"] as const)
     adapter?.stop();
     process.exit(0);
   });
-console.log(`S.T. Ovis bridge listening on loopback:${instance.port}`);
+console.log(`S.T. Agents bridge listening on loopback:${instance.port}`);

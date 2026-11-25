@@ -33,7 +33,7 @@ const readableTitle = (title: string) =>
 
 // Metadata changes never reorder the picker. Only a visit changes recency.
 export function createAgentsShortcuts(
-  isActive = () => location.pathname.startsWith("/ovis"),
+  isActive = () => location.pathname.startsWith("/agents"),
 ) {
   let current: RecentConversation | null = null;
   let recent: RecentConversation[] = [];

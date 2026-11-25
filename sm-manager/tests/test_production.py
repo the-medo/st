@@ -132,7 +132,7 @@ class ProductionTests(unittest.TestCase):
                 self.assertEqual(deployment.healthy(), authenticated)
                 urls = [call.args[0] for call in opener.return_value.open.call_args_list]
                 self.assertEqual(urls, ['http://127.0.0.1:8790' + path for path in
-                    ('/api/health', '/api/gateway-health', '/ovis/api/health?scope=bridge')])
+                    ('/api/health', '/api/gateway-health', '/agents/api/health?scope=bridge')])
 
     def test_unrelated_private_directory_is_not_overwritten(self):
         base = production.paths(self.config)[0]

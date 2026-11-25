@@ -32,7 +32,7 @@ const blocked =
 // Cross-site links may open the app shell; APIs, assets and embedded documents
 // still require the usual origin checks. Keep these routes aligned with web.py.
 const shellPath =
-  /^\/(?:overview|projects|containers|codex|storage|zed|dbs|air-quality|faceplate|ovis(?:\/(?:chat|session)\/.*)?|planner\/(?:tasks|calendar|contacts|notes|journals))?$/;
+  /^\/(?:overview|projects|containers|github|storage|zed|dbs|air-quality|faceplate|agents(?:\/(?:chat|session)\/.*)?|planner\/(?:tasks|calendar|contacts|notes|journals))?$/;
 const closeCode = (code: number) =>
   code === 1000 || code === 1001 || (code >= 3000 && code <= 4999)
     ? code
@@ -92,17 +92,19 @@ export function createGateway(config: GatewayConfig) {
         return new Response("Origin not allowed", { status: 403 });
       const denial = auth?.check(request, localHosts.has(host));
       if (denial) return denial;
+      if (/^\/ovis(?:\/|$)/.test(url.pathname))
+        return new Response("Not found", { status: 404 });
       if (url.pathname === "/api/gateway-health")
         return Response.json(
           { status: "ok" },
           { headers: { "cache-control": "no-store" } },
         );
       const ovisRoute =
-        url.pathname === "/ovis/ws" ||
-        url.pathname.startsWith("/ovis/api/") ||
-        url.pathname.startsWith("/ovis/assets/") ||
-        url.pathname.startsWith("/ovis/media/") ||
-        url.pathname.startsWith("/ovis/page-media/");
+        url.pathname === "/agents/ws" ||
+        url.pathname.startsWith("/agents/api/") ||
+        url.pathname.startsWith("/agents/assets/") ||
+        url.pathname.startsWith("/agents/media/") ||
+        url.pathname.startsWith("/agents/page-media/");
       if (
         ovisRoute &&
         !auth &&
@@ -111,9 +113,9 @@ export function createGateway(config: GatewayConfig) {
         request.headers.get("tailscale-user-login")?.toLowerCase() !==
           config.ownerLogin.toLowerCase()
       )
-        return new Response("Ovis owner access required", { status: 403 });
+        return new Response("Agents owner access required", { status: 403 });
       const target = new URL(ovisRoute ? ovis : monitor);
-      target.pathname = ovisRoute ? url.pathname.slice(5) : url.pathname;
+      target.pathname = ovisRoute ? url.pathname.slice(7) : url.pathname;
       target.search = url.search;
       if (
         ovisRoute &&
@@ -155,7 +157,7 @@ export function createGateway(config: GatewayConfig) {
       // The private backend credential is added only after ingress authorization; it never reaches a browser.
       if (ovisRoute && config.ovisToken)
         headers.set("authorization", `Bearer ${config.ovisToken}`);
-      if (url.pathname === "/ovis/ws") {
+      if (url.pathname === "/agents/ws") {
         if (request.headers.get("upgrade")?.toLowerCase() !== "websocket")
           return new Response("WebSocket upgrade required", { status: 426 });
         target.protocol = "ws:";
@@ -180,7 +182,7 @@ export function createGateway(config: GatewayConfig) {
               settled = true;
               clearTimeout(timer);
               resolve(
-                new Response("Ovis connection unavailable or unauthorized", {
+                new Response("Agents connection unavailable or unauthorized", {
                   status: 502,
                 }),
               );
@@ -279,7 +281,7 @@ export function createGateway(config: GatewayConfig) {
               });
             outgoing.set(
               "location",
-              "/ovis" + location.pathname + location.search + location.hash,
+              "/agents" + location.pathname + location.search + location.hash,
             );
           }
         }
@@ -291,7 +293,7 @@ export function createGateway(config: GatewayConfig) {
         return Response.json(
           {
             error: ovisRoute
-              ? "Ovis temporarily unavailable"
+              ? "Agents temporarily unavailable"
               : "Monitor temporarily unavailable",
           },
           { status: 503, headers: { "cache-control": "no-store" } },

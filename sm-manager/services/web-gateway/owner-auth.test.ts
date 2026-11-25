@@ -43,12 +43,12 @@ test("vanity domain requires a nonce-bound Tailscale owner handoff and keeps bac
     };
     expect(
       (
-        await request(config.publicOrigin + "/ovis/api/health", {
+        await request(config.publicOrigin + "/agents/api/health", {
           "tailscale-user-login": config.ownerLogin,
         })
       ).status,
     ).toBe(401);
-    const first = await request(config.publicOrigin + "/ovis?view=chat", {
+    const first = await request(config.publicOrigin + "/agents?view=chat", {
       accept: "text/html",
     });
     expect(first.status).toBe(302);
@@ -76,7 +76,7 @@ test("vanity domain requires a nonce-bound Tailscale owner handoff and keeps bac
     });
     expect(complete.status).toBe(302);
     expect(complete.headers.get("location")).toBe(
-      config.publicOrigin + "/ovis?view=chat",
+      config.publicOrigin + "/agents?view=chat",
     );
     const session = complete.headers
       .getSetCookie()
@@ -85,7 +85,7 @@ test("vanity domain requires a nonce-bound Tailscale owner handoff and keeps bac
     expect(session).not.toContain(config.ovisToken);
     expect((await request(callback, { cookie: nonce })).status).toBe(403);
     const cookie = session.split(";")[0]!;
-    const response = await request(config.publicOrigin + "/ovis/api/health", {
+    const response = await request(config.publicOrigin + "/agents/api/health", {
       cookie,
       origin: config.publicOrigin,
     });
@@ -95,7 +95,7 @@ test("vanity domain requires a nonce-bound Tailscale owner handoff and keeps bac
     });
     expect(
       (
-        await request(config.publicOrigin + "/ovis/api/health", {
+        await request(config.publicOrigin + "/agents/api/health", {
           cookie,
           origin: "https://evil.example",
         })
@@ -103,7 +103,7 @@ test("vanity domain requires a nonce-bound Tailscale owner handoff and keeps bac
     ).toBe(403);
     expect(
       (
-        await request(config.publicOrigin + "/ovis/api/health", {
+        await request(config.publicOrigin + "/agents/api/health", {
           cookie: cookie + "x",
         })
       ).status,
@@ -111,18 +111,18 @@ test("vanity domain requires a nonce-bound Tailscale owner handoff and keeps bac
     gateway.stop(true);
     gateway = createGateway(config);
     expect(
-      (await request(config.publicOrigin + "/ovis/api/health", { cookie }))
+      (await request(config.publicOrigin + "/agents/api/health", { cookie }))
         .status,
     ).toBe(200);
     expect(
       (
-        await request(config.ownerAuth.origin + "/ovis/api/health", {
+        await request(config.ownerAuth.origin + "/agents/api/health", {
           "tailscale-user-login": config.ownerLogin,
         })
       ).status,
     ).toBe(200);
     expect(
-      (await request(config.ownerAuth.origin + "/ovis/api/health")).status,
+      (await request(config.ownerAuth.origin + "/agents/api/health")).status,
     ).toBe(403);
   } finally {
     gateway.stop(true);

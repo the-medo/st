@@ -6584,3 +6584,10 @@ switcher model. In the embedded S.T. view, recents and the sidebar replace the
 top tab strip; its + action remains available to create a terminal. Standalone
 Ovis keeps its tab strip. Saved histories occupy the normal conversation area,
 with a read-only notice and a `saved` URL parameter for reload and Back/Forward.
+
+S.T. names the embedded feature Agents throughout its loading and translated UI
+copy. Its only namespace is `/agents` (including APIs and WebSockets); removed
+`/ovis` URLs have no redirects or aliases. Browser titles use `ST - Agents` or
+`ST - <conversation name>` and retain that title when returning from another
+S.T. page. This keeps the existing Zed-inspired named navigation model. The
+standalone app, source attribution and stored user preferences keep their names.

@@ -191,7 +191,7 @@ export function useSidebarShortcuts(
     };
     const pageScope = (): ShortcutScope => {
       if (location.pathname.startsWith("/planner/")) return "planner";
-      if (location.pathname.startsWith("/ovis"))
+      if (location.pathname.startsWith("/agents"))
         return agentsSelection() ? "conversation" : "agents";
       return "main";
     };
@@ -448,7 +448,7 @@ export function useSidebarShortcuts(
           (["agents", "project", "conversation", "recent"].includes(
             current.scope,
           ) &&
-            location.pathname.startsWith("/ovis")))
+            location.pathname.startsWith("/agents")))
       ) {
         sequenceUrl = location.href;
         scheduleRefresh();

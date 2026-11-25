@@ -52,9 +52,9 @@ const shortcutProjects=Array.from({length:10},(_,i)=>({id:i===0?'garden':'projec
 const fixturePanes=${JSON.stringify(Object.values(panes))};
 const endedChat={id:'00000000-0000-4000-8000-000000000099',title:'Finished garden plan',project:'garden',cwd:'/fixtures/garden',updated:0,archived:false,unavailable:'Terminal ended',folder:null};
 const shortcutChats=shortcutProjects.flatMap((project,p)=>Array.from({length:p===0?11:3},(_,i)=>({id:p===0&&i===0?'00000000-0000-4000-8000-000000000001':'chat-'+p+'-'+i,title:p===0&&i===0?'Fixture conversation':'Conversation '+(p+1)+'.'+(i+1),project:project.id,cwd:project.path,updated:100-i,archived:false,unavailable:null,folder:p===0&&i>=5?'folder':null,paneId:p===0&&i===0?${JSON.stringify(panes.web)}:fixturePanes[(p+i)%fixturePanes.length]})));
-window.fetch=(input,init)=>{const u=new URL(input instanceof Request?input.url:input,location.href);if(!u.pathname.startsWith('/ovis/api/'))return originalFetch(input,init);window.__stOvisRequests.push(u.pathname);u.pathname=u.pathname.slice(5);if(u.pathname==='/api/medo/catalog')return Promise.resolve(Response.json(window.__stSavedFixture?{projects:[shortcutProjects[0]],chats:[shortcutChats[0],endedChat],organizationRevision:1}:window.__stExpandedShortcutsFixture?{projects:shortcutProjects,chats:shortcutChats,organizationRevision:1}:{projects:[{id:'garden',name:'Garden',path:'/fixtures/garden',folders:[],appearance:window.__stMedoState.appearance}],chats:[{id:'00000000-0000-4000-8000-000000000001',title:window.__stMedoState.title,project:'garden',cwd:'/fixtures/garden',updated:window.__stMedoState.updated,status:window.__stMedoState.status,archived:false,unavailable:null,folder:null,paneId:${JSON.stringify(panes.web)}}],organizationRevision:1}));if(u.pathname==='/api/medo/rename'){if(window.__stMedoState.renameFail)return Promise.resolve(Response.json({error:{message:'Fixture rename unavailable'}},{status:400}));const title=JSON.parse(init.body).name.trim();window.__stMedoState.title=title;localStorage.setItem('fixture:chat-name',title);return Promise.resolve(Response.json({ok:true,title}));}if(u.pathname==='/api/medo/style'){window.__stMedoState.appearance=JSON.parse(init.body).style;return Promise.resolve(Response.json({ok:true}));}if(u.pathname==='/api/medo/open')return new Promise(resolve=>setTimeout(()=>resolve(Response.json({address:shortcutChats.find(c=>c.id===JSON.parse(init.body).threadId)?.paneId??${JSON.stringify(panes.web)},reused:true})),window.__stOpenDelay??0));if(u.pathname==='/api/medo/new'){window.__stCreatedProjects.push(JSON.parse(init.body).projectId);return Promise.resolve(Response.json({address:${JSON.stringify(panes.web)},reused:true}));}if(u.pathname==='/api/medo/conversation'){u.pathname='/api/pane/conversation';u.searchParams.set('pane_id',${JSON.stringify(panes.web)});}return demoFetch(u.href,init);};
-window.WebSocket=function(url,protocols){const u=new URL(url,location.href);if(u.pathname==='/ovis/ws')u.pathname='/ws';return new DemoSocket(u.href,protocols);};Object.setPrototypeOf(window.WebSocket,DemoSocket);
-window.EventSource=function(url,options){const u=new URL(url,location.href);if(u.pathname.startsWith('/ovis/api/'))u.pathname=u.pathname.slice(5);return new DemoEvents(u.href,options);};Object.setPrototypeOf(window.EventSource,DemoEvents);
+window.fetch=(input,init)=>{const u=new URL(input instanceof Request?input.url:input,location.href);if(!u.pathname.startsWith('/agents/api/'))return originalFetch(input,init);window.__stOvisRequests.push(u.pathname);u.pathname=u.pathname.slice(7);if(u.pathname==='/api/medo/catalog')return Promise.resolve(Response.json(window.__stSavedFixture?{projects:[shortcutProjects[0]],chats:[shortcutChats[0],endedChat],organizationRevision:1}:window.__stExpandedShortcutsFixture?{projects:shortcutProjects,chats:shortcutChats,organizationRevision:1}:{projects:[{id:'garden',name:'Garden',path:'/fixtures/garden',folders:[],appearance:window.__stMedoState.appearance}],chats:[{id:'00000000-0000-4000-8000-000000000001',title:window.__stMedoState.title,project:'garden',cwd:'/fixtures/garden',updated:window.__stMedoState.updated,status:window.__stMedoState.status,archived:false,unavailable:null,folder:null,paneId:${JSON.stringify(panes.web)}}],organizationRevision:1}));if(u.pathname==='/api/medo/rename'){if(window.__stMedoState.renameFail)return Promise.resolve(Response.json({error:{message:'Fixture rename unavailable'}},{status:400}));const title=JSON.parse(init.body).name.trim();window.__stMedoState.title=title;localStorage.setItem('fixture:chat-name',title);return Promise.resolve(Response.json({ok:true,title}));}if(u.pathname==='/api/medo/style'){window.__stMedoState.appearance=JSON.parse(init.body).style;return Promise.resolve(Response.json({ok:true}));}if(u.pathname==='/api/medo/open')return new Promise(resolve=>setTimeout(()=>resolve(Response.json({address:shortcutChats.find(c=>c.id===JSON.parse(init.body).threadId)?.paneId??${JSON.stringify(panes.web)},reused:true})),window.__stOpenDelay??0));if(u.pathname==='/api/medo/new'){window.__stCreatedProjects.push(JSON.parse(init.body).projectId);return Promise.resolve(Response.json({address:${JSON.stringify(panes.web)},reused:true}));}if(u.pathname==='/api/medo/conversation'){u.pathname='/api/pane/conversation';u.searchParams.set('pane_id',${JSON.stringify(panes.web)});}return demoFetch(u.href,init);};
+window.WebSocket=function(url,protocols){const u=new URL(url,location.href);if(u.pathname==='/agents/ws')u.pathname='/ws';return new DemoSocket(u.href,protocols);};Object.setPrototypeOf(window.WebSocket,DemoSocket);
+window.EventSource=function(url,options){const u=new URL(url,location.href);if(u.pathname.startsWith('/agents/api/'))u.pathname=u.pathname.slice(7);return new DemoEvents(u.href,options);};Object.setPrototypeOf(window.EventSource,DemoEvents);
 `;
 const cache = join(homedir(), ".cache/ms-playwright");
 const folder = readdirSync(cache)
@@ -118,6 +118,12 @@ try {
     .getByRole("button", { name: "Fixture conversation", exact: true })
     .click();
   await page.locator(".composer-text:visible").waitFor();
+  await page.waitForURL((url) => url.pathname === "/agents");
+  assert.equal(await page.title(), "ST - Fixture conversation");
+  assert.equal(
+    await page.getByRole("region", { name: "Ovis", exact: true }).count(),
+    0,
+  );
   const more = page.locator(".header-more-button:visible");
   await more.click();
   const menu = page.getByRole("menu", { name: "More", exact: true });
@@ -199,6 +205,39 @@ try {
   await armShortcuts(page);
   await page.keyboard.press("a");
   await page.waitForURL(conversationUrl);
+  await page.evaluate(
+    (expected) =>
+      new Promise<void>((resolve, reject) => {
+        if (document.title === expected) {
+          resolve();
+          return;
+        }
+        const timer = setTimeout(() => {
+          observer.disconnect();
+          reject(
+            new Error(`Expected title ${expected}, got ${document.title}`),
+          );
+        }, 5000);
+        const observer = new MutationObserver(() => {
+          if (document.title === expected) {
+            clearTimeout(timer);
+            observer.disconnect();
+            resolve();
+          }
+        });
+        observer.observe(document.head, {
+          childList: true,
+          characterData: true,
+          subtree: true,
+        });
+      }),
+    "ST - Fixture conversation",
+  );
+  assert.equal(
+    await page.title(),
+    "ST - Fixture conversation",
+    "Returning to Agents restores its conversation title",
+  );
   assert.equal(
     await page.locator(".composer-text:visible").inputValue(),
     "Draft stays here until I send it.",
@@ -377,6 +416,7 @@ try {
   await page.reload();
   await savedPage.waitFor();
   await page.getByRole("main", { name: "Finished garden plan" }).waitFor();
+  assert.equal(await page.title(), "ST - Finished garden plan");
   await page
     .getByRole("button", { name: "Fixture conversation", exact: true })
     .click();
@@ -429,7 +469,7 @@ try {
       await page.evaluate(
         () => Reflect.get(window, "__stOvisRequests") as string[],
       )
-    ).some((p) => p === "/ovis/api/medo/catalog"),
+    ).some((p) => p === "/agents/api/medo/catalog"),
   );
   await page
     .getByRole("button", { name: "Fixture conversation", exact: true })
@@ -493,6 +533,7 @@ try {
 } catch (error) {
   const page = browser.contexts()[0]?.pages()[0];
   if (page) {
+    console.error("Fixture page:", page.url(), "title:", await page.title());
     console.error((await page.locator("body").innerText()).slice(-6000));
     await page.screenshot({
       path: "/tmp/st-keyboard-ovis-failed.png",

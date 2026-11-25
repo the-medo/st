@@ -31,9 +31,10 @@ test("cross-site links open app pages without allowing cross-site APIs or embedd
       "/",
       "/overview?workmode=1",
       "/projects",
-      "/ovis",
-      "/ovis/chat/example",
-      "/ovis/session/example",
+      "/github",
+      "/agents",
+      "/agents/chat/example",
+      "/agents/session/example",
       "/planner/tasks",
       "/planner/calendar",
     ])
@@ -41,8 +42,8 @@ test("cross-site links open app pages without allowing cross-site APIs or embedd
     for (const path of [
       "/api/snapshot",
       "/api/night-mode",
-      "/ovis/api/medo/catalog",
-      "/ovis/ws",
+      "/agents/api/medo/catalog",
+      "/agents/ws",
       "/planner/api/tasks",
       "/planner/calendar?st-embedded=1",
       "/assets/example.js",
@@ -87,7 +88,19 @@ test("routes monitor and Ovis namespaces without dropping origin or authorizatio
     expect(await (await fetch(base + "/api/snapshot")).json()).toMatchObject({
       path: "/api/snapshot",
     });
-    const r = await fetch(base + "/ovis/api/medo/catalog", {
+    for (const path of [
+      "/ovis",
+      "/ovis?pane=fixture",
+      "/ovis/chat/fixture",
+      "/ovis/api/medo/catalog",
+      "/ovis/ws",
+      "/ovis/assets/fixture.js",
+    ]) {
+      const response = await fetch(base + path, { redirect: "manual" });
+      expect(response.status).toBe(404);
+      expect(response.headers.get("location")).toBe(null);
+    }
+    const r = await fetch(base + "/agents/api/medo/catalog", {
       headers: { Origin: base, Cookie: "st_v2_device=fixture" },
     });
     expect(await r.json()).toEqual({
@@ -96,7 +109,7 @@ test("routes monitor and Ovis namespaces without dropping origin or authorizatio
       cookie: "st_v2_device=fixture",
     });
     expect(
-      (await fetch(base + "/ovis/api/updates/install", { method: "POST" }))
+      (await fetch(base + "/agents/api/updates/install", { method: "POST" }))
         .status,
     ).toBe(403);
     expect(
@@ -115,7 +128,7 @@ test("routes monitor and Ovis namespaces without dropping origin or authorizatio
     ).toBe(403);
     expect(
       (
-        await fetch(base + "/ovis/api/medo/catalog", {
+        await fetch(base + "/agents/api/medo/catalog", {
           headers: {
             Host: "st.example.test",
             "tailscale-user-login": "different@example.test",
@@ -152,7 +165,7 @@ test("WebSocket waits for upstream authorization and carries text and binary wit
   });
   try {
     const denied = await new Promise<boolean>((resolve) => {
-      const ws = new WebSocket(`ws://127.0.0.1:${g.port}/ovis/ws`);
+      const ws = new WebSocket(`ws://127.0.0.1:${g.port}/agents/ws`);
       ws.onopen = () => {
         ws.close();
         resolve(false);
@@ -163,7 +176,7 @@ test("WebSocket waits for upstream authorization and carries text and binary wit
     const received = await new Promise<(string | number[])[]>(
       (resolve, reject) => {
         const result: (string | number[])[] = [];
-        const ws = new WebSocket(`ws://127.0.0.1:${g.port}/ovis/ws`, {
+        const ws = new WebSocket(`ws://127.0.0.1:${g.port}/agents/ws`, {
           headers: { Cookie: "fixture=authorized" },
         });
         ws.binaryType = "arraybuffer";
@@ -228,7 +241,7 @@ test("compressed assets and streaming bodies survive forwarding", async () => {
       "console asset",
     );
     expect(
-      await (await fetch(`http://127.0.0.1:${g.port}/ovis/api/events`)).text(),
+      await (await fetch(`http://127.0.0.1:${g.port}/agents/api/events`)).text(),
     ).toBe("data: first\n\ndata: last\n\n");
   } finally {
     g.stop(true);
@@ -262,7 +275,7 @@ test("local ingress drops proxy assertions while public ingress preserves Tailsc
   });
   try {
     const local = `http://127.0.0.1:${gateway.port}`;
-    const response = await fetch(local + "/ovis/api/health", {
+    const response = await fetch(local + "/agents/api/health", {
       headers: {
         "x-forwarded-host": "forged.invalid",
         "x-forwarded-for": "100.64.0.1",
@@ -275,7 +288,7 @@ test("local ingress drops proxy assertions while public ingress preserves Tailsc
       "x-forwarded-for": null,
       "tailscale-user-login": null,
     });
-    const remote = await fetch(local + "/ovis/api/health", {
+    const remote = await fetch(local + "/agents/api/health", {
       headers: {
         host: "st.example.test",
         origin: "https://st.example.test",
@@ -293,7 +306,7 @@ test("local ingress drops proxy assertions while public ingress preserves Tailsc
     });
     for (const path of ["/api/runtime", "/api/access/tailscale/serve"])
       expect(
-        (await fetch(local + "/ovis" + path, { method: "POST" })).status,
+        (await fetch(local + "/agents" + path, { method: "POST" })).status,
       ).toBe(403);
   } finally {
     gateway.stop(true);

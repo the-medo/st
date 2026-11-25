@@ -70,7 +70,7 @@ export async function verifyShortcuts(page: Page, base: string) {
   for (const [key, path] of Object.entries({
     o: "/overview",
     n: "/containers",
-    x: "/codex",
+    g: "/github",
     s: "/storage",
     z: "/zed",
     d: "/dbs",

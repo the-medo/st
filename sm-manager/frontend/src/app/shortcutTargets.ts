@@ -37,7 +37,7 @@ export function mainBindings(sidebar: HTMLElement | null): ShortcutBinding[] {
       key: element.dataset.shortcut!,
       element,
       run: () => element.click(),
-      next: href.startsWith("/ovis")
+      next: href.startsWith("/agents")
         ? "agents"
         : href.startsWith("/planner/")
           ? "planner"

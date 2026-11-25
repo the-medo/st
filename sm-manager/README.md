@@ -21,7 +21,7 @@ inserting a shortcut letter into a draft. Reduced-motion preferences apply.
 | --- | --- | --- | --- |
 | H | Home | A | Agents |
 | O | Overview | P | Projects |
-| N | Containers | X | Codex |
+| N | Containers | G | GitHub |
 | S | Storage | Z | Zed |
 | D | DBs | T | Tasks |
 | C | Calendar | F | Faceplate |
@@ -768,7 +768,7 @@ The existing Herdr terminals and managed Codex daemon remain external services.
 Use `start` to restore the preview's owned Serve mapping after `stop`.
 An unsuccessful initial Ovis activation restores the previous console service.
 
-Ovis is mounted natively at `/ovis`, with its own conversation sidebar beside ST.
+Agents is mounted natively at `/agents`, with its own conversation sidebar beside ST.
 The frontend retains chat drafts while navigating to console pages. Its packaged
 server entry omits the upstream self updater and runtime installer; deploy this
 fork through ST. Native mobile-app relay hosting and Ovis's standalone root PWA

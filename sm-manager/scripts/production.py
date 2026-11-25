@@ -66,7 +66,7 @@ def render_units(config, runtime, service_path):
     write(gateway_path, json.dumps(gateway, indent=2) + '\n')
     overrides = {'HOST': '127.0.0.1', 'PORT': settings['ovis_port'], 'OVIS_STATE_DIR': settings['state_dir'],
                  'OVIS_TOKEN': token, 'OVIS_TELEMETRY': 'off', 'OVIS_AUTO_UPDATE': '0',
-                 'OVIS_TAILSCALE_SERVE_ONLY': '1', 'ST_OVIS_BASE_PATH': '/ovis',
+                 'OVIS_TAILSCALE_SERVE_ONLY': '1', 'ST_OVIS_BASE_PATH': '/agents',
                  'ST_OVIS_COOKIE_PREFIX': 'st_ovis_production', 'MEDO_PROJECTS': '1'}
     write(environment, '\n'.join(f'{key}={manage.unit_quote(value)}' for key, value in overrides.items()) + '\n')
     def unit(description, command, relation='', extra='', kind='simple'):

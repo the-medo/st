@@ -35,8 +35,8 @@ class ConsoleAssetsTests(unittest.TestCase):
                 return result
 
             try:
-                for path in ['/', '/overview?workmode=1', '/projects', '/ovis', '/ovis/chat/example',
-                             '/ovis/session/example', '/planner/tasks', '/planner/calendar']:
+                for path in ['/', '/overview?workmode=1', '/projects', '/agents', '/agents/chat/example',
+                             '/agents/session/example', '/planner/tasks', '/planner/calendar']:
                     self.assertEqual(request(path), (200, b'<h1>Console fixture</h1>'), path)
                 for path in ['/api/snapshot', '/api/night-mode', '/planner/api/tasks',
                              '/planner/calendar?st-embedded=1', '/assets/example.js']:
@@ -62,7 +62,7 @@ class ConsoleAssetsTests(unittest.TestCase):
             self.assertEqual(asset('/overview', root)[0].name, 'index.html')
             self.assertEqual(asset('/github', root)[0].name, 'index.html')
             self.assertIsNone(asset('/codex', root))
-            self.assertEqual(asset('/ovis/chat/fixture', root)[1], 'no-store')
+            self.assertEqual(asset('/agents/chat/fixture', root)[1], 'no-store')
             self.assertIn('immutable', asset('/assets/main-hash.js', root)[1])
             for path in ['/private.json', '/assets/missing.js', '/api/missing', '/.vite/manifest.json', '/../private.json', '/assets/../../private.json']:
                 self.assertIsNone(asset(path, root), path)

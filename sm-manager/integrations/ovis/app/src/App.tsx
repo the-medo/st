@@ -582,7 +582,7 @@ export function App({ hostShortcuts }: { hostShortcuts?: HostShortcuts } = {}) {
   const tabPlace = snapshot ? tabPosition(snapshot, selectedPaneId) : null;
   const position = tabPlace && { ...tabPlace, words: t("Tab {index} of {count}", { index: tabPlace.index, count: tabPlace.count }) };
 
-  const tabTitle = savedThreadId ? selectedTitle : selectedPane && !inbox.shown ? tabPaneTitle(selectedPane) : null;
+  const tabTitle = savedThreadId ? selectedTitle : selectedPane && !inbox.shown ? (stConversations ? selectedTitle : tabPaneTitle(selectedPane)) : null;
   useEffect(() => {
     document.title = tabTitle ? `${tabTitle} · Ovis` : APP_TITLE;
   }, [tabTitle]);

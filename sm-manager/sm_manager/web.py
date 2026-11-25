@@ -4,13 +4,13 @@ from pathlib import Path, PurePosixPath
 
 WEB = Path(__file__).parent / "web"
 PAGES = {"/", "/overview", "/projects", "/containers", "/github", "/storage",
-         "/zed", "/dbs", "/air-quality", "/faceplate", "/ovis"}
+         "/zed", "/dbs", "/air-quality", "/faceplate", "/agents"}
 PUBLIC = {"st-logo.svg", "favicon.svg", "zed.svg", "db.svg", "prusa-connect.svg", "ydistri.svg", "home-icons.svg"}
 
 
 def asset(path, root=None):
     root = Path(root or WEB).resolve()
-    if path in PAGES or path.startswith(("/ovis/chat/", "/ovis/session/")):
+    if path in PAGES or path.startswith(("/agents/chat/", "/agents/session/")):
         name = "index.html"
     else:
         name = path.removeprefix("/")

@@ -66,7 +66,7 @@ and restarting the gateway. No Serve reset, Funnel or TLS route changes are need
 ## Verification and rollback
 
 Verify all three service states, the update timer, `/api/health`, `/api/snapshot`,
-`/api/gateway-health`, `/ovis/api/health?scope=bridge`, and `web/release.json`.
+`/api/gateway-health`, `/agents/api/health?scope=bridge`, and `web/release.json`.
 Through the saved public URL, check the first owner sign-in, Overview, Air quality,
 Planner and Agents bootstrap. Avoid sending messages, creating terminals or opening
 live conversations for a deployment smoke test. Use synthetic data for screenshots.
