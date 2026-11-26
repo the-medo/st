@@ -79,6 +79,7 @@ pub struct Engine {
     active: Option<Vec<f32>>,
     speech: bool,
     quiet: usize,
+    max_samples: usize,
 }
 fn file(root: &Path, name: &str) -> Result<String> {
     let p = root.join(name);
@@ -123,11 +124,22 @@ impl Engine {
         v.provider = Some("cpu".into());
         v.silero_vad.model = Some(file(root, "silero_vad.onnx")?);
         v.silero_vad.threshold = 0.5;
-        v.silero_vad.min_silence_duration = 0.7;
+        v.silero_vad.min_silence_duration = std::env::var("STAPP_ENDPOINT_SILENCE_MS")
+            .ok()
+            .and_then(|s| s.parse::<f32>().ok())
+            .unwrap_or(700.)
+            .clamp(200., 3000.)
+            / 1000.;
         v.silero_vad.min_speech_duration = 0.2;
         v.silero_vad.window_size = 512;
-        v.silero_vad.max_speech_duration = 120.;
-        let vad = VoiceActivityDetector::create(&v, 125.).context("Initialize VAD")?;
+        let max_seconds = std::env::var("STAPP_MAX_RECORDING_SECONDS")
+            .ok()
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap_or(120)
+            .clamp(15, 300);
+        v.silero_vad.max_speech_duration = max_seconds as f32;
+        let vad =
+            VoiceActivityDetector::create(&v, max_seconds as f32 + 5.).context("Initialize VAD")?;
         Ok(Self {
             kws,
             stream,
@@ -136,6 +148,7 @@ impl Engine {
             active: None,
             speech: false,
             quiet: 0,
+            max_samples: max_seconds * RATE,
         })
     }
     pub fn reset(&mut self) {
@@ -151,6 +164,10 @@ impl Engine {
         self.speech = false;
         self.quiet = 0;
         self.vad.reset();
+        if let Some(audio) = self.active.as_ref() {
+            self.vad.accept_waveform(audio);
+            self.speech = self.vad.detected();
+        }
     }
     pub fn push(&mut self, samples: &[f32]) -> Option<Event> {
         if let Some(active) = self.active.as_mut() {
@@ -165,7 +182,7 @@ impl Engine {
             while !self.vad.is_empty() {
                 self.vad.pop();
             }
-            let limit = active.len() >= 120 * RATE;
+            let limit = active.len() >= self.max_samples;
             let end = self.speech && self.quiet > RATE / 2;
             let empty = !self.speech && active.len() > 5 * RATE;
             if limit || end || empty {

@@ -104,6 +104,15 @@ class Events(integration.Daemon):
         self.assertEqual(self.event(job,'poll'),'blue')
         with self.assertRaises(ValueError):rpc(req,'pc')
 
+    def test_release_wake_is_bound_to_authenticated_device(self):
+        import uuid
+        first=str(uuid.uuid4());second=str(uuid.uuid4())
+        self.assertTrue(rpc({'op':'wake','id':first},'room')['accepted'])
+        rpc({'op':'release_wake','id':first},'pc')
+        self.assertFalse(rpc({'op':'wake','id':second},'pc')['accepted'])
+        rpc({'op':'release_wake','id':first},'room')
+        self.assertTrue(rpc({'op':'wake','id':second},'pc')['accepted'])
+
     def test_dynamic_tools_bind_to_job_and_release_thread(self):
         from agent import execute,OUTPUT_SCHEMA
         import sqlite3

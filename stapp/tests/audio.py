@@ -4,6 +4,7 @@ Run after scripts/models.py and a release build. Optional --report saves synthet
 Linux per-process measurements (peak RSS includes fixture buffers and startup).
 """
 import argparse
+import array
 import json
 import os
 from pathlib import Path
@@ -61,6 +62,17 @@ def main():
         assert duration>30,duration
         result=run('long-transcription','--transcribe',long)
         assert 'cobalt' in result.lower(),result
+        with wave.open(str(root/'hey.wav')) as w:opening=w.readframes(w.getnframes())
+        def trim(data):
+            values=array.array('h',data)
+            audible=[i for i,x in enumerate(values) if abs(x)>100]
+            return values[max(0,audible[0]-params.framerate//10):audible[-1]+params.framerate//10].tobytes()
+        # Stitch one continuous utterance. Untrimmed TTS files contain sentence
+        # tails longer than the endpoint threshold and correctly end capture.
+        full=trim(opening)+(trim(segment)+b'\0'*(params.framerate//5))*12+trim(ending)
+        with wave.open(str(root/'long-wake.wav'),'w') as w:w.setparams(params);w.writeframes(full)
+        result=run('long-wake','--check-audio',root/'long-wake.wav')
+        assert 'confirmed_count: 1' in result and 'cobalt' in result.lower(),result
     if args.report:
         args.report.parent.mkdir(parents=True,exist_ok=True)
         args.report.write_text(json.dumps({'kind':'synthetic-audio-only','long_audio_seconds':round(duration,2),'cases':reports},indent=2)+'\n')

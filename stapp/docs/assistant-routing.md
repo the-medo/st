@@ -5,7 +5,7 @@ wired into `runtime/worker.py`. See [the plan](../IMPLEMENTATION.md) and
 [five-model comparison](../experiments/laya/COMPARISON.md). The owner selected
 hosted **Cloudflare Clef Flash**; the active catalog now records that selection.
 Local decision models and their service have been removed. Frozen experiment
-catalogs retain the original model metadata. Production dispatch is not wired yet.
+catalogs retain the original model metadata. Production dispatch uses this catalog; see the [native guide](assistant-native.md).
 
 ## Input to Clef Flash
 
@@ -53,10 +53,10 @@ automatically granted allowlist. Inspect actual runtime capability availability.
 | --- | --- | --- |
 | planner | `stapp/docs/planner.md`, planner schemas in `stapp/runtime/mcp.py`, current date/timezone, selected list/calendar IDs | Tasks/events through DAVe/Radicale business API; versioned edits and idempotent recurrence; reminders are not fully implemented |
 | notes | Note schema from `stapp/runtime/mcp.py`, note storage behavior, relevant search results | Existing local notes; do not confuse personal notes with scanned documents |
-| agents | Registered project/host list, `stapp/README.md`, target project's AGENTS instructions, Herdr session reference | Project dispatch exists; Herdr-native creation/resume needs integration verification |
-| system | `sm-manager/README.md`, command help, bounded fresh resource snapshot | `st status`, `st monitor cleanup-plan` exist; assistant adapter and mutations need deliberate implementation |
-| databases | Database inventory contract, ownership/freshness and selected DB/schema metadata | `GET /api/dbs` lists connections; SQL/backup capabilities require an appropriate connector and separate permission |
-| air_quality | AirQ fields/units/freshness from `sm-manager/README.md`, requested time window | `GET /api/air-quality`; no implied ventilation actuator or medical interpretation |
+| agents | Registered project/host list, `stapp/README.md`, target project's AGENTS instructions, Herdr session reference | Project dispatch exists; dedicated native project and Herdr sidebar visibility verified |
+| system | `sm-manager/README.md`, command help, bounded fresh resource snapshot | `system_status` reads CPU/RAM and freshness; mutations still require an appropriate interface |
+| databases | Database inventory contract, ownership/freshness and selected DB/schema metadata | `database_status` reads `GET /api/dbs` for connections; SQL/backup capabilities require an appropriate connector and separate permission |
+| air_quality | AirQ fields/units/freshness from `sm-manager/README.md`, requested time window | `air_quality` reads `GET /api/air-quality`; no implied ventilation actuator or medical interpretation |
 | display | `stapp/README.md`, view schemas, selected physical panel identity | `show_view`, `save_view`, `publish_app`, `st night`; arbitrary brightness is not implemented |
 | photos | `stapp/docs/immich.md`, album/search tool schemas, configured account scope | Existing list/search/show; cannot delete/upload photos or alter sharing |
 | shopping | `stapp/assistant/.agents/skills/shopping/SKILL.md`, configured Rohlík tool schemas and cart context | Search/cart when authorized; checkout remains a distinct operation |

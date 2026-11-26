@@ -39,10 +39,16 @@ full `display_text` and short `speech_text`. The latter is limited to 45 words.
 ## Speech use
 
 Say **Hey ST** or **Okay ST**, then dictate. Silence ends recording. The current
-recording limit is 120 seconds; a short cue marks recording start/end. Whisper
+recording limit is 120 seconds; a short cue marks recording start/end.
+`STAPP_MAX_RECORDING_SECONDS` allows 15–300 seconds. VAD uses 700 ms of silence
+plus a 500 ms hangover; increase `STAPP_ENDPOINT_SILENCE_MS` (200–3000) if pauses
+inside dictation should remain in the same request. Whisper
 uses overlapping 25-second windows so longer dictation is not silently reduced
 to its first window. Empty captures are discarded. A two-second pre-roll preserves
-the command opening and lets transcription remove the full wake phrase.
+the command opening and lets transcription remove the full wake phrase. Full ASR
+confirms that phrase before submission; a provisional keyword hit on “Hey Steve”
+is discarded. This protects actions but can still briefly open capture. Wake
+accuracy with the owner’s voice and ambient sound needs physical calibration.
 
 A pending question on that device consumes the next spoken response, including
 bare answers such as “blue” or “yes.” Multiple pending questions require an

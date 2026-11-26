@@ -1,9 +1,9 @@
 # S.T. voice assistant implementation plan
 
-Status: design; Cloudflare Clef Flash selected by the owner, 2026-11-25. The experiment sends
-synthetic text to decision models only; it does not submit jobs to agents or
-integrations. The later comparison includes explicitly authorized Cloudflare
-inference as well as local Unsloth models.
+Status: coordinator implemented and deployed; native desktop clients implemented,
+with hardware acceptance still pending (2026-11-26). Rebased onto main `5680bd8`,
+including the CLI and conversation-feedback changes. See the
+[native guide](docs/assistant-native.md) and [validation report](docs/assistant-validation.md).
 
 This replaces the earlier six-step plan. The assistant introduced in commit
 `bc065262bb9470951de31b07d6696670b3906aa4` remains the starting point. Preserve
@@ -22,15 +22,16 @@ working transport, planner rules, device ownership and durable job history.
    See [future work](docs/assistant-future.md).
 6. A skill explaining how agents extend the assistant's capabilities.
 
-The routing evaluation, catalog, skill and plan are the current deliverables.
-Live dispatch and native client rollout are subsequent implementation phases.
+The catalog now drives live dispatch, context selection and discovery. Desktop
+client binaries, installers and automated audio checks are implemented; physical
+Linux/Windows microphones and dual-device acceptance remain required.
 
 The [five-model comparison](experiments/laya/COMPARISON.md) supports the selected
 **Cloudflare Clef Flash**: 97/100, 190 ms median, 448 ms p95, and no resident local
 decision model. Keep routing advisory, generic acknowledgements and capability
 discovery: even Clef Flash produced confidently wrong routes. All four local
 model caches and their service have been removed; benchmark evidence is retained.
-The live worker is unchanged. The owner supplied a dedicated account API token;
+The live worker now uses this provider. The owner supplied a dedicated account API token;
 verification and three real Clef Flash requests passed on 2026-11-26. The token
 is active and the verification response reports no expiration. The original
 100-case benchmark used Wrangler OAuth. See the
@@ -51,13 +52,10 @@ is active and the verification response reports no expiration. The original
 | Herdr integration | Project/conversation visibility and native session bridging | Reuse backend APIs; do not automate terminal keystrokes |
 | `assistant/AGENTS.md` | Brief replies and domain rules | Retain common rules; progressively load detailed manuals |
 
-The current worker advertises five routes, but only shopping changes its prompt
-meaningfully; all assistant tools remain registered. The catalog must drive
-context/tool selection as well as the label to reduce agent latency.
-
-This base does not have a complete planner CLI. Use existing planner MCP/API
-until the independent CLI work lands. A Prusa/Paperless dashboard link is not
-itself a voice tool. Mark integration availability explicitly in the catalog.
+The legacy worker remains available through an explicit rollback profile. The
+current worker uses the 12-route catalog, selected dynamic tools and discovery.
+The CLI has now landed on main; use `stapp/docs/cli.md` alongside the business API
+schemas. A Prusa/Paperless dashboard link remains distinct from a callable tool.
 
 ## Request flow
 
@@ -199,11 +197,11 @@ follow actual tool permissions and user intent, never classifier risk estimates.
 | Phase | Work | Gate |
 | --- | --- | --- |
 | 0: experiment | Four local models plus hosted Clef Flash, frozen corpus/catalog, 100 cases each | Real HTTP answers, revisions, CPU/RAM and separate initialization, zero agent calls |
-| 1: shadow coordinator | Clef Flash with dedicated account token, context builder, fallback, additive job events | Missing/revoked token, timeout/outage/quota/bad response/long input use general routing; retries deduplicate |
-| 2: text agent path | Dedicated project, warm app-server, Luna/low, selected tools, compact output | Isolated planner/store tests; Herdr visibility; origin-thread follow-ups |
-| 3: Steam Machine | Native wake/VAD/ASR/TTS and both phrases | Seat/mic recordings, false wakes, game noise, reconnect, Gaming Mode |
-| 4: Windows | Packaged native core, popup, startup and speech | Native test machine; no focus stealing; suspend/mic removal/server disconnect |
-| 5: household rollout | Dual-mic arbitration, real tasks, speech queue and failure handling | One action/reply per intended request; each device independently usable |
+| 1: coordinator (deployed) | Clef Flash with dedicated account token, context builder, fallback, additive job events | Missing/revoked token, timeout/outage/quota/bad response/long input use general routing; retries deduplicate |
+| 2: text agent path (verified) | Dedicated project, warm app-server, Luna/low, selected tools, compact output | Isolated planner/store tests; Herdr visibility; origin-thread follow-ups |
+| 3: Steam Machine (software ready) | Native wake/VAD/ASR/TTS and both phrases | Seat/mic recordings, false wakes, game noise, reconnect, Gaming Mode |
+| 4: Windows (software ready) | Packaged native core, popup, startup and speech | Native test machine; no focus stealing; suspend/mic removal/server disconnect |
+| 5: household rollout (hardware pending) | Dual-mic arbitration, real tasks, speech queue and failure handling | One action/reply per intended request; each device independently usable |
 | Later: Android | Widget/app/pairing | Separate lifecycle and permissions acceptance |
 
 Measure end-of-speech to transcript, classification, context preparation, agent
@@ -291,3 +289,27 @@ Decisions to report at completion:
 - Retain the original worker behind an explicit legacy profile for rollback.
 - Physical microphone, simultaneous room/PC wake and Windows acceptance require
   suitable hardware; synthetic audio tests cannot establish those results.
+
+2026-11-26 follow-up: the additive schema migration is 005 because rebased main
+already owns 004. Live deployment backed up the prior schema-3 database and runtime;
+no jobs were active. A real read-only system request completed through Clef and
+Luna, confirmed by the system-status adapter. Isolated tests verified note creation
+and same-thread editing. Herdr recognizes the dedicated assistant project and its
+saved conversations. The native audio suite verifies both phrases, rejects a
+confusable phrase before submission, retains the end of a long dictation and
+reports CPU/RSS. Physical input/output are absent from this host's PipeWire session
+(only Dummy Output), so the room microphone service is deliberately not enabled.
+
+Further decisions:
+
+- Confirm the wake phrase again with full ASR before dispatch. A provisional
+  keyword hit may open capture but does not authorize executing “Hey Steve.”
+- Keep native Piper and English Lessac as the packaged default. Other matching
+  Piper voice directories can be selected; real Czech output acceptance is pending.
+- Use half-duplex output with explicit stop/mute controls, not untested echo cancellation.
+- Preserve speech text at most once across crashes; a skipped spoken line remains
+  available as durable text. Durable cancellation markers cover offline submissions.
+- Package actual native Windows binaries with a pinned eSpeak DLL and model checksums;
+  compile on Windows CI in addition to Linux cross-checks.
+- Warm app-server slots retire after five idle minutes; release thread ownership
+  after each result so Herdr can resume it. ASR and TTS have the same idle policy.

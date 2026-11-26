@@ -1,0 +1,19 @@
+#!/usr/bin/env python3
+"""Create the native Linux room-client package without models or credentials."""
+from pathlib import Path
+import tarfile
+
+root=Path(__file__).resolve().parents[1]
+output=root/'target/distribution/stapp-room-linux-x64.tar.gz'
+output.parent.mkdir(parents=True,exist_ok=True)
+files={
+ 'st-voice':root/'target/release/st-voice',
+ 'install-room':root/'scripts/install-room',
+ 'models.py':root/'scripts/models.py',
+ 'voice.service.example':root/'deploy/steamos/voice.service.example',
+ 'README.md':root/'docs/assistant-native.md',
+}
+with tarfile.open(output,'w:gz') as archive:
+ for name,path in files.items():archive.add(path,arcname=name)
+ archive.add(root/'assistant/audio',arcname='audio')
+print(output)

@@ -13,7 +13,8 @@ Read `stapp/IMPLEMENTATION.md`, `stapp/docs/assistant-routing.md` and
 `stapp/assistant/routing/catalog.json`. They distinguish working tools from
 planned adapters. Clef Flash is the selected provider; local decision models and
 their service were removed. The benchmark performs classification only; the new
-catalog is not yet wired into the production worker. Consult the routing guide
+catalog drives the production worker. Read `stapp/docs/assistant-native.md` for
+dynamic tools, trusted manual packaging, native clients and deployment checks. Consult the routing guide
 for dedicated token setup; do not depend on a developer's Wrangler login.
 
 For a requested capability:
@@ -56,3 +57,12 @@ run, present model confidence as measured correctness, or promote a route to
 strict tool restriction based on the current small development corpus.
 Keep credentials on the coordinator. Missing/invalid credentials or a routing
 failure must use general discovery with the full transcript, without retry storms.
+
+For coordinator changes, run `python3 tests/assistant.py` from `stapp`.
+Dynamic tool schemas live in `runtime/mcp.py` and `runtime/capabilities.py`;
+`runtime/agent.py` scopes every invocation to the current job and exposes discovery.
+Put concise context in `assistant/manuals/` and reference its repository path in
+the catalog. `scripts/install-host` packages only this reviewed manual directory.
+For native audio changes, also run `scripts/cargo test -p st-audio -p st-core` and
+`python3 tests/audio.py` with installed speech models. Real microphones and gaming
+noise require separate acceptance; never present synthetic fixtures as that evidence.

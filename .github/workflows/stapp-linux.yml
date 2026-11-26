@@ -15,6 +15,11 @@ jobs:
       - run: npm ci && npm run build
         working-directory: stapp/apps/kiosk
       - run: cargo fmt --all --check && cargo build --release --locked
+      - run: python3 scripts/package-room
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stapp-room-linux-x64
+          path: stapp/target/distribution/stapp-room-linux-x64.tar.gz
       - run: cargo test --locked -p st-audio -p st-core
       - run: python3 tests/assistant.py
       - run: python3 tests/photos.py

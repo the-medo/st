@@ -4,7 +4,14 @@ $root=Join-Path $env:LOCALAPPDATA "STapp"
 New-Item -ItemType Directory -Force -Path "$root/bin","$root/state","$root/models" | Out-Null
 # Stop only this client's scheduled task before replacing its executable.
 $task=Get-ScheduledTask -TaskName "STapp Voice" -ErrorAction SilentlyContinue
-if ($task) { Stop-ScheduledTask -TaskName "STapp Voice" }
+if ($task) {
+  Stop-ScheduledTask -TaskName "STapp Voice"
+  for ($attempt=0; $attempt -lt 30; $attempt++) {
+    if ((Get-ScheduledTask -TaskName "STapp Voice").State -ne 'Running') { break }
+    Start-Sleep -Milliseconds 500
+  }
+  if ((Get-ScheduledTask -TaskName "STapp Voice").State -eq 'Running') { throw 'Existing voice client did not stop' }
+}
 Copy-Item "$PSScriptRoot/bin/*" "$root/bin/" -Force
 foreach ($model in (Get-Content "$PSScriptRoot/audio/models.json" -Raw | ConvertFrom-Json)) {
   $file=Join-Path "$root/models" $model.file
@@ -38,7 +45,8 @@ $user=[System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 $action=New-ScheduledTaskAction -Execute "$root/bin/st-voice.exe" -Argument ('--config "'+$root+'/client.json"')
 $trigger=New-ScheduledTaskTrigger -AtLogOn -User $user
 $taskSettings=New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
-Register-ScheduledTask -TaskName "STapp Voice" -Action $action -Trigger $trigger -Settings $taskSettings -User $user -RunLevel Limited -Force | Out-Null
+$principal=New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
+Register-ScheduledTask -TaskName "STapp Voice" -Action $action -Trigger $trigger -Settings $taskSettings -Principal $principal -Force | Out-Null
 $shell=New-Object -ComObject WScript.Shell
 $start=Join-Path ([Environment]::GetFolderPath('Programs')) 'S.T. assistant'
 New-Item -ItemType Directory -Force $start | Out-Null
