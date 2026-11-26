@@ -51,6 +51,53 @@ class FolderTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.change('a', 'create', name=' ideas ')
         with self.assertRaises(ValueError): self.change('a', 'rename', folderId='deleted', name='New')
 
+    def test_folder_placement_and_reordering_preserve_conversations(self):
+        ids = [self.change('a', 'create', name=name)['folder']['id'] for name in ('Ideas', 'Later', 'Notes')]
+        self.change('a', 'move', threadId='chat-a', folderId=ids[1])
+        self.change('a', 'set-done', threadId='chat-a', done=True)
+        self.change('a', 'move-folder', folderId=ids[1], position='start')
+        self.change('a', 'move-folder', folderId=ids[2], relativeTo=ids[1], direction='up')
+        self.change('a', 'move-folder', folderId=ids[2], relativeTo=ids[1], direction='up')
+        state = organization.load(self.root)
+        self.assertEqual([(f['id'], f.get('position', 'end')) for f in state['projects']['a']['folders']],
+                         [(ids[2], 'start'), (ids[1], 'start'), (ids[0], 'end')])
+        self.assertEqual(state['projects']['a']['chats'], {'chat-a': ids[1]})
+        self.assertEqual(state['done'], {'chat-a': True})
+        self.change('a', 'move-folder', folderId=ids[2], position='end')
+        self.change('a', 'move-folder', folderId=ids[0], relativeTo=ids[2], direction='down')
+        self.change('a', 'rename', folderId=ids[1], name='First')
+        self.change('a', 'create', name='New folder')
+        state = organization.load(self.root)['projects']['a']['folders']
+        self.assertEqual([f['id'] for f in state[:3]], [ids[1], ids[2], ids[0]])
+        self.assertEqual(state[0]['position'], 'start')
+        self.assertEqual(state[-1].get('position', 'end'), 'end')
+
+    def test_invalid_folder_move_never_changes_saved_state(self):
+        a = self.change('a', 'create', name='Ideas')['folder']['id']
+        b = self.change('b', 'create', name='Elsewhere')['folder']['id']
+        before = (self.root / 'organization.json').read_bytes()
+        for values in [dict(folderId='missing', position='start'), dict(folderId=b, position='start'),
+                       dict(folderId=a, position='middle'), dict(folderId=a),
+                       dict(folderId=a, relativeTo=b, direction='up'), dict(folderId=a, relativeTo='gone', direction='down'),
+                       dict(folderId=a, relativeTo=a, direction='up')]:
+            with self.subTest(values=values), self.assertRaises(ValueError):
+                self.change('a', 'move-folder', **values)
+            self.assertEqual((self.root / 'organization.json').read_bytes(), before)
+
+    def test_concurrent_folder_reorder_and_conversation_drop_keep_both_changes(self):
+        a = self.change('a', 'create', name='Ideas')['folder']['id']
+        b = self.change('a', 'create', name='Later')['folder']['id']
+        barrier = threading.Barrier(2)
+        def change(values):
+            barrier.wait(timeout=2)
+            return self.change('a', **values)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            list(pool.map(change, [dict(operation='move-folder', folderId=b, relativeTo=a, direction='up'),
+                                   dict(operation='move', threadId='chat-a', folderId=b)]))
+        state = organization.load(self.root)['projects']['a']
+        self.assertEqual([f['id'] for f in state['folders']], [b, a])
+        self.assertEqual(state['chats'], {'chat-a': b})
+
 
 class ProjectOrderTests(unittest.TestCase):
     def setUp(self):

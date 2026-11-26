@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { EventEmitter, once } from 'node:events';
-import { chromium, type Route } from 'playwright-core';
+import { chromium, type Locator, type Route } from 'playwright-core';
 import type { MedoCatalog } from '../shared/medo.ts';
 import { chromePath } from './chrome-path.ts';
 import { medoConversation } from '../server/medo.ts';
@@ -192,22 +192,24 @@ try {
   await row('Refresh projects').click();
   await attention.waitFor({ state: 'hidden' });
   await page.locator('.medo-chat .medo-spinner').waitFor();
-  // Completion is explicit, survives catalogue reloads, and has independent pagination.
+  // Completion is explicit; a single footer toggle includes done chats everywhere.
   const sharedId = '11111111-2222-3333-4444-555555555555';
-  catalog = { projects: [{ id: 'garden', name: 'Garden', path: '/fixture/garden', folders: [{ id: 'ideas', name: 'Ideas' }] }],
+  catalog = { projects: [{ id: 'garden', name: 'Garden', path: '/fixture/garden', folders: [{ id: 'ideas', name: 'Ideas' }] }, { id: 'studio', name: 'Studio', path: '/fixture/studio', folders: [] }],
     chats: [
       { ...chat(sharedId, 'Automation work'), updated: 100 },
       ...Array.from({ length: 6 }, (_, i) => chat(`active-${i}`, `Active conversation ${i + 1}`)),
       ...Array.from({ length: 6 }, (_, i) => ({ ...chat(`done-${i}`, `Completed conversation ${i + 1}`), done: true })),
       { ...chat('folder-chat', 'Finished idea'), folder: 'ideas', done: true },
+      { ...chat('studio-chat', 'Finished studio plan'), project: 'studio', done: true },
     ], organizationRevision: 0 };
   await page.setViewportSize({ width: 1100, height: 800 });
   await page.reload();
   await row('Show more (2)').waitFor();
   assert.equal(await row('Completed conversation 1').count(), 0);
-  const moreBox = (await row('Show more (2)').boundingBox())!;
-  const doneBox = (await row('Show done (6)').boundingBox())!;
-  assert.equal(moreBox.y, doneBox.y, 'Show done sits beside Show more');
+  const activeBox = (await row('Active chats').boundingBox())!;
+  const doneBox = (await row('Show done').boundingBox())!;
+  assert.equal(activeBox.y + activeBox.height / 2, doneBox.y + doneBox.height / 2, 'Show done sits beside Active chats');
+  assert.equal(await page.locator('.medo-project-scroll .medo-show-done').count(), 0);
   assert.ok(Number.parseFloat(await row('Show more (2)').evaluate((el) => getComputedStyle(el).fontSize)) < Number.parseFloat(await row('Automation work').evaluate((el) => getComputedStyle(el).fontSize)));
   await row('Automation work').hover();
   const check = row('Mark as done: Automation work');
@@ -234,24 +236,30 @@ try {
   holdPoll = false;
   await polls.shift()!.fulfill({ json: beforeDone });
   await row('Automation work').waitFor({ state: 'hidden' });
-  await row('Show done (7)').click();
+  await row('Ideas').click();
+  await row('Show done').click();
   await row('Automation work').waitFor();
+  await row('Finished studio plan').waitFor();
+  assert.equal(await row('Finished idea').count(), 0, 'Global toggle leaves closed folders closed');
+  await row('Ideas').click();
+  await row('Finished idea').waitFor();
   assert.equal(await row('Mark as active: Automation work').getAttribute('aria-pressed'), 'true');
   assert.equal(await row('Completed conversation 6').count(), 0);
-  await row('Show more done (2)').click();
+  await row('Show more (8)').click();
+  await row('Show more (3)').click();
   await row('Completed conversation 6').waitFor();
-  await row('Show more (1)').click();
   await row('Active conversation 6').waitFor();
-  await row('Show done (1)').click();
-  await row('Finished idea').waitFor();
-  await row('Hide done (7)').click();
+  await row('Hide done').click();
   assert.equal(await row('Automation work').count(), 0);
-  assert.equal(await row('Finished idea').count(), 1, 'Folder visibility is independent');
+  assert.equal(await row('Finished idea').count(), 0);
+  assert.equal(await row('Finished studio plan').count(), 0);
+  await row('Show done').click();
+  await row('Finished idea').waitFor();
   await page.reload();
-  await row('Show done (7)').waitFor();
+  await row('Show done').waitFor();
   assert.equal(await row('Automation work').count(), 0);
   await page.getByRole('textbox', { name: 'Search conversations' }).fill('Automation');
-  await row('Show done (1)').click();
+  await row('Show done').click();
   await row('Automation work').waitFor();
   // Copy both stable reference formats and report a denied clipboard honestly.
   await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (value: string) => { Reflect.set(window, '__copied', value); } } }));
@@ -279,6 +287,108 @@ try {
   catalog.chats[0]!.done = false;
   await reopen.fulfill({ json: { ok: true } });
   await row('Mark as done: Automation work').waitFor();
+  // Folders stay on either side of the unfiled list, with persisted menu and drag moves.
+  catalog = { ...catalog, projects: [
+    { id: 'garden', name: 'Garden', path: '/fixture/garden', folders: [{ id: 'first', name: 'Priority', position: 'start' }, { id: 'ideas', name: 'Ideas' }, { id: 'later', name: 'Later' }] },
+    { id: 'studio', name: 'Studio', path: '/fixture/studio', folders: [{ id: 'studio-folder', name: 'Studio folder' }] },
+  ], chats: [chat(sharedId, 'Automation work'), { ...chat('filed', 'Filed conversation'), folder: 'ideas' }] };
+  await page.reload();
+  const garden = page.locator('[data-st-project="garden"]');
+  const folderRow = (id: string) => garden.locator(`[data-folder-id="${id}"] .medo-folder-row`);
+  const structure = () => garden.locator('.medo-project-chats > .medo-folder, .medo-project-chats > .medo-unfiled').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-folder-id') ?? 'conversations'));
+  await row('Automation work').waitFor();
+  assert.deepEqual(await structure(), ['first', 'conversations', 'ideas', 'later']);
+  await row('Actions for folder Later').click();
+  await page.getByRole('menuitemcheckbox', { name: 'Place before conversations', exact: true }).click();
+  await waitCount(moves, 1);
+  const placeBefore = moves.shift()!;
+  assert.deepEqual(placeBefore.request().postDataJSON().change, { operation: 'move-folder', projectId: 'garden', folderId: 'later', position: 'start' });
+  assert.deepEqual(await structure(), ['first', 'conversations', 'ideas', 'later'], 'Wait for a confirmed save');
+  catalog.projects[0]!.folders = [{ id: 'later', name: 'Later', position: 'start' }, { id: 'first', name: 'Priority', position: 'start' }, { id: 'ideas', name: 'Ideas' }];
+  await placeBefore.fulfill({ json: { ok: true } });
+  await page.waitForFunction(() => document.querySelector('[data-st-project="garden"] .medo-project-chats')?.firstElementChild?.getAttribute('data-folder-id') === 'later');
+  await page.reload();
+  await row('Actions for folder Later').waitFor();
+  assert.deepEqual(await structure(), ['later', 'first', 'conversations', 'ideas']);
+  const beginDrag = async (source: Locator) => {
+    await source.scrollIntoViewIfNeeded();
+    const from = (await source.boundingBox())!;
+    await page.mouse.move(from.x + 65, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(from.x + 80, from.y + from.height / 2 + 8, { steps: 5 });
+    await page.locator('.medo-projects[data-dragging]').waitFor();
+  };
+  const dragOnto = async (source: Locator, target: Locator, edge: 'up' | 'down' | 'inside' = 'inside') => {
+    await beginDrag(source);
+    const to = (await target.boundingBox())!;
+    await page.mouse.move(to.x + 65, to.y + (edge === 'up' ? 2 : edge === 'down' ? to.height - 2 : to.height / 2), { steps: 8 });
+    await page.mouse.up();
+  };
+  await dragOnto(folderRow('later'), folderRow('first'), 'down');
+  await waitCount(moves, 1);
+  const reordered = moves.shift()!;
+  assert.deepEqual(reordered.request().postDataJSON().change, { operation: 'move-folder', projectId: 'garden', folderId: 'later', relativeTo: 'first', direction: 'down' });
+  catalog.projects[0]!.folders = [catalog.projects[0]!.folders[1]!, catalog.projects[0]!.folders[0]!, catalog.projects[0]!.folders[2]!];
+  await reordered.fulfill({ json: { ok: true } });
+  await page.waitForFunction(() => document.querySelector('[data-st-project="garden"] .medo-project-chats')?.firstElementChild?.getAttribute('data-folder-id') === 'first');
+  // Boundary targets exist only during a folder drag; no target splits the conversation rows.
+  const dragToBoundary = async (source: Locator, position: 'start' | 'end') => {
+    await beginDrag(source);
+    const target = garden.locator(`.medo-folder-drop-zone[data-folder-position="${position}"]`);
+    await target.waitFor();
+    const to = (await target.boundingBox())!;
+    await page.mouse.move(to.x + 65, to.y + to.height / 2, { steps: 8 });
+    await page.mouse.up();
+  };
+  await dragToBoundary(folderRow('first'), 'end');
+  await waitCount(moves, 1);
+  const failedMove = moves.shift()!;
+  assert.deepEqual(failedMove.request().postDataJSON().change, { operation: 'move-folder', projectId: 'garden', folderId: 'first', position: 'end' });
+  await failedMove.fulfill({ status: 400, json: { error: { message: 'Folder move could not be saved' } } });
+  await page.getByRole('alert').filter({ hasText: 'Folder move could not be saved' }).waitFor();
+  assert.deepEqual(await structure(), ['first', 'later', 'conversations', 'ideas']);
+  await dragToBoundary(folderRow('first'), 'end');
+  await waitCount(moves, 1);
+  catalog.projects[0]!.folders = [{ id: 'later', name: 'Later', position: 'start' }, { id: 'ideas', name: 'Ideas' }, { id: 'first', name: 'Priority', position: 'end' }];
+  await moves.shift()!.fulfill({ json: { ok: true } });
+  await page.waitForFunction(() => document.querySelector('[data-st-project="garden"] .medo-project-chats')?.lastElementChild?.getAttribute('data-folder-id') === 'first');
+  assert.deepEqual(await structure(), ['later', 'conversations', 'ideas', 'first']);
+  // Dropping a chat onto a closed folder files it and opens the destination.
+  await row('Ideas').click();
+  assert.equal(await row('Filed conversation').count(), 0);
+  await dragOnto(row('Automation work'), folderRow('ideas'));
+  await waitCount(moves, 1);
+  const filed = moves.shift()!;
+  assert.deepEqual(filed.request().postDataJSON().change, { operation: 'move', projectId: 'garden', threadId: sharedId, folderId: 'ideas' });
+  catalog.chats[0]!.folder = 'ideas';
+  await filed.fulfill({ json: { ok: true } });
+  await garden.locator('[data-folder-id="ideas"]').getByRole('button', { name: 'Automation work', exact: true }).waitFor();
+  await row('Filed conversation').waitFor();
+  if (evidence) await page.screenshot({ path: join(evidence, 'folder-order.png') });
+  // Cross-project and same-folder drops do nothing; dropping onto the project unfiles it.
+  await dragOnto(row('Automation work'), folderRow('ideas'));
+  await dragOnto(row('Automation work'), page.locator('[data-folder-id="studio-folder"] .medo-folder-row'));
+  await dragOnto(folderRow('later'), page.locator('[data-folder-id="studio-folder"] .medo-folder-row'));
+  assert.equal(moves.length, 0);
+  assert.equal(opens.length, 0, 'Dragging never opens or resumes a conversation');
+  assert.equal(selects.length, 0);
+  await dragOnto(row('Automation work'), garden.locator('.medo-project-head'));
+  await waitCount(moves, 1);
+  const unfiled = moves.shift()!;
+  assert.equal(unfiled.request().postDataJSON().change.folderId, null);
+  catalog.chats[0]!.folder = null;
+  await unfiled.fulfill({ json: { ok: true } });
+  await garden.locator('.medo-unfiled').getByRole('button', { name: 'Automation work', exact: true }).waitFor();
+  await page.reload();
+  await row('Actions for folder Later').waitFor();
+  assert.deepEqual(await structure(), ['later', 'conversations', 'ideas', 'first']);
+  await row('Actions for folder Priority').click();
+  if (evidence) await page.screenshot({ path: join(evidence, 'folder-menu.png') });
+  await page.getByRole('menuitem', { name: 'Move up', exact: true }).click();
+  await waitCount(moves, 1);
+  assert.deepEqual(moves[0]!.request().postDataJSON().change, { operation: 'move-folder', projectId: 'garden', folderId: 'first', relativeTo: 'ideas', direction: 'up' });
+  catalog.projects[0]!.folders = [catalog.projects[0]!.folders[0]!, catalog.projects[0]!.folders[2]!, catalog.projects[0]!.folders[1]!];
+  await moves.shift()!.fulfill({ json: { ok: true } });
   // Touch devices expose the checkmark without a hover, with no horizontal overflow.
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const mobile = await phone.newPage();
@@ -289,7 +399,7 @@ try {
   if (evidence) await mobile.screenshot({ path: join(evidence, 'conversation-actions-touch.png') });
   await phone.close();
   assert.deepEqual(errors, []);
-  console.log('Sidebar browser regressions passed: navigation, reordering, attention, feedback, done/reopen persistence and errors, grouped pagination, copy links/IDs and touch actions.');
+  console.log('Sidebar browser regressions passed: navigation, project/folder ordering, native folder and conversation dragging, global done filtering, persistence/errors, pagination, copy links/IDs and touch actions.');
 } finally {
   await browser.close();
   await server.stop(true);

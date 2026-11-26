@@ -84,6 +84,26 @@ def update(root, projects, chat_projects, change):
                 folder['name'] = name
             else:
                 raise ValueError('That folder no longer exists. Refresh and try again.')
+        elif operation == 'move-folder':
+            if not folder:
+                raise ValueError('That folder no longer exists. Refresh and try again.')
+            relative_id = change.get('relativeTo')
+            relative = next((f for f in group['folders'] if f['id'] == relative_id), None)
+            if relative_id is not None:
+                if not relative or relative is folder or change.get('direction') not in ('up', 'down'):
+                    raise ValueError('Choose another folder from this project and move up or down.')
+                position = relative.get('position', 'end')
+            else:
+                position = change.get('position')
+            if position not in ('start', 'end'):
+                raise ValueError('Place folders before or after the conversations.')
+            ordered = [f for f in group['folders'] if f['id'] != folder_id]
+            index = ordered.index(relative) + (change['direction'] == 'down') if relative else (0 if position == 'start' else len(ordered))
+            ordered.insert(index, {**folder, 'position': position})
+            # Each placement is one contiguous block; chats are never interleaved
+            # with folder headers, even when another client has added a folder.
+            group['folders'] = [f for f in ordered if f.get('position', 'end') == 'start'] + [f for f in ordered if f.get('position', 'end') != 'start']
+            folder = next(f for f in group['folders'] if f['id'] == folder_id)
         elif operation == 'delete':
             if not folder:
                 raise ValueError('That folder no longer exists.')

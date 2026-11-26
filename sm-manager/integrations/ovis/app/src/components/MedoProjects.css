@@ -17,7 +17,7 @@
 .medo-project-icon{color:var(--medo-icon);display:flex;align-items:center;justify-content:center;flex:0 0 19px;height:19px}
 .medo-project-icon img{width:19px;height:19px;object-fit:cover;border-radius:4px}
 .medo-row-action{display:flex;align-items:center;justify-content:center;flex:0 0 25px;width:25px;height:26px;opacity:0}
-.medo-project-head:hover .medo-row-action,.medo-chat:hover .medo-row-action,.medo-row-action:focus-visible,.medo-project-head:focus-within .medo-row-action,.medo-chat:focus-within .medo-row-action{opacity:1}
+.medo-project-head:hover .medo-row-action,.medo-chat:hover .medo-row-action,.medo-row-action:focus-visible,.medo-project-head:focus-within .medo-row-action,.medo-chat:focus-within .medo-row-action,.medo-folder-row:hover .medo-row-action,.medo-folder-row:focus-within .medo-row-action{opacity:1}
 .medo-chat{display:flex;align-items:center;border-radius:6px;margin:1px 0}
 .medo-chat:hover{background:var(--medo-hover)}
 .medo-chat.is-selected{background:var(--medo-selected)}
@@ -35,7 +35,15 @@
 @keyframes medo-progress{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.medo-spinner{animation:none}}
 
-.medo-folder{margin-left:13px}.medo-projects button.medo-folder-head{display:flex;gap:6px;align-items:center;padding:6px 0;width:100%;text-align:left;color:var(--text-dim)}
+.medo-folder{margin-left:13px}.medo-projects button.medo-folder-head{display:flex;gap:6px;align-items:center;padding:6px 0;flex:1;min-width:0;text-align:left;color:var(--text-dim)}
+.medo-folder-head>svg{flex-shrink:0}
+.medo-folder-row{display:flex;align-items:center;border-radius:4px;cursor:grab}
+.medo-folder-grip{flex:0 0 12px;color:var(--text-dim);opacity:0}
+.medo-folder-row:hover .medo-folder-grip,.medo-folder-row:focus-within .medo-folder-grip{opacity:1}
+.medo-folder-row[data-drop="up"]{box-shadow:inset 0 2px var(--accent)}
+.medo-folder-row[data-drop="down"]{box-shadow:inset 0 -2px var(--accent)}
+.medo-folder-row[data-drop="inside"],.medo-project-head[data-drop="inside"],.medo-folder-drop-zone[data-drop]{background:var(--medo-selected);outline:1px solid var(--accent);outline-offset:-1px}
+.medo-folder-drop-zone{margin:3px 6px;padding:7px 4px;border:1px dashed var(--border-strong);border-radius:4px;color:var(--text-dim);font-size:10px;text-align:center}
 .medo-list-controls{display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px;padding:2px 0 2px 23px}
 .medo-projects button.medo-more{padding:3px 4px;color:var(--text-dim);font-size:10px;line-height:16px}
 .medo-projects button.medo-done-action{color:var(--status-done)}
@@ -44,7 +52,10 @@
 .medo-copy-notice{display:flex;align-items:center;justify-content:space-between;gap:6px;margin:0 12px 8px;font-size:11px;color:var(--text-dim)}
 .medo-copy-notice button{display:flex;padding:4px}
 .medo-empty{display:block;color:var(--text-dim);padding:5px 27px;font-size:12px}
-.medo-projects footer{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-top:1px solid var(--border)}
+.medo-projects footer{display:flex;align-items:center;justify-content:space-between;gap:2px;padding:8px 6px;border-top:1px solid var(--border)}
+.medo-projects footer button{gap:5px;padding:6px 4px;white-space:nowrap}
+.medo-projects footer .medo-show-done{font-size:11px;color:var(--text-dim)}
+.medo-projects footer .medo-show-done[aria-pressed="true"]{color:var(--status-done);background:var(--status-done-tint)}
 .medo-muted{color:var(--text-dim);font-size:12px;line-height:1.6}.medo-project-scroll>.medo-muted{padding:8px}
 .medo-error{color:var(--text);background:var(--bg-elevated);border:1px solid var(--border-strong);border-radius:6px;padding:10px;margin:8px;font-size:12px;overflow-wrap:anywhere}
 .medo-error button{display:block;margin-top:5px;text-decoration:underline}
