@@ -80,7 +80,7 @@ const server = Bun.serve({
         router: { status: "classified" },
         devices: [{ ...pc, seen: Date.now() / 1000 }],
         commands: [],
-        requests: [],
+        requests: [{id:"fixture",device:"room",text:"Synthetic previous request",status:"completed",thread:"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",updated:Date.now()/1000}],
       });
     }
     if (url.pathname === "/api/medo/assistant") {
@@ -145,6 +145,7 @@ try {
   await page
     .getByRole("heading", { name: "Voice assistant", exact: true })
     .waitFor();
+  assert.equal(await page.getByRole("link", {name:"Open conversation"}).getAttribute("href"), "/agents?saved=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
   const windows = page
     .locator("section")
     .filter({

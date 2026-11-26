@@ -352,7 +352,7 @@ export function Assistant() {
                     <p>
                       {r.status} · {r.device} · {ago(r.updated)}{" "}
                       {r.thread && (
-                        <Link to={`/agents/chat/${r.thread}`}>
+                        <Link to={`/agents?saved=${encodeURIComponent(r.thread)}`}>
                           Open conversation
                         </Link>
                       )}
