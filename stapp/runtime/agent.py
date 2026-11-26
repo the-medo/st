@@ -12,20 +12,22 @@ import tomllib
 from contextlib import suppress
 
 from mcp import TOOLS, tool, S
+import capabilities
 from routing import build_context
 from transport import rpc
 
 OUTPUT_SCHEMA = {'type':'object','properties':{'display_text':{'type':'string'},'speech_text':{'type':'string'},'status':{'type':'string','enum':['completed','failed']}},'required':['display_text','speech_text','status'],'additionalProperties':False}
 DISCOVER = tool('discover_capability','Get trusted manuals, availability and callable tool schemas for another capability.', ['route'], route=S)
 INVOKE = tool('call_capability_tool','Call a tool discovered with discover_capability. Same request permissions apply.', ['name','arguments'], name=S, arguments={'type':'object','additionalProperties':True})
-SCHEMAS = {t['name']:t for t in TOOLS}
+SCHEMAS = {t['name']:t for t in TOOLS + capabilities.TOOLS}
+CONNECTIONS = []
 LOCAL = threading.local()
 
 
 def selected_tools(decision, catalog):
     route = next((r for r in catalog['routes'] if r['id']==decision['effective_route']), None)
     names = set(route.get('tools',[]) if route else []) | {'ask_user','list_projects'}
-    return [{'type':'function',**t} for t in TOOLS if t['name'] in names] + [{'type':'function',**DISCOVER},{'type':'function',**INVOKE}]
+    return [{'type':'function',**t} for t in TOOLS + capabilities.TOOLS if t['name'] in names] + [{'type':'function',**DISCOVER},{'type':'function',**INVOKE}]
 
 
 def output(text):
@@ -45,18 +47,22 @@ def output(text):
 
 class Connection:
     def __init__(self):
-        cmd=[os.getenv('STAPP_CODEX','codex'),'app-server','--listen','stdio://']
+        cmd=[os.getenv('STAPP_CODEX','codex'),'app-server','--listen','stdio://','-c','web_search="live"']
         path=Path(os.getenv('CODEX_HOME',Path.home()/'.codex'))/'config.toml'
         cfg=tomllib.loads(path.read_text()) if path.exists() else {}
         # The CLI's dotted override parser takes literal key segments, not TOML
         # quoted keys. Quoting these names creates an invalid duplicate transport.
         for section in ('mcp_servers','plugins'):
             for name in cfg.get(section,{}): cmd += ['-c',f'{section}.{name}.enabled=false']
+        if os.getenv('STAPP_ROHLIK') == '1':
+            cmd += ['-c', 'mcp_servers.rohlik.url="https://mcp.rohlik.cz/mcp"',
+                    '-c', 'mcp_servers.rohlik.enabled=true']
         env=os.environ.copy()
         for name in ('STAPP_CF_TOKEN','STAPP_PANEL_KEY','STAPP_CF_ACCOUNT','STAPP_CF_CONFIG'):
             env.pop(name,None)
         self.proc=subprocess.Popen(cmd,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=None,text=True,encoding='utf-8',bufsize=1,env=env)
         self.queue=queue.Queue();self.next_id=0;self.projects={};self.models=None
+        self.busy=True; self.used=time.monotonic(); CONNECTIONS.append(self)
         def read():
             try:
                 for line in self.proc.stdout:self.queue.put(json.loads(line))
@@ -92,7 +98,7 @@ class Connection:
 
     def project(self,cwd,heartbeat):
         if cwd not in self.projects:
-            result=self.request('project/create',{'idempotencyKey':'st-assistant-'+hashlib.sha256(cwd.encode()).hexdigest(),'name':'S.T. assistant','roots':[{'path':cwd}]},heartbeat)
+            result=self.request('project/create',{'idempotencyKey':'st-assistant-'+hashlib.sha256(cwd.encode()).hexdigest(),'name':os.getenv('STAPP_AGENT_PROJECT_NAME','S.T. assistant'),'roots':[{'path':cwd}]},heartbeat)
             self.projects[cwd]=result['project']['id']
         return self.projects[cwd]
 
@@ -111,8 +117,9 @@ def connection():
 
 
 def execute(job,decision,catalog,emit):
-    conn=connection(); thread=job.get('thread'); turn_id=None
+    conn=connection(); conn.busy=True; thread=job.get('thread'); turn_id=None
     last_poll=0
+    successful_tools=[]
     def heartbeat():
         nonlocal last_poll
         if time.monotonic()-last_poll>10:
@@ -133,6 +140,9 @@ def execute(job,decision,catalog,emit):
             name,args=args['name'],args['arguments']
         if name not in SCHEMAS:raise ValueError('Unavailable tool')
         if name=='ask_user':return wait_answer(args['question'])
+        if name in capabilities.PATHS:
+            emit('poll') # validate the claim before using an auxiliary adapter
+            return capabilities.invoke(name,args)
         if name=='list_projects':return rpc({'op':'projects'},job['device'])
         key=hashlib.sha256(json.dumps([name,args],sort_keys=True).encode()).hexdigest()
         return rpc({'op':'tools','name':name,'args':args,'job':job['id'],'claim':job['claim'],'key':key},job['device'])
@@ -143,16 +153,25 @@ def execute(job,decision,catalog,emit):
     assistant=job['project']=='assistant'
     model=os.getenv('STAPP_AGENT_MODEL','gpt-6-luna')
     try:
+        context=build_context(job,decision,catalog)
+        context.pop('transcript',None)
         opts={'cwd':cwd,'approvalPolicy':'on-request','sandbox':'workspace-write'}
-        if assistant:opts.update(model=model)
+        if assistant:opts.update(model=model,developerInstructions=(
+            'You are S.T., an action assistant. The user message is the complete original transcript. '
+            'For a requested action you MUST CALL the corresponding dynamic tool, wait for its result, and only then report success. '
+            'Tool definitions are callable functions, not examples to simulate. Never invent tool results or merely say an action is done. '
+            'For missing capability context CALL discover_capability and then call_capability_tool. '
+            'Use ask_user for necessary clarification. Never mutate household data through shell commands or raw database/files. '
+            'Keep speech_text within 45 words, in the user language. Return the required JSON only after completing the work. '
+            'Routing selects initial context only; correct it through capability discovery when necessary. '
+            'Trusted request context: '+json.dumps(context,ensure_ascii=False)
+        ))
         if thread:opts['threadId']=thread
         elif assistant:
             opts.update(dynamicTools=selected_tools(decision,catalog),projectId=conn.project(cwd,heartbeat))
         reply=conn.request('thread/resume' if thread else 'thread/start',opts,heartbeat)
         thread=reply['thread']['id'];emit('thread',thread)
-        context=build_context(job,decision,catalog)
-        prompt=json.dumps(context,ensure_ascii=False) if assistant else job['text']
-        params={'threadId':thread,'input':[{'type':'text','text':prompt}], 'effort':os.getenv('STAPP_AGENT_EFFORT','low')}
+        params={'threadId':thread,'input':[{'type':'text','text':job['text']}], 'effort':os.getenv('STAPP_AGENT_EFFORT','low')}
         if assistant:params.update(model=model,outputSchema=OUTPUT_SCHEMA)
         conn.next_id+=1;start_id=conn.next_id
         conn.send({'id':start_id,'method':'turn/start','params':params})
@@ -167,7 +186,9 @@ def execute(job,decision,catalog,emit):
                 turn_id=msg['result']['turn']['id'];continue
             if method and p.get('threadId') not in (None,thread):continue
             if method=='item/tool/call' and ident is not None:
-                try:result=invoke(p['tool'],p['arguments'],p['callId']);success=True
+                try:
+                    result=invoke(p['tool'],p['arguments'],p['callId']);success=True
+                    successful_tools.append({'tool':p['tool'],'call_id':p['callId']})
                 except Exception as error:result={'error':str(error)[:1000]};success=False
                 conn.send({'id':ident,'result':{'success':success,'contentItems':[{'type':'inputText','text':json.dumps(result,ensure_ascii=False)}]}})
             elif method=='item/completed' and p['item'].get('type')=='agentMessage':
@@ -175,8 +196,16 @@ def execute(job,decision,catalog,emit):
             elif method=='turn/completed':
                 if p['turn']['status']!='completed':raise RuntimeError(str(p['turn'].get('error') or p['turn']['status']))
                 value=output(final[-1] if final else '') if assistant else {'display_text':final[-1] if final else 'No response.','speech_text':'The project response is ready.','status':'completed'}
+                if assistant and decision['effective_route'] not in ('other','agents') and not successful_tools and value['status']=='completed':
+                    value={'display_text': 'The agent did not call a tool, so this request has no verified result. No action was confirmed.',
+                           'speech_text':'I could not verify that request. No action was confirmed.', 'status':'failed'}
+                value['confirmed_tools']=successful_tools
                 value['agent_elapsed_ms']=round((time.monotonic()-started)*1000,2)
                 emit(value['status'],value['display_text'],value)
+                # Release the thread's writer so Herdr can resume it while the
+                # app-server process remains warm for unrelated voice requests.
+                try:conn.request('thread/unsubscribe',{'threadId':thread})
+                except Exception:conn.close()
                 return {'thread':thread,**value}
             elif method and ident is not None:
                 if method=='item/tool/requestUserInput':
@@ -193,3 +222,11 @@ def execute(job,decision,catalog,emit):
             with suppress(Exception):conn.send({'id':'interrupt','method':'turn/interrupt','params':{'threadId':thread,'turnId':turn_id}})
         conn.close();LOCAL.connection=None
         raise
+    finally:
+        conn.used=time.monotonic();conn.busy=False
+
+
+def reap_idle():
+    for conn in list(CONNECTIONS):
+        if not conn.busy and time.monotonic()-conn.used>300:
+            conn.close();CONNECTIONS.remove(conn)

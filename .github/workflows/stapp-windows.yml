@@ -1,7 +1,8 @@
 name: Windows client
 on:
   push:
-    branches: [main]
+    branches: [main, feature/st-assistant-with-laya]
+  pull_request:
   workflow_dispatch:
 defaults:
   run:
@@ -13,11 +14,17 @@ jobs:
       - uses: actions/checkout@v4
       - run: cargo build --locked --release -p stctl -p st-voice
       - shell: pwsh
+        run: ./deploy/windows/package.ps1
+      - shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force package/bin
-          Copy-Item target/release/st.exe,target/release/stctl.exe,target/release/st-voice.exe package/bin
-          Copy-Item runtime package/runtime -Recurse
-          Copy-Item scripts/models.py,deploy/windows/install.ps1 package/
+          python scripts/models.py .cache/speech-models
+          if ($LASTEXITCODE) { throw 'Speech asset setup failed' }
+          $env:STAPP_MODELS=(Resolve-Path .cache/speech-models).Path
+          $env:STAPP_ESPEAK_LIBRARY=(Resolve-Path package/bin/libespeak-ng.dll).Path
+          $run=Start-Process target/release/st-voice.exe -ArgumentList '--synthesize "Okay ST. Please list my tasks." --output .cache/speech-smoke.wav' -Wait -PassThru
+          if ($run.ExitCode -ne 0 -or -not (Test-Path .cache/speech-smoke.wav)) { throw 'Native speech generation failed' }
+          $run=Start-Process target/release/st-voice.exe -ArgumentList '--check-audio .cache/speech-smoke.wav' -RedirectStandardOutput .cache/speech-smoke.txt -Wait -PassThru
+          if ($run.ExitCode -ne 0 -or -not (Select-String .cache/speech-smoke.txt 'wake_count: 1')) { throw 'Native keyword/transcription smoke failed' }
       - uses: actions/upload-artifact@v4
         with:
           name: stapp-windows-x64

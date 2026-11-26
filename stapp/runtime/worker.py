@@ -8,7 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
-from agent import execute
+from agent import execute, reap_idle
 from routing import ROUTER, load_catalog
 from transport import rpc
 
@@ -46,6 +46,7 @@ def main():
         active=set()
         while True:
             active={t for t in active if not t.done()}
+            if not active:reap_idle()
             if len(active)>=2:time.sleep(.25);continue
             try:
                 job=rpc({'op':'claim_job'})

@@ -151,7 +151,7 @@ def build_context(job, decision, catalog):
     remaining = 6000
     for manual in selected.get('manuals', []):
         relative = Path(manual)
-        if relative.is_absolute() or '..' in relative.parts:
+        if relative.is_absolute() or '..' in relative.parts or relative.suffix != '.md':
             continue
         path = (root/relative).resolve()
         if not path.is_relative_to(root) or not path.is_file():

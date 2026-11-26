@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "catalog_version": "2026-11-25-v3-clef-selected",
+  "catalog_version": "2026-11-26-v4-native",
   "provider": "cloudflare",
   "model": "clef-flash",
   "provider_model_id": "@cf/cloudflare/clef-flash",
@@ -17,8 +17,7 @@
       "description": "Create, edit or list tasks, reminders and calendar appointments.",
       "status": "existing",
       "manuals": [
-        "stapp/docs/planner.md",
-        "stapp/runtime/mcp.py"
+        "stapp/assistant/manuals/planner.md"
       ],
       "tools": [
         "list_records",
@@ -36,7 +35,7 @@
       "description": "Write down, remember or retrieve a personal note.",
       "status": "existing",
       "manuals": [
-        "stapp/runtime/mcp.py"
+        "stapp/assistant/manuals/notes.md"
       ],
       "tools": [
         "list_records",
@@ -49,8 +48,7 @@
       "description": "Write or fix software code; manage coding projects and agent chats.",
       "status": "existing-partial",
       "manuals": [
-        "stapp/README.md",
-        "sm-manager/integrations/ovis/app/docs/herdr-core-layout.md"
+        "stapp/assistant/manuals/agents.md"
       ],
       "tools": [
         "list_projects",
@@ -61,40 +59,36 @@
     {
       "id": "system",
       "description": "Inspect or manage computer resources, processes and services.",
-      "status": "adapter-needed",
+      "status": "read-only",
       "manuals": [
-        "sm-manager/README.md",
-        "sm-manager/sm_manager/__main__.py"
+        "stapp/assistant/manuals/system.md"
       ],
       "tools": [
-        "st status",
-        "st monitor cleanup-plan"
+        "system_status"
       ],
       "acknowledgement": "I’ll check the system."
     },
     {
       "id": "databases",
       "description": "Inspect database tables, run SQL, manage database connections or backups.",
-      "status": "adapter-needed",
+      "status": "read-only",
       "manuals": [
-        "sm-manager/README.md",
-        "sm-manager/sm_manager/dbs.py"
+        "stapp/assistant/manuals/databases.md"
       ],
       "tools": [
-        "GET /api/dbs"
+        "database_status"
       ],
       "acknowledgement": "I’ll look into the database request."
     },
     {
       "id": "air_quality",
       "description": "Read or compare indoor air sensor measurements.",
-      "status": "adapter-needed",
+      "status": "read-only",
       "manuals": [
-        "sm-manager/README.md",
-        "sm-manager/sm_manager/air_quality.py"
+        "stapp/assistant/manuals/air_quality.md"
       ],
       "tools": [
-        "GET /api/air-quality"
+        "air_quality"
       ],
       "acknowledgement": "I’ll check the air readings."
     },
@@ -103,14 +97,12 @@
       "description": "Turn the faceplate screen on/off or change its view.",
       "status": "existing-partial",
       "manuals": [
-        "stapp/README.md",
-        "sm-manager/README.md"
+        "stapp/assistant/manuals/display.md"
       ],
       "tools": [
         "show_view",
         "save_view",
-        "publish_app",
-        "st night"
+        "publish_app"
       ],
       "acknowledgement": "I’ll check the display request."
     },
@@ -119,7 +111,7 @@
       "description": "Search, list or display personal photographs or photo albums.",
       "status": "existing",
       "manuals": [
-        "stapp/docs/immich.md"
+        "stapp/assistant/manuals/photos.md"
       ],
       "tools": [
         "photos_status",
@@ -135,11 +127,9 @@
       "description": "Find products to buy or manage a grocery cart.",
       "status": "existing-partial",
       "manuals": [
-        "stapp/assistant/.agents/skills/shopping/SKILL.md"
+        "stapp/assistant/manuals/shopping.md"
       ],
-      "tools": [
-        "Rohlik MCP when configured"
-      ],
+      "tools": [],
       "acknowledgement": "I’ll look into the shopping request."
     },
     {
@@ -147,11 +137,9 @@
       "description": "Design, slice or print a 3D model; inspect a 3D printer.",
       "status": "external-setup",
       "manuals": [
-        "sm-manager/README.md"
+        "stapp/assistant/manuals/printing.md"
       ],
-      "tools": [
-        "Prusa Local adapter to be added"
-      ],
+      "tools": [],
       "acknowledgement": "I’ll look into the printing request."
     },
     {
@@ -159,11 +147,9 @@
       "description": "Search, read or organize stored documents, scanned invoices or receipts.",
       "status": "external-setup",
       "manuals": [
-        "sm-manager/sm_manager/home.py"
+        "stapp/assistant/manuals/documents.md"
       ],
-      "tools": [
-        "Paperless adapter to be added"
-      ],
+      "tools": [],
       "acknowledgement": "I’ll look for the document."
     },
     {
@@ -171,11 +157,9 @@
       "description": "General questions, explanations, weather, translation, music, chat, or none above.",
       "status": "fallback",
       "manuals": [
-        "stapp/assistant/AGENTS.md"
+        "stapp/assistant/manuals/other.md"
       ],
-      "tools": [
-        "General agent capability discovery"
-      ],
+      "tools": [],
       "acknowledgement": "I’ll take a look."
     }
   ]

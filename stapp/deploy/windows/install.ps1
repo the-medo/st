@@ -1,39 +1,52 @@
-param([Parameter(Mandatory=$true)][string]$SshAlias,[string]$Microphone="")
+param([Parameter(Mandatory=$true)][string]$SshAlias,[string]$Microphone="",[string]$Speaker="")
 $ErrorActionPreference="Stop"
 $root=Join-Path $env:LOCALAPPDATA "STapp"
 New-Item -ItemType Directory -Force -Path "$root/bin","$root/state","$root/models" | Out-Null
+# Stop only this client's scheduled task before replacing its executable.
+$task=Get-ScheduledTask -TaskName "STapp Voice" -ErrorAction SilentlyContinue
+if ($task) { Stop-ScheduledTask -TaskName "STapp Voice" }
 Copy-Item "$PSScriptRoot/bin/*" "$root/bin/" -Force
-Copy-Item "$PSScriptRoot/runtime/*" "$root/bin/" -Force
-Copy-Item "$PSScriptRoot/models.py" "$root/bin/models.py" -Force
-py -3.13 -m venv "$root/venv"
-if ($LASTEXITCODE) { throw "Install Python 3.13 with the Windows py launcher" }
-$python="$root/venv/Scripts/python.exe"
-& $python -m pip install -r "$root/bin/requirements.txt"
-if ($LASTEXITCODE) { throw "Voice dependency installation failed" }
-& $python "$root/bin/models.py" "$root/models"
-if ($LASTEXITCODE) { throw "Speech model installation failed" }
-# SshAlias names a dedicated entry with its own forced-command public key on the server.
-
+foreach ($model in (Get-Content "$PSScriptRoot/audio/models.json" -Raw | ConvertFrom-Json)) {
+  $file=Join-Path "$root/models" $model.file
+  if (-not (Test-Path $file)) {
+    Invoke-WebRequest $model.url -OutFile "$file.download"
+    if ((Get-FileHash "$file.download" -Algorithm SHA256).Hash.ToLower() -ne $model.sha256) { throw "Speech model checksum failed: $($model.file)" }
+    Move-Item "$file.download" $file
+  }
+  if ((Get-FileHash $file -Algorithm SHA256).Hash.ToLower() -ne $model.sha256) { throw "Corrupt model; remove and retry: $file" }
+  if ($model.directory) {
+    $marker=Join-Path "$root/models/$($model.directory)" ".st-verified"
+    if (-not (Test-Path $marker) -or (Get-Content $marker -Raw) -ne $model.sha256) {
+      tar -xf $file -C "$root/models"
+      if ($LASTEXITCODE) { throw "Cannot extract $file" }
+      [IO.File]::WriteAllText($marker,$model.sha256)
+    }
+  }
+}
+Copy-Item "$PSScriptRoot/audio/st-keywords.txt" "$root/models/" -Force
+if (-not (Test-Path "$root/bin/libespeak-ng.dll")) { throw "Package is missing the native eSpeak NG library" }
+# The paired forced-command key owns the device role; this file contains no cloud credentials.
 $probe = '{"op":"projects"}' | ssh -T -o BatchMode=yes -o ConnectTimeout=5 $SshAlias stctl bridge
 if ($LASTEXITCODE -or -not (($probe | ConvertFrom-Json).PSObject.Properties.Name -contains "result")) {
-  throw "Pair the dedicated SSH key and verify the host alias before installing startup."
+  throw "Pair the dedicated SSH key and verify its host alias first."
 }
-$settings=@{STAPP_DEVICE="pc"; STAPP_SSH=$SshAlias; STAPP_CLIENT_STATE="$root/state"; STAPP_MODELS="$root/models"; STAPP_VOICE_BIN="$root/bin/st-voice.exe"; STAPP_SPEECH_PYTHON=$python; STAPP_SPEECH_SCRIPT="$root/bin/speech.py"}
+$settings=@{STAPP_DEVICE="pc"; STAPP_SSH=$SshAlias; STAPP_CLIENT_STATE="$root/state"; STAPP_MODELS="$root/models"; STAPP_ESPEAK_LIBRARY="$root/bin/libespeak-ng.dll"}
 if ($Microphone) { $settings.STAPP_MIC=$Microphone }
+if ($Speaker) { $settings.STAPP_SPEAKER=$Speaker }
 $settings | ConvertTo-Json | Set-Content -Encoding utf8 "$root/client.json"
-$launcher=@'
-import json, os, runpy, sys
-from pathlib import Path
-root=Path(os.environ["LOCALAPPDATA"])/"STapp"
-os.environ.update(json.loads((root/"client.json").read_text(encoding="utf-8-sig")))
-sys.path.insert(0,str(root/"bin"))
-runpy.run_path(str(root/"bin/client.py"),run_name="__main__")
-'@
-$launcher | Set-Content -Encoding utf8 "$root/launch.py"
 $user=[System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-$action=New-ScheduledTaskAction -Execute "$root/venv/Scripts/pythonw.exe" -Argument ('"'+$root+'/launch.py"')
+$action=New-ScheduledTaskAction -Execute "$root/bin/st-voice.exe" -Argument ('--config "'+$root+'/client.json"')
 $trigger=New-ScheduledTaskTrigger -AtLogOn -User $user
-$settings=New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero)
-Register-ScheduledTask -TaskName "STapp Voice" -Action $action -Trigger $trigger -Settings $settings -User $user -RunLevel Limited -Force | Out-Null
+$taskSettings=New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+Register-ScheduledTask -TaskName "STapp Voice" -Action $action -Trigger $trigger -Settings $taskSettings -User $user -RunLevel Limited -Force | Out-Null
+$shell=New-Object -ComObject WScript.Shell
+$start=Join-Path ([Environment]::GetFolderPath('Programs')) 'S.T. assistant'
+New-Item -ItemType Directory -Force $start | Out-Null
+foreach ($command in @('mute','unmute','stop','quit')) {
+  $link=$shell.CreateShortcut((Join-Path $start "$command.lnk"))
+  $link.TargetPath="$root/bin/st-voice.exe"
+  $link.Arguments='--config "'+$root+'/client.json" --control '+$command
+  $link.Save()
+}
 Start-ScheduledTask -TaskName "STapp Voice"
-Write-Output "Started STapp. Use the tray icon to mute or answer questions."
+Write-Output "Started S.T. Say Hey ST or Okay ST. Maintenance controls are in the Start menu."

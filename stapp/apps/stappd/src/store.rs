@@ -109,7 +109,7 @@ impl Store {
                 ensure!((1..=200).contains(&limit),"Limit must be 1–200");
                 let project=v["project"].as_str();
                 let status=v["status"].as_str();
-                ensure!(status.is_none_or(|s|matches!(s,"queued"|"running"|"waiting"|"completed"|"failed"|"interrupted")),"Invalid request status");
+                ensure!(status.is_none_or(|s|matches!(s,"queued"|"running"|"waiting"|"completed"|"failed"|"interrupted"|"cancelled")),"Invalid request status");
                 Ok(json!(rows(&self.db,"SELECT id,prompt,project,status,thread,updated FROM jobs WHERE device=?1 AND (?2 IS NULL OR project=?2) AND (?3 IS NULL OR status=?3) ORDER BY rowid DESC LIMIT ?4",params![device,project,status,limit],|r|Ok(json!({"id":r.get::<_,String>(0)?,"text":r.get::<_,String>(1)?,"project":r.get::<_,String>(2)?,"status":r.get::<_,String>(3)?,"thread":r.get::<_,Option<String>>(4)?,"updated":r.get::<_,i64>(5)?})))?))
             }
             "pending"=>Ok(json!(rows(&self.db,"SELECT j.id,(SELECT body FROM events e WHERE e.job=j.id AND e.kind='question' ORDER BY seq DESC LIMIT 1) FROM jobs j WHERE device=? AND status='waiting' ORDER BY j.rowid",[device],|r|Ok(json!({"id":r.get::<_,String>(0)?,"text":r.get::<_,String>(1)?})))?)),
@@ -166,7 +166,19 @@ impl Store {
         let prompt = field(v, "text")?;
         ensure!(prompt.len() <= 32000, "Request too long");
         let tx = self.db.transaction()?;
-        if v.get("wake").is_some() && prompt.to_lowercase().starts_with("answer ") {
+        let spoken = v.get("wake").is_some() || v["voice"] == true;
+        let explicit_answer = prompt.to_lowercase().starts_with("answer ");
+        let pending: i64 = tx.query_row(
+            "SELECT count(*) FROM jobs WHERE device=? AND status='waiting'",
+            [device],
+            |r| r.get(0),
+        )?;
+        let answered: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM voice_answers WHERE id=?)",
+            [id],
+            |r| r.get(0),
+        )?;
+        if spoken && (explicit_answer || pending > 0 || answered) {
             if let Some((who, original, job)) = tx
                 .query_row(
                     "SELECT device,prompt,job FROM voice_answers WHERE id=?",
@@ -198,7 +210,11 @@ impl Store {
                 "A spoken answer needs one pending question. Use stctl answer with the request ID."
             );
             let job = waiting[0].as_str().unwrap();
-            let answer = prompt[7..].trim();
+            let answer = if explicit_answer {
+                prompt[7..].trim()
+            } else {
+                prompt
+            };
             ensure!(!answer.is_empty(), "Missing answer");
             tx.execute(
                 "INSERT INTO voice_answers VALUES(?,?,?,?)",
