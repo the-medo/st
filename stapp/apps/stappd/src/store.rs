@@ -216,7 +216,9 @@ impl Store {
         let spoken = v.get("wake").is_some() || v["voice"] == true;
         let lower = prompt.to_lowercase();
         let explicit_answer = lower.starts_with("answer ");
-        let new_request = lower.starts_with("new request ") || lower.starts_with("new request:");
+        let new_request = lower
+            .strip_prefix("new request")
+            .is_some_and(|rest| rest.chars().next().is_none_or(|c| !c.is_alphanumeric()));
         let pending: i64 = tx.query_row(
             "SELECT count(*) FROM jobs WHERE device=? AND status='waiting'",
             [device],

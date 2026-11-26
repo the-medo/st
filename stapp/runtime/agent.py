@@ -218,10 +218,10 @@ def execute(job,decision,catalog,emit):
                 elif method=='item/permissions/requestApproval':
                     description=p.get('reason') or 'Allow the requested access for this task?'
                     answer=wait_answer(description+' '+json.dumps(p['permissions'],ensure_ascii=False)+' — reply approve or decline')
-                    conn.send({'id':ident,'result':{'permissions':p['permissions'] if answer.strip().lower()=='approve' else {},'scope':'turn'}})
+                    conn.send({'id':ident,'result':{'permissions':p['permissions'] if answer.strip().lower().rstrip('.!').strip()=='approve' else {},'scope':'turn'}})
                 elif method in ('item/commandExecution/requestApproval','item/fileChange/requestApproval'):
                     answer=wait_answer(str(p.get('command') or p.get('reason') or 'Allow this change?')+' — reply approve or decline')
-                    conn.send({'id':ident,'result':{'decision':'accept' if answer.strip().lower()=='approve' else 'decline'}})
+                    conn.send({'id':ident,'result':{'decision':'accept' if answer.strip().lower().rstrip('.!').strip()=='approve' else 'decline'}})
                 else:conn.send({'id':ident,'error':{'code':-32601,'message':'Unsupported request'}})
     except BaseException:
         if thread and turn_id:

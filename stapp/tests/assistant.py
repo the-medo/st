@@ -110,7 +110,7 @@ class Events(integration.Daemon):
         self.assertEqual(rpc(submitted,'room')['id'],job['id'])
         self.assertEqual(rpc({'op':'status','id':job['id']},'room')['status'],'waiting')
         self.assertIsNone(self.event(job,'poll'))
-        other=self.ask('room','New request: explain the sky',voice=True)
+        other=self.ask('room','New request. Explain the sky',voice=True)
         self.assertNotEqual(other['id'],job['id'])
         self.assertEqual(rpc({'op':'status','id':job['id']},'room')['status'],'waiting')
 
@@ -156,15 +156,17 @@ class Events(integration.Daemon):
             def receive(self,timeout):return events.pop(0)
             def close(self):pass
         fake=Fake()
-        events=[{'method':'item/permissions/requestApproval','id':98,'params':{'threadId':'native-thread','permissions':{'network':{'enabled':True}},'reason':'Synthetic access check'}},
+        events=[{'method':'item/permissions/requestApproval','id':97,'params':{'threadId':'native-thread','permissions':{'network':{'enabled':True}},'reason':'Synthetic spoken approval'}},
+            {'method':'item/permissions/requestApproval','id':98,'params':{'threadId':'native-thread','permissions':{'network':{'enabled':True}},'reason':'Synthetic access check'}},
             {'method':'item/tool/call','id':99,'params':{'threadId':'native-thread','tool':'save_record','arguments':{'kind':'note','title':'Contract test','body':'Isolated'},'callId':'call-1'}},
             {'method':'item/completed','params':{'threadId':'native-thread','item':{'type':'agentMessage','text':json.dumps({'display_text':'Saved','speech_text':'Saved','status':'completed'})}}},
             {'method':'turn/completed','params':{'threadId':'native-thread','turn':{'status':'completed'}}}]
         self.ask('room','Save my synthetic note');job=rpc({'op':'claim_job'},'owner')
         Path(job['cwd']).mkdir(parents=True,exist_ok=True)
+        answers=iter(['Approve.','Decline.'])
         def emit(kind,text='',payload=None):
             result=rpc({'op':'worker_event','id':job['id'],'claim':job['claim'],'kind':kind,'text':text,'payload':payload},'owner')
-            if kind=='question':rpc({'op':'answer','id':job['id'],'text':'decline'},'room')
+            if kind=='question':rpc({'op':'answer','id':job['id'],'text':next(answers)},'room')
             return result
         with patch('agent.connection',return_value=fake):
             result=execute(job,{'effective_route':'notes'},CATALOG,emit)
@@ -173,6 +175,7 @@ class Events(integration.Daemon):
         self.assertEqual(result['confirmed_tools'][0]['call_id'],'call-1')
         self.assertEqual(fake.requests[-1],('thread/unsubscribe',{'threadId':'native-thread'}))
         self.assertTrue(next(x for x in fake.messages if x.get('id')==99)['result']['success'])
+        self.assertEqual(next(x for x in fake.messages if x.get('id')==97)['result'],{'permissions':{'network':{'enabled':True}},'scope':'turn'})
         self.assertEqual(next(x for x in fake.messages if x.get('id')==98)['result'],{'permissions':{},'scope':'turn'})
 
 if __name__=='__main__':unittest.main()

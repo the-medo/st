@@ -444,11 +444,14 @@ fn listen(
                     };
                     if !text.trim().is_empty() {
                         let mut req = json!({"op":"ask","id":id,"text":text,"voice":true});
-                        if let Some(_rest) = text
-                            .strip_prefix("Follow up:")
-                            .or_else(|| text.strip_prefix("follow up "))
-                            .or_else(|| text.strip_prefix("Follow up "))
-                        {
+                        let lower = text.to_lowercase();
+                        let followup =
+                            ["follow up", "follow-up", "followup"].iter().any(|prefix| {
+                                lower.strip_prefix(prefix).is_some_and(|rest| {
+                                    rest.chars().next().is_none_or(|c| !c.is_alphanumeric())
+                                })
+                            });
+                        if followup {
                             if let Ok(previous) =
                                 std::fs::read_to_string(state.join("last-result.json"))
                             {
