@@ -6664,3 +6664,24 @@ The existing locked, atomic `organization.json` store owns folder order in each 
 Each folder header offers the same hover/focus/touch **+** action as a project. It launches a new conversation in that project and expands the selected folder. Pending drafts are rendered in their folder, including after reload; the action does not send a message. This follows the existing Codex-style project action, scoped to the owner's folder grouping.
 
 `POST /api/medo/new` accepts an optional validated `folderId`. The owned Herdr terminal stores its folder intent and binds it to its first native thread title. Once an exact thread ID is available, `organization.py` saves the assignment and an idempotency receipt in the optional top-level `folderLaunches` map in `organization.json`. That receipt prevents subsequent catalog polls from undoing a manual move/unfile; a later `/new` or `/resume` does not inherit the original launch intent. Older organization writers preserve the added map. Deleted folders fall back to unfiled conversations, and stale folder-create requests fail before launching a terminal.
+
+## S.T. main navigation activity
+
+The outer Agents destination summarizes working, finished-but-unread, and
+needs-attention conversations. Like [Conductor's sidebar input status](https://www.conductor.build/docs/troubleshooting/issues)
+and [unread badges](https://www.conductor.build/changelog/0.0.19-misc-improvements),
+activity is visible outside the conversation. S.T. counts conversations instead
+of workspaces to match its existing project/chat list. No external code is used.
+
+The expanded item shows only nonzero icon/count pairs. Working icons rotate
+unless reduced motion is requested. Collapsed and phone navigation
+show the highest-priority nonzero count: attention, unread, then working, with
+the full summary in the accessible description and tooltip. Archived and
+user-completed conversations do not contribute. Status failures preserve the
+last counts and say they are stale rather than implying no work is running.
+
+Read receipts use the same browser-local store as the conversation list. The
+host polls the read-only catalog while outside Agents; opening a conversation
+clears its unread state in both places. Hidden retained views do not mark new
+answers read. Existing history is seeded quietly, with no new stored format,
+HTTP endpoint, terminal attachment, or automatic action on any agent.

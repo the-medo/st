@@ -6,6 +6,7 @@ import "@st/theme/theme.css";
 import "../../sm_manager/static/style.css";
 import "../../sm_manager/static/home.css";
 import "./styles.css";
+import "./navigation.css";
 import { MonitorProvider } from "./features/MonitorContext";
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

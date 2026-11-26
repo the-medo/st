@@ -38,6 +38,11 @@ export function createAgentsShortcuts(
   let current: RecentConversation | null = null;
   let recent: RecentConversation[] = [];
   let catalog: MedoCatalog | null = null;
+  let catalogState: {
+    data: MedoCatalog;
+    at: number;
+    unavailable: boolean;
+  } | null = null;
   let panes: HostShortcutPane[] = [];
   let connectedMachines: string[] = [];
   let openChat: ((threadId: string, saved: boolean) => void) | null = null;
@@ -167,9 +172,14 @@ export function createAgentsShortcuts(
     projects(select) {
       selectProject = select;
     },
-    catalog(next, open) {
+    catalog(next, open, unavailable = false) {
       openChat = open;
-      if (catalog === next) return;
+      if (catalog === next && catalogState?.unavailable === unavailable) return;
+      catalogState = {
+        data: next,
+        at: catalog === next ? catalogState!.at : Date.now(),
+        unavailable,
+      };
       catalog = next;
       recent = recent.map(remember);
       if (current) current = remember(current);
@@ -185,6 +195,7 @@ export function createAgentsShortcuts(
   return {
     host,
     selection: () => current,
+    catalog: () => catalogState,
     recent: () => recent,
     details,
     selectProject: (id: string) => selectProject?.(id),
@@ -205,3 +216,5 @@ export const recentDetails = store.details;
 export const subscribeRecent = store.subscribe;
 export const recentRevision = store.snapshot;
 export const selectAgentsProject = store.selectProject;
+
+export const agentsCatalog = store.catalog;

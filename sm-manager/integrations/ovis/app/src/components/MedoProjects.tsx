@@ -115,7 +115,9 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
     void refresh();
     const timer = setInterval(() => { if (document.visibilityState === 'visible') void refresh(); }, 8000);
     const focus = () => void refresh(); window.addEventListener('focus', focus);
-    return () => { mounted.current = false; revision.current++; clearInterval(timer); window.removeEventListener('focus', focus); selectionTicket.current++; };
+    const visible = () => { if (document.visibilityState === 'visible') void refresh(); };
+    document.addEventListener('visibilitychange', visible);
+    return () => { mounted.current = false; revision.current++; clearInterval(timer); window.removeEventListener('focus', focus); document.removeEventListener('visibilitychange', visible); selectionTicket.current++; };
   }, [refresh]);
   const action = async (run: () => Promise<unknown>) => {
     try { await run(); setError(''); await refresh(true); return true; }
@@ -217,7 +219,7 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
     if (catalog) hostShortcuts?.catalog(catalog, (id, saved) => {
       const chat = catalog.chats.find((item) => item.id === id);
       if (chat) { if (saved) read(chat); else void open(chat); }
-    });
+    }, Boolean(catalogError));
   });
   const start = async (project: MedoProject, folder?: MedoFolder) => {
     if (creatingRef.current) return;

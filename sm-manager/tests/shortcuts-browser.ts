@@ -13,7 +13,7 @@ export async function armShortcuts(page: Page) {
     .locator(
       `.st-sidebar a[aria-current="page"]:is([href="${path}"], [href^="${path}?"])`,
     )
-    .waitFor();
+    .waitFor({ state: "attached" });
   await page.keyboard.press("Escape");
   await page.keyboard.press("Control+Shift");
   await page.locator('.st-shortcut-indicator[data-step="2"]').waitFor();
@@ -273,13 +273,20 @@ export async function verifyShortcuts(page: Page, base: string) {
   await page.keyboard.press("w");
   await page.waitForURL(`${base}/projects`);
 
+  await page.locator('.st-app[data-workmode="false"]').waitFor();
   for (const width of [900, 390]) {
     await page.setViewportSize({ width, height: 1000 });
     await armShortcuts(page);
-    assert.equal(await page.locator(".st-shortcut-key:visible").count(), 13);
+    await page.waitForFunction(
+      (expected) =>
+        [...document.querySelectorAll<HTMLElement>(".st-shortcut-key")].filter(
+          (el) => el.getClientRects().length > 0,
+        ).length === expected,
+      width === 900 ? 12 : 3,
+    );
     assert(
       await page
-        .locator(".st-sidebar")
+        .locator(".st-sidebar-scroll")
         .evaluate((el) => el.scrollWidth <= el.clientWidth),
     );
     if (process.env.ST_SHORTCUT_EVIDENCE)

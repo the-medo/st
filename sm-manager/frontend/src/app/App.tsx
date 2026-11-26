@@ -1,9 +1,7 @@
-import { GitPullRequest as GithubIcon } from "lucide-react";
-import herdrIcon from "../assets/herdr.svg";
 import { RecentConversations } from "../components/RecentConversations";
-import { isWorkmode, withWorkmode } from "../lib/workmode";
+import { isWorkmode } from "../lib/workmode";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
+import { Route, Routes, useLocation, useNavigate } from "react-router";
 import { Home } from "../features/Home";
 import { Notice } from "../components/Ui";
 import { usePoll } from "../lib/api";
@@ -11,11 +9,9 @@ import type { UiConfig } from "../lib/types";
 import { useMonitor } from "../features/MonitorContext";
 import { Planner } from "../features/Planner";
 import { Agents } from "../features/ovis/Agents";
-import {
-  ShortcutIndicator,
-  ShortcutKey,
-} from "../components/ShortcutIndicator";
+import { ShortcutIndicator } from "../components/ShortcutIndicator";
 import { useSidebarShortcuts } from "./useSidebarShortcuts";
+import { MainNavigation, navigation } from "./MainNavigation";
 const Overview = lazy(() =>
   import("../features/Overview").then((m) => ({ default: m.Overview })),
 );
@@ -46,23 +42,10 @@ const Faceplate = lazy(() =>
 const Assistant = lazy(() =>
   import("../features/Assistant").then((m) => ({ default: m.Assistant })),
 );
-const navigation = [
-  ["overview", "Overview", "◫", "O"],
-  ["projects", "Projects", "⌘", "P"],
-  ["containers", "Containers", "▤", "N"],
-  ["github", "GitHub", "github", "G"],
-  ["storage", "Storage", "▥", "S"],
-  ["zed", "Zed", "/zed.svg", "Z"],
-  ["dbs", "DBs", "/db.svg", "D"],
-] as const;
-const shortcut = (key: string) => ({
-  "data-shortcut": key,
-  "aria-description": `Keyboard shortcut: press and release Control+Shift, then ${key}.`,
-});
 export function App() {
   const location = useLocation(),
     navigate = useNavigate();
-  const sidebar = useRef<HTMLElement>(null);
+  const sidebar = useRef<HTMLDivElement>(null);
   const shortcuts = useSidebarShortcuts(sidebar, location.key);
   const config = usePoll<UiConfig>("/api/ui-config", 60000);
   const { snapshot: monitor, projects } = useMonitor();
@@ -111,221 +94,23 @@ export function App() {
   }, [workmode]);
   return (
     <div className="st-app" data-workmode={workmode}>
-      <aside
-        className="st-sidebar sidebar"
-        ref={sidebar}
-        data-shortcuts-ready={
-          shortcuts.step === 2 && shortcuts.scope === "main"
+      <MainNavigation
+        navigationRef={sidebar}
+        shortcutsReady={shortcuts.step === 2 && shortcuts.scope === "main"}
+        config={config.data}
+        agentsAddress={agentsAddress.current}
+        connection={connection}
+        hostname={monitor.data?.system.hostname}
+        projectCount={monitor.data ? projects.length : undefined}
+        containerCount={
+          monitor.data
+            ? projects.reduce(
+                (count, project) => count + project.container_count,
+                0,
+              ) + monitor.data.unassigned_containers.length
+            : undefined
         }
-      >
-        <NavLink
-          {...shortcut("H")}
-          className="st-brand brand"
-          to={withWorkmode("/", workmode)}
-          aria-label="Home"
-          title="ST · Home"
-        >
-          <img src="/st-logo.svg" alt="" width="86" height="48" />
-          <img
-            className="workmode-logo"
-            src="/ydistri.svg"
-            alt="Ydistri"
-            hidden={!workmode}
-          />
-          <ShortcutKey letter="H" />
-        </NavLink>
-        <nav aria-label="Main navigation">
-          {config.data?.ovis && (
-            <NavLink
-              {...shortcut("A")}
-              className="nav-link nav-agents"
-              title="Agents"
-              aria-label="Agents"
-              to={withWorkmode(agentsAddress.current, workmode)}
-            >
-              <img
-                className="nav-icon nav-herdr-icon"
-                src={herdrIcon}
-                alt=""
-                width="22"
-                height="22"
-              />
-              Agents
-              <ShortcutKey letter="A" />
-            </NavLink>
-          )}
-          {navigation.map(([path, label, icon, key]) => (
-            <NavLink
-              {...shortcut(key)}
-              className="nav-link"
-              title={label}
-              aria-label={label}
-              key={path}
-              to={`/${path}${workmode ? "?workmode=1" : ""}`}
-            >
-              {icon === "github" ? (
-                <GithubIcon className="nav-icon" aria-hidden="true" size={17} />
-              ) : icon.startsWith("/") ? (
-                <img
-                  className="nav-icon"
-                  src={icon}
-                  alt=""
-                  width="17"
-                  height="17"
-                />
-              ) : (
-                <span className="nav-icon" aria-hidden="true">
-                  {icon}
-                </span>
-              )}
-              {label}
-              <ShortcutKey letter={key} />
-              {path === "projects" && (
-                <span className="nav-count" aria-hidden="true">
-                  {monitor.data ? projects.length : "—"}
-                </span>
-              )}
-              {path === "containers" && (
-                <span className="nav-count" aria-hidden="true">
-                  {monitor.data
-                    ? projects.reduce(
-                        (count, project) => count + project.container_count,
-                        0,
-                      ) + monitor.data.unassigned_containers.length
-                    : "—"}
-                </span>
-              )}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="st-sidebar-bottom sidebar-bottom">
-          {config.data?.planner && (
-            <nav className="sidebar-planner" aria-label="Planner">
-              <h2 className="sidebar-heading">Planner</h2>
-              <NavLink
-                {...shortcut("T")}
-                className="nav-link"
-                title="Tasks"
-                aria-label="Tasks"
-                to={withWorkmode("/planner/tasks", workmode)}
-              >
-                <span className="nav-icon" aria-hidden="true">
-                  ☑
-                </span>
-                Tasks
-                <ShortcutKey letter="T" />
-              </NavLink>
-              <NavLink
-                {...shortcut("C")}
-                className="nav-link"
-                title="Calendar"
-                aria-label="Calendar"
-                to={withWorkmode("/planner/calendar", workmode)}
-              >
-                <span className="nav-icon" aria-hidden="true">
-                  ▦
-                </span>
-                Calendar
-                <ShortcutKey letter="C" />
-              </NavLink>
-            </nav>
-          )}
-          {!workmode && (
-            <nav className="sidebar-devices" aria-label="Devices">
-              <h2 className="sidebar-heading">Devices</h2>
-              <NavLink
-                className="nav-link"
-                to="/assistant"
-                aria-label="Voice assistant"
-              >
-                <span className="nav-icon" aria-hidden="true">
-                  ◉
-                </span>
-                Assistant
-              </NavLink>
-              <NavLink
-                {...shortcut("F")}
-                className="nav-link"
-                title="Faceplate"
-                aria-label="Faceplate"
-                to="/faceplate"
-              >
-                <span className="nav-icon" aria-hidden="true">
-                  ▣
-                </span>
-                Faceplate
-                <ShortcutKey letter="F" />
-              </NavLink>
-              {config.data?.printer_url && (
-                <a
-                  {...shortcut("R")}
-                  className="nav-link"
-                  title="Prusa Connect"
-                  aria-label="Prusa Connect"
-                  href={config.data.printer_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <img
-                    className="nav-icon"
-                    src="/prusa-connect.svg"
-                    alt=""
-                    width="17"
-                    height="17"
-                  />
-                  Prusa Connect
-                  <ShortcutKey letter="R" />
-                  <span className="nav-external" aria-hidden="true">
-                    ↗
-                  </span>
-                </a>
-              )}
-              <NavLink
-                {...shortcut("Q")}
-                className="nav-link"
-                title="Air quality"
-                aria-label="Air quality"
-                to="/air-quality"
-              >
-                <span className="nav-icon" aria-hidden="true">
-                  ≋
-                </span>
-                Air quality
-                <ShortcutKey letter="Q" />
-              </NavLink>
-            </nav>
-          )}
-          <div
-            className={`machine st-connection connection ${connection !== "Connected" ? "stale" : ""}`}
-            role="status"
-            aria-label={`${monitor.data?.system.hostname ?? "Monitor"} · ${connection}`}
-            title={connection}
-          >
-            <span className="status-dot" aria-hidden="true" />
-            <strong>{monitor.data?.system.hostname ?? "Connecting…"}</strong>
-          </div>
-          <button
-            {...shortcut("W")}
-            className="workmode-toggle"
-            role="switch"
-            aria-label="Workmode"
-            aria-checked={workmode}
-            onClick={() => {
-              const p = new URLSearchParams(location.search);
-              if (workmode) p.delete("workmode");
-              else p.set("workmode", "1");
-              navigate({ pathname: location.pathname, search: p.toString() });
-            }}
-          >
-            <span className="workmode-label">Workmode</span>
-            <ShortcutKey letter="W" />
-            <span className="workmode-switch" aria-hidden="true" />
-          </button>
-          <div className="sidebar-version">
-            ST · LOCAL <span>v2 preview</span>
-          </div>
-        </div>
-      </aside>
+      />
       <main className="st-main">
         <div
           id="dashboard"
