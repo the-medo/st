@@ -125,7 +125,8 @@ class QuestionIdentityTests(unittest.TestCase):
 
 
 class HistoryTests(unittest.TestCase):
-    def test_paging_keeps_the_read_window_when_new_turns_arrive(self):
+    @patch.object(bridge.sidebar, 'checked_thread', return_value=({'cwd':'/synthetic/project'}, {}))
+    def test_paging_keeps_the_read_window_when_new_turns_arrive(self, checked):
         pages={None:{'version':'v','thread':{'id':'chat'},'turns':[{'id':'4'},{'id':'5'},{'id':'6'}],'nextCursor':'old'},
                'old':{'version':'v','thread':{'id':'chat'},'turns':[{'id':'1'},{'id':'2'},{'id':'3'}],'nextCursor':None}}
         with patch.object(bridge,'request',side_effect=lambda p:pages[p.get('cursor')].copy()):

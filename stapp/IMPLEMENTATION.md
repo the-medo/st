@@ -314,8 +314,18 @@ Further decisions:
 - Warm app-server slots retire after five idle minutes; release thread ownership
   after each result so Herdr can resume it. ASR and TTS have the same idle policy.
 
-The Herdr project/history integration is verified, including coordinator resumption
-after an app-server restart. The generic Herdr chat view does not dispatch ST's
-per-job dynamic tools. Action follow-ups currently use voice or `st ask --parent`;
-interactive Herdr-to-coordinator action handoff remains a documented integration
-limitation, rather than bypassing the job/device bindings to make it appear to work.
+2026-11-26 management follow-up: Herdr assistant conversations now resume through
+ST's coordinator, including answers and cancellation. Durable retries preserve the
+original job/device binding; passive history reads never steal the worker's thread.
+A real isolated Luna run verified creation and editing through the Herdr adapter,
+with a temporary Codex profile and no household changes.
+
+The ST console now has `/assistant` for coordinator/router health, recent requests,
+native endpoint state, microphone/speaker selection, mute, Stop, test recording,
+speaker test and button-triggered dictation. Endpoints synchronize over their
+existing paired transport. Management commands expire after thirty seconds and
+are never automatically replayed after acceptance. Migration 006 is additive.
+
+Physical microphone/speaker, Windows desktop and dual-device acceptance remain
+pending. Browser fixture tests cover both new interfaces, including lost-send
+retries and stale/offline states; they do not establish physical audio behavior.

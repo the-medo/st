@@ -61,6 +61,9 @@ impl Store {
         if tx.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))? < 5 {
             tx.execute_batch(include_str!("../migrations/005.sql"))?;
         }
+        if tx.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))? < 6 {
+            tx.execute_batch(include_str!("../migrations/006.sql"))?;
+        }
         tx.commit()?;
         db.execute(
             "INSERT OR IGNORE INTO projects VALUES('assistant',?,'local')",
@@ -70,6 +73,9 @@ impl Store {
     }
     pub fn call(&mut self, device: &str, v: &Value) -> Result<Value> {
         let op = field(v, "op")?;
+        if op.starts_with("assistant_") || op == "voice_sync" {
+            return self.assistant(device, v);
+        }
         match op {
             "projects"=>Ok(json!(rows(&self.db,"SELECT name,host FROM projects ORDER BY name",[],|r|Ok(json!({"name":r.get::<_,String>(0)?,"host":r.get::<_,String>(1)?})))?)),
             "register"|"create_project"=>{
@@ -256,7 +262,7 @@ impl Store {
         }
         let parent = v["parent"].as_str();
         let (project, thread) = if let Some(parent) = parent {
-            tx.query_row("SELECT project,thread FROM jobs WHERE id=? AND device=? AND thread IS NOT NULL AND status IN ('completed','failed','interrupted')",params![parent,device],|r|Ok((r.get::<_,String>(0)?,r.get::<_,Option<String>>(1)?))).context("Previous conversation is unavailable")?
+            tx.query_row("SELECT project,thread FROM jobs WHERE id=? AND device=? AND thread IS NOT NULL AND status IN ('completed','failed','interrupted','cancelled')",params![parent,device],|r|Ok((r.get::<_,String>(0)?,r.get::<_,Option<String>>(1)?))).context("Previous conversation is unavailable")?
         } else {
             (
                 v["project"].as_str().unwrap_or("assistant").to_owned(),

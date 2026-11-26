@@ -86,3 +86,16 @@ that confirmation merely to improve the synthetic fixture score.
 
 Android remains future work. No local decision-model service or model cache has
 been restored. The speech models are separate from those retired decision models.
+
+## Herdr and management follow-up
+
+Additional isolated checks exercise durable Herdr sends/answers, original-device
+binding, cancellation of queued work, stale-question and settings-revision
+rejection, and device-command expiry/receipt ownership. Browser fixtures exercise
+audio settings, mute, test recording, dictation/Stop, responsive layout and Herdr
+send retry/answer/Stop. A real Luna creation/edit through the adapter passed using
+a temporary ST database and temporary Codex profile.
+
+ST's frontend/gateway typecheck and build pass. The broader vendored Ovis
+typecheck still reports errors in untouched Node type definitions, test fixtures
+and missing Electron source references; no new assistant-file errors remain.

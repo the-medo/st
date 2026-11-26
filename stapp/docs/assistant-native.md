@@ -165,12 +165,46 @@ silently downgrade a database with new jobs.
 
 The assistant workspace is `~/.local/share/stapp/assistant`. Its native Codex
 project is also registered in the existing Herdr sidebar project configuration.
-Threads are unsubscribed after completion so another client can open their history
-without a second writer. Action follow-ups should use voice or `st ask --parent`:
-the dynamic ST tools belong to the coordinator, and the generic Herdr chat view
-does not provide that tool dispatcher. General viewing and the dedicated sidebar
-project work; editing household data directly from that chat UI needs a future
-coordinator handoff. Do not edit Codex history databases to register conversations.
+Threads are unsubscribed after completion. Herdr's saved assistant conversations
+now provide a follow-up composer, pending-question answers and Stop. Sends go
+through the ST coordinator, retain the original device and use durable retry IDs;
+they do not open a generic Codex terminal. History reads are passive. The graphical
+chat bridge has the same coordinator adapter when running this revision.
+
+## Assistant settings page
+
+Open **Assistant** in the ST console (`/assistant`). It shows coordinator and
+Cloudflare routing health, recent requests, and separate Steam Machine/Windows
+cards. Each connected native client reports its state, selected audio devices,
+available microphones/speakers, unsent count and recent errors every two seconds.
+After fifteen seconds without a heartbeat, the card is offline. Old client
+versions do not report; install the updated package to enable management.
+
+Microphone/speaker changes and mute state are saved on the coordinator, using a
+revision check to prevent one browser overwriting another's changes. Settings
+apply on reconnect. The endpoint keeps a private `remote-settings.json`; web
+choices override corresponding installer choices. System default is an explicit
+selection. Local mute/stop controls remain usable without a server connection.
+
+**Dictate a request** starts the selected device's microphone without a wake
+phrase; silence finalizes and sends the request. **Test microphone** uses the same
+capture/transcription path but displays only its test transcript, with no agent
+job. Raw audio is not archived. **Test speaker** plays a short local phrase.
+**Stop** cancels that device's pending assistant jobs and stops local capture and
+speech; already confirmed actions remain in effect.
+
+Recording and playback commands require a fresh device connection and expire
+unreceived after thirty seconds. Commands and answers have durable IDs; a lost
+reply never silently replays a microphone command. A crash during acceptance can
+skip a command, which is reported instead of restarting recording after reboot.
+Cloudflare health describes the last routing attempt; configured-but-untested is
+shown separately from a successful connection. No credentials are sent to the UI.
+
+The console/Herdr changes deploy through SM Manager's normal main-branch updater.
+For branch review, use `sm-manager/scripts/preview-v2.py` and `preview-ovis.py`;
+never replace the independent production runtime checkout. STapp's additive
+migration 006 stores management receipts, endpoint status and settings. Back up the
+database before installation, as for the earlier assistant migration.
 
 ## Verification and remaining acceptance
 

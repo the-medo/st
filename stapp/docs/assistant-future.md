@@ -24,7 +24,7 @@ Reference: [Android foreground-service types](https://developer.android.com/deve
 
 ## Additional forms and improvements
 
-- [ ] Browser push-to-talk in the ST console using the shared protocol.
+- [ ] Browser-owned microphone capture; the console already triggers dictation on paired native clients.
 - [ ] Headset/controller button activation on desktop.
 - [ ] Echo cancellation and spoken interruption during TTS.
 - [ ] Further endpoint languages and voices, selected using actual recordings.
@@ -32,10 +32,8 @@ Reference: [Android foreground-service types](https://developer.android.com/deve
 - [ ] Optional cloud speech/continuous voice frontend, configured independently
   from local classification and subscription-backed agent execution.
 
-## Herdr action handoff
+## Completed follow-up work
 
-- [ ] Route interactive sends in saved assistant conversations through the ST
-  coordinator so its per-job dynamic tools remain available in the generic Herdr
-  chat UI. Today, use voice follow-up or `st ask --parent REQUEST_ID` for actions.
-  Herdr already lists and displays the conversations; do not bypass job claims
-  by exposing a global household-mutation MCP process to every resumed chat.
+Herdr assistant follow-ups, question answers and cancellation now use the ST
+coordinator. The console includes device settings/status, microphone and speaker
+tests, and button-triggered dictation. See the [native guide](assistant-native.md).

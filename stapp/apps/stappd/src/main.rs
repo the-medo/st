@@ -1,3 +1,4 @@
+mod assistant;
 mod notes;
 mod photos;
 mod planner;

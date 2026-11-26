@@ -14,12 +14,12 @@ from routing import ROUTER, load_catalog
 from transport import rpc
 
 
-def save_health(value):
+def save_health(value, name="router-health.json"):
     data=Path(os.getenv('STAPP_DATA',Path.home()/'.local/share/stapp'))
     data.mkdir(parents=True,exist_ok=True,mode=0o700)
     with tempfile.NamedTemporaryFile(mode='w',dir=data,prefix='.router-health-',delete=False) as stream:
         json.dump(value,stream);temp=Path(stream.name)
-    temp.replace(data/'router-health.json')
+    temp.replace(data/name)
 
 
 def run(job):
@@ -35,7 +35,8 @@ def run(job):
         catalog={'catalog_version':'unavailable','instructions':'','routes':[{'id':'other','description':'General assistant','status':'fallback','manuals':[],'tools':[]} ]}
         decision={'effective_route':'other','reason':'catalog_unavailable','role':'advisory'}
     else:decision=ROUTER.decide(job,catalog)
-    save_health({'status':decision['reason'],'checked_at':time.time(),'provider':'cloudflare','model':'clef-flash'})
+    if decision['reason'] not in ('continuation', 'project'):
+        save_health({'status':decision['reason'],'checked_at':time.time(),'provider':'cloudflare','model':'clef-flash'})
     emit('routing','',decision)
     emit('acknowledged','I’ll take a look.',{'speech_text':'I’ll take a look.'})
     return execute(job,decision,catalog,emit)
@@ -57,7 +58,10 @@ def main():
             with suppress(Exception):rpc({'op':'worker_event','kind':'failed','id':job['id'],'claim':job['claim'],'text':str(exc)[:2000],'payload':{'speech_text':'The request failed. Please check its details.'}})
     with ThreadPoolExecutor(max_workers=2,thread_name_prefix='st-agent') as pool:
         active=set()
+        checked=0
         while True:
+            if time.monotonic()-checked>5:
+                save_health({"checked_at":time.time()}, "worker-health.json");checked=time.monotonic()
             active={t for t in active if not t.done()}
             if not active:reap_idle()
             if len(active)>=2:time.sleep(.25);continue
