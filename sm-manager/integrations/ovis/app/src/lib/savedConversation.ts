@@ -12,3 +12,11 @@ export function withSavedConversation(search: string, id: string | null): string
   const value = params.toString();
   return value ? `?${value}` : '';
 }
+
+/** Keep the current app mount, but never share transient pane/settings state. */
+export function savedConversationLink(href: string, id: string): string {
+  const url = new URL(href);
+  url.search = withSavedConversation('', id);
+  url.hash = '';
+  return url.href;
+}

@@ -361,6 +361,13 @@ try {
     name: "Finished garden plan",
     exact: true,
   });
+  await ended.waitFor();
+  await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (value: string) => { Reflect.set(window, "__copiedConversation", value); } } }));
+  await page.getByRole("button", { name: "Actions for Finished garden plan", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Copy conversation link", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Conversation link copied" }).waitFor();
+  const copiedConversation = await page.evaluate(() => Reflect.get(window, "__copiedConversation"));
+  assert.equal(copiedConversation, `${base}/agents?saved=00000000-0000-4000-8000-000000000099`);
   await ended.click();
   const savedPage = page.locator(".medo-conversation-page");
   await savedPage.waitFor();
@@ -407,7 +414,7 @@ try {
   await savedRecent.getByRole("img", { name: "codex" }).waitFor();
   await savedRecent.click();
   await savedPage.waitFor();
-  // A direct saved-history URL survives a reload and loads independently of a live pane.
+  // The copied link opens saved history independently of the previous live pane.
   await page.addInitScript(() =>
     Reflect.set(
       window,
@@ -415,10 +422,13 @@ try {
       new URLSearchParams(location.search).has("saved"),
     ),
   );
-  await page.reload();
+  await page.goto(copiedConversation);
   await savedPage.waitFor();
   await page.getByRole("main", { name: "Finished garden plan" }).waitFor();
   assert.equal(await page.title(), "ST - Finished garden plan");
+  assert.equal(await page.evaluate(() => (Reflect.get(window, "__stOvisRequests") as string[]).filter((path) => path === "/agents/api/medo/open").length), 0);
+  await page.reload();
+  await savedPage.locator(".chat-turn").first().waitFor();
   await page
     .getByRole("button", { name: "Fixture conversation", exact: true })
     .click();

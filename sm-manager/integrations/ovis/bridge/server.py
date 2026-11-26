@@ -137,6 +137,7 @@ def catalog(cfg=None, rows=None):
             if chat['project'] == project['id']:
                 folder = group.get('chats', {}).get(chat['id'])
                 chat['folder'] = folder if folder in known else None
+                chat['done'] = folders.get('done', {}).get(chat['id']) is True
     return dict(version=2, coreId=cfg['coreId'], generated=int(time.time()), projects=projects, chats=chats,
                 organizationRevision=folders['revision'])
 

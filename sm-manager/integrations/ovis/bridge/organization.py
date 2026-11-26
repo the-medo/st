@@ -55,7 +55,21 @@ def update(root, projects, chat_projects, change):
         operation = change.get('operation')
         folder_id = change.get('folderId')
         folder = next((x for x in group['folders'] if x['id'] == folder_id), None)
-        if operation in ('create', 'rename'):
+        if operation == 'set-done':
+            thread = change.get('threadId')
+            if chat_projects.get(thread) != project:
+                raise ValueError('The conversation does not belong to this project.')
+            done = change.get('done')
+            if not isinstance(done, bool):
+                raise ValueError('Choose whether the conversation is done.')
+            # Thread IDs remain stable across folder/project moves. Older writers
+            # preserve this top-level field when saving unrelated organization edits.
+            completed = data.setdefault('done', {})
+            if done:
+                completed[thread] = True
+            else:
+                completed.pop(thread, None)
+        elif operation in ('create', 'rename'):
             name = ' '.join(str(change.get('name', '')).split())
             if not name or len(name) > 60:
                 raise ValueError('Folder names must contain 1–60 characters.')

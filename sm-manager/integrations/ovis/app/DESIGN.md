@@ -6642,3 +6642,11 @@ read-only indexed history, since an unanswered question can precede the rollout
 reader's 4 MB tail. The live terminal count and existing checks after opening the
 queue still control which question can be answered. Indexed history alone never
 authorizes submitting an answer or marks an old, skipped question as waiting.
+
+## ST conversation completion and references (2026-11-26)
+
+The sidebar follows [T3 Code's settle pattern](https://github.com/pingdotgg/t3code/blob/main/docs/user/thread-sidebar.md): completed work remains readable and can return to the active list. ST uses the owner's requested green hover checkmark and **Show done** beside **Show more**, with compact secondary typography. Completion is explicit; it neither archives history nor stops a terminal, and **Mark as active** reverses it. Completed rows retain their green checkmark, and touch/keyboard users can reach both row actions. Active and done lists each page five rows per project/folder. No code or pixels were copied.
+
+The conversation menu copies a stable saved-history URL or the thread UUID. Links open the existing saved-history page without resuming a terminal. The host CLI accepts either via `st agents conversation REFERENCE --json`, resolves it against its configured gateway, and retains history pagination; it never fetches arbitrary pasted URLs.
+
+`organization.py` owns completion in `organization.json` as an optional top-level `done` map of thread IDs to `true`. A missing map means no completed conversations. Existing writers load and preserve unknown top-level fields during locked atomic saves, so older folder/order edits cannot erase completion. Old readers ignore it; rollback preserves the data. `POST /api/medo/organize` accepts explicit `set-done` changes with a project, thread, and boolean, and `GET /api/medo/catalog` returns each chat's `done` flag. The native Codex history store is unchanged.

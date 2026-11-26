@@ -97,6 +97,21 @@ class ConsoleCli(unittest.TestCase):
             self.assertEqual(json.loads(self.cli("agents",action,"--json").stdout), [])
             self.assertEqual(self.requests[-1][1], "/agents/api/"+path)
 
+    def test_saved_conversation_links_and_ids_use_local_history_without_launching(self):
+        thread = '11111111-2222-3333-4444-555555555555'
+        self.response = {'turns': [], 'cursor': 'older'}
+        for reference in (thread, 'medo:' + thread, 'https://preview.example/agents?saved=' + thread):
+            self.assertEqual(json.loads(self.cli('agents', 'conversation', reference, '--before', 'opaque+cursor', '--json').stdout), self.response)
+            method, target, body, _ = self.requests[-1]
+            parsed = urlsplit(target)
+            self.assertEqual((method, parsed.path, body), ('GET', '/agents/api/medo/conversation', None))
+            self.assertEqual(parse_qs(parsed.query), {'pane_id': ['medo:' + thread], 'before': ['opaque+cursor']})
+        count = len(self.requests)
+        for reference in ('https://example.test/secret?saved=' + thread, 'https://example.test/agents?saved=invalid', 'medo:../bad'):
+            self.cli('agents', 'conversation', reference, ok=False)
+        self.cli('agents', 'conversation', thread, '--machine', 'remote', ok=False)
+        self.assertEqual(len(self.requests), count)
+
     def test_prompt_answer_is_bound_to_prompt_id(self):
         self.response = {"ok":True}
         self.cli("agents","answer","p1","question-1","--option","2")

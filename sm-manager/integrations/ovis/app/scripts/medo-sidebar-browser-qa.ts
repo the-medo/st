@@ -192,8 +192,104 @@ try {
   await row('Refresh projects').click();
   await attention.waitFor({ state: 'hidden' });
   await page.locator('.medo-chat .medo-spinner').waitFor();
+  // Completion is explicit, survives catalogue reloads, and has independent pagination.
+  const sharedId = '11111111-2222-3333-4444-555555555555';
+  catalog = { projects: [{ id: 'garden', name: 'Garden', path: '/fixture/garden', folders: [{ id: 'ideas', name: 'Ideas' }] }],
+    chats: [
+      { ...chat(sharedId, 'Automation work'), updated: 100 },
+      ...Array.from({ length: 6 }, (_, i) => chat(`active-${i}`, `Active conversation ${i + 1}`)),
+      ...Array.from({ length: 6 }, (_, i) => ({ ...chat(`done-${i}`, `Completed conversation ${i + 1}`), done: true })),
+      { ...chat('folder-chat', 'Finished idea'), folder: 'ideas', done: true },
+    ], organizationRevision: 0 };
+  await page.setViewportSize({ width: 1100, height: 800 });
+  await page.reload();
+  await row('Show more (2)').waitFor();
+  assert.equal(await row('Completed conversation 1').count(), 0);
+  const moreBox = (await row('Show more (2)').boundingBox())!;
+  const doneBox = (await row('Show done (6)').boundingBox())!;
+  assert.equal(moreBox.y, doneBox.y, 'Show done sits beside Show more');
+  assert.ok(Number.parseFloat(await row('Show more (2)').evaluate((el) => getComputedStyle(el).fontSize)) < Number.parseFloat(await row('Automation work').evaluate((el) => getComputedStyle(el).fontSize)));
+  await row('Automation work').hover();
+  const check = row('Mark as done: Automation work');
+  assert.equal(await check.evaluate((el) => getComputedStyle(el).opacity), '1');
+  if (evidence) await page.screenshot({ path: join(evidence, 'conversation-actions.png') });
+  // A refused save leaves the conversation active and explains the failure.
+  await check.click();
+  await waitCount(moves, 1);
+  await moves.shift()!.fulfill({ status: 400, json: { error: { message: 'Completion could not be saved' } } });
+  await page.getByRole('alert').filter({ hasText: 'Completion could not be saved' }).waitFor();
+  await row('Automation work').waitFor();
+  holdPoll = true;
+  await row('Refresh projects').click();
+  await waitCount(polls, 1);
+  await check.focus();
+  await page.keyboard.press('Enter');
+  await waitCount(moves, 1);
+  assert.equal(await check.isDisabled(), true);
+  const beforeDone = structuredClone(catalog);
+  const completion = moves.shift()!;
+  assert.deepEqual(completion.request().postDataJSON(), { change: { operation: 'set-done', projectId: 'garden', threadId: sharedId, done: true } });
+  catalog.chats[0]!.done = true;
+  await completion.fulfill({ json: { ok: true } });
+  holdPoll = false;
+  await polls.shift()!.fulfill({ json: beforeDone });
+  await row('Automation work').waitFor({ state: 'hidden' });
+  await row('Show done (7)').click();
+  await row('Automation work').waitFor();
+  assert.equal(await row('Mark as active: Automation work').getAttribute('aria-pressed'), 'true');
+  assert.equal(await row('Completed conversation 6').count(), 0);
+  await row('Show more done (2)').click();
+  await row('Completed conversation 6').waitFor();
+  await row('Show more (1)').click();
+  await row('Active conversation 6').waitFor();
+  await row('Show done (1)').click();
+  await row('Finished idea').waitFor();
+  await row('Hide done (7)').click();
+  assert.equal(await row('Automation work').count(), 0);
+  assert.equal(await row('Finished idea').count(), 1, 'Folder visibility is independent');
+  await page.reload();
+  await row('Show done (7)').waitFor();
+  assert.equal(await row('Automation work').count(), 0);
+  await page.getByRole('textbox', { name: 'Search conversations' }).fill('Automation');
+  await row('Show done (1)').click();
+  await row('Automation work').waitFor();
+  // Copy both stable reference formats and report a denied clipboard honestly.
+  await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (value: string) => { Reflect.set(window, '__copied', value); } } }));
+  await row('Actions for Automation work').click();
+  if (evidence) await page.screenshot({ path: join(evidence, 'conversation-menu.png') });
+  await page.getByRole('menuitem', { name: 'Copy conversation link', exact: true }).click();
+  await page.getByRole('status').filter({ hasText: 'Conversation link copied' }).waitFor();
+  assert.equal(await page.evaluate(() => Reflect.get(window, '__copied')), `http://127.0.0.1:${server.port}/?saved=${sharedId}`);
+  await row('Actions for Automation work').click();
+  await page.getByRole('menuitem', { name: 'Copy conversation ID', exact: true }).click();
+  await page.getByRole('status').filter({ hasText: 'Conversation ID copied' }).waitFor();
+  assert.equal(await page.evaluate(() => Reflect.get(window, '__copied')), sharedId);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async () => { throw new Error('Denied'); } } });
+    document.execCommand = () => false;
+  });
+  await row('Actions for Automation work').click();
+  await page.getByRole('menuitem', { name: 'Copy conversation ID', exact: true }).click();
+  await page.getByRole('alert').filter({ hasText: 'Could not copy' }).waitFor();
+  assert.equal(await page.getByRole('status').filter({ hasText: 'copied' }).count(), 0);
+  await row('Mark as active: Automation work').click();
+  await waitCount(moves, 1);
+  const reopen = moves.shift()!;
+  assert.equal(reopen.request().postDataJSON().change.done, false);
+  catalog.chats[0]!.done = false;
+  await reopen.fulfill({ json: { ok: true } });
+  await row('Mark as done: Automation work').waitFor();
+  // Touch devices expose the checkmark without a hover, with no horizontal overflow.
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const mobile = await phone.newPage();
+  await mobile.route('**/api/medo/catalog', (route) => route.fulfill({ json: catalog }));
+  await mobile.goto(`http://127.0.0.1:${server.port}/`);
+  await mobile.getByRole('button', { name: 'Mark as done: Automation work' }).waitFor();
+  assert.equal(await mobile.locator('.medo-done-action').first().evaluate((el) => getComputedStyle(el).opacity), '1');
+  if (evidence) await mobile.screenshot({ path: join(evidence, 'conversation-actions-touch.png') });
+  await phone.close();
   assert.deepEqual(errors, []);
-  console.log('Sidebar browser regressions passed: navigation, reordering, attention state, formatted question replies and named completion popup.');
+  console.log('Sidebar browser regressions passed: navigation, reordering, attention, feedback, done/reopen persistence and errors, grouped pagination, copy links/IDs and touch actions.');
 } finally {
   await browser.close();
   await server.stop(true);

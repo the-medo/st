@@ -36,7 +36,13 @@
 @media(prefers-reduced-motion:reduce){.medo-spinner{animation:none}}
 
 .medo-folder{margin-left:13px}.medo-projects button.medo-folder-head{display:flex;gap:6px;align-items:center;padding:6px 0;width:100%;text-align:left;color:var(--text-dim)}
-.medo-projects button.medo-more{padding:5px 27px;color:var(--text-dim);font-size:12px}
+.medo-list-controls{display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px;padding:2px 0 2px 23px}
+.medo-projects button.medo-more{padding:3px 4px;color:var(--text-dim);font-size:10px;line-height:16px}
+.medo-projects button.medo-done-action{color:var(--status-done)}
+.medo-chat.is-done .medo-done-action{opacity:1}
+.medo-chat.is-done .medo-chat-title{color:var(--text-dim)}
+.medo-copy-notice{display:flex;align-items:center;justify-content:space-between;gap:6px;margin:0 12px 8px;font-size:11px;color:var(--text-dim)}
+.medo-copy-notice button{display:flex;padding:4px}
 .medo-empty{display:block;color:var(--text-dim);padding:5px 27px;font-size:12px}
 .medo-projects footer{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-top:1px solid var(--border)}
 .medo-muted{color:var(--text-dim);font-size:12px;line-height:1.6}.medo-project-scroll>.medo-muted{padding:8px}
