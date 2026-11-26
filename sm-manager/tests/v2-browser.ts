@@ -8,6 +8,7 @@ import { verifyGitHub } from "./github-browser";
 import { verifyCatalogs } from "./catalog-browser";
 import { verifyAirQuality } from "./air-browser";
 import { verifyOverviewCharts } from "./overview-browser";
+import { verifyNavigation } from "./navigation-browser";
 import { verifyShortcuts } from "./shortcuts-browser";
 const root = resolve("sm_manager/web");
 const planner = `<!doctype html><html><head><link rel="stylesheet" href="/st-theme.css"><link rel="stylesheet" href="/st-planner.css"><script src="/st-planner.js"></script></head><body><h1>Fixture planner</h1><nav aria-label="Planner navigation"></nav><input aria-label="Task title"><main></main><button id="home">ST home</button><script>
@@ -80,6 +81,7 @@ try {
   });
   page.on("pageerror", (e) => errors.push(e.message));
   const base = `http://127.0.0.1:${server.port}`;
+  await verifyNavigation(page, base);
   await verifyShortcuts(page, base);
   await page.goto(base);
   await page.getByRole("heading", { name: "Your services" }).waitFor();
@@ -98,11 +100,12 @@ try {
     174,
   );
   await page.setViewportSize({ width: 900, height: 1000 });
+  await page.locator('.st-sidebar[data-collapsed="true"]').waitFor();
   assert.equal(
     await page
       .locator(".st-sidebar")
       .evaluate((el) => el.getBoundingClientRect().width),
-    54,
+    64,
   );
   await page.setViewportSize({ width: 1440, height: 1000 });
 
@@ -284,6 +287,7 @@ try {
   ); // authoritative status remains fixture-provided
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(base);
+  await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("link", { name: "Projects", exact: true }).click();
   await page.getByPlaceholder("Project, branch, path…").waitFor();
   assert(
@@ -302,7 +306,17 @@ try {
     hasTouch: true,
   });
   touch.on("pageerror", (error) => errors.push(error.message));
-  await touch.goto(`${base}/overview`);
+  await touch.goto(base);
+  await touch.getByRole("button", { name: "More", exact: true }).tap();
+  await touch
+    .getByRole("dialog", { name: "More to explore" })
+    .getByRole("link", { name: "Projects", exact: true })
+    .tap();
+  await touch.getByPlaceholder("Project, branch, path…").waitFor();
+  await touch
+    .getByRole("navigation", { name: "Mobile navigation", exact: true })
+    .getByRole("link", { name: "Overview", exact: true })
+    .tap();
   await touch
     .getByRole("group", { name: "History range", exact: true })
     .getByRole("button", { name: "15m", exact: true })

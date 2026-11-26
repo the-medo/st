@@ -5,6 +5,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert/strict";
 import { fixtureApi, ui } from "./v2-fixtures";
+import { verifyAgentActivity } from "./agent-activity-browser";
 import { verifyAgentsShortcuts } from "./agents-shortcuts-browser";
 import { armShortcuts } from "./shortcuts-browser";
 import panes from "../integrations/ovis/app/site/demo/fixtures/panes.json";
@@ -48,12 +49,12 @@ const demo = await Bun.build({
 if (!demo.success) throw new Error(demo.logs.map(String).join("\n"));
 const setup = `const originalFetch=window.fetch;\n${await demo.outputs[0]!.text()}\nconst demoFetch=window.fetch,DemoSocket=window.WebSocket,DemoEvents=window.EventSource;
 window.__stOvisRequests=[];window.__stMedoState={title:localStorage.getItem('fixture:chat-name')||'Fixture conversation',status:'idle',updated:1,appearance:{sectionColor:'#142a2a',borderColor:'#3b6c60'}};
-window.__stCreatedProjects=[];
+window.__stCreatedProjects=[];window.__stActivityCatalog=JSON.parse(sessionStorage.getItem('fixture:activity-catalog')||'null');
 const shortcutProjects=Array.from({length:10},(_,i)=>({id:i===0?'garden':'project-'+i,name:i===0?'Garden':i===1?'Orchard':'Project '+(i+1),path:'/fixtures/project-'+i,folders:i===0?[{id:'folder',name:'More conversations'}]:[]}));
 const fixturePanes=${JSON.stringify(Object.values(panes))};
 const endedChat={id:'00000000-0000-4000-8000-000000000099',title:'Finished garden plan',project:'garden',cwd:'/fixtures/garden',updated:0,archived:false,unavailable:'Terminal ended',folder:null};
 const shortcutChats=shortcutProjects.flatMap((project,p)=>Array.from({length:p===0?11:3},(_,i)=>({id:p===0&&i===0?'00000000-0000-4000-8000-000000000001':'chat-'+p+'-'+i,title:p===0&&i===0?'Fixture conversation':'Conversation '+(p+1)+'.'+(i+1),project:project.id,cwd:project.path,updated:100-i,archived:false,unavailable:null,folder:p===0&&i>=5?'folder':null,paneId:p===0&&i===0?${JSON.stringify(panes.web)}:fixturePanes[(p+i)%fixturePanes.length]})));
-window.fetch=(input,init)=>{const u=new URL(input instanceof Request?input.url:input,location.href);if(!u.pathname.startsWith('/agents/api/'))return originalFetch(input,init);window.__stOvisRequests.push(u.pathname);u.pathname=u.pathname.slice(7);if(u.pathname==='/api/medo/catalog')return Promise.resolve(Response.json(window.__stSavedFixture?{projects:[shortcutProjects[0]],chats:[shortcutChats[0],endedChat],organizationRevision:1}:window.__stExpandedShortcutsFixture?{projects:shortcutProjects,chats:shortcutChats,organizationRevision:1}:{projects:[{id:'garden',name:'Garden',path:'/fixtures/garden',folders:[],appearance:window.__stMedoState.appearance}],chats:[{id:'00000000-0000-4000-8000-000000000001',title:window.__stMedoState.title,project:'garden',cwd:'/fixtures/garden',updated:window.__stMedoState.updated,status:window.__stMedoState.status,archived:false,unavailable:null,folder:null,paneId:${JSON.stringify(panes.web)}}],organizationRevision:1}));if(u.pathname==='/api/medo/rename'){if(window.__stMedoState.renameFail)return Promise.resolve(Response.json({error:{message:'Fixture rename unavailable'}},{status:400}));const title=JSON.parse(init.body).name.trim();window.__stMedoState.title=title;localStorage.setItem('fixture:chat-name',title);return Promise.resolve(Response.json({ok:true,title}));}if(u.pathname==='/api/medo/style'){window.__stMedoState.appearance=JSON.parse(init.body).style;return Promise.resolve(Response.json({ok:true}));}if(u.pathname==='/api/medo/open')return new Promise(resolve=>setTimeout(()=>resolve(Response.json({address:shortcutChats.find(c=>c.id===JSON.parse(init.body).threadId)?.paneId??${JSON.stringify(panes.web)},reused:true})),window.__stOpenDelay??0));if(u.pathname==='/api/medo/new'){window.__stCreatedProjects.push(JSON.parse(init.body).projectId);return Promise.resolve(Response.json({address:${JSON.stringify(panes.web)},reused:true}));}if(u.pathname==='/api/medo/conversation'){u.pathname='/api/pane/conversation';u.searchParams.set('pane_id',${JSON.stringify(panes.web)});}return demoFetch(u.href,init);};
+window.fetch=(input,init)=>{const u=new URL(input instanceof Request?input.url:input,location.href);if(!u.pathname.startsWith('/agents/api/'))return originalFetch(input,init);window.__stOvisRequests.push(u.pathname);u.pathname=u.pathname.slice(7);if(u.pathname==='/api/medo/catalog'&&window.__stActivityUnavailable)return Promise.resolve(Response.json({error:{message:'Fixture status unavailable'}},{status:503}));if(u.pathname==='/api/medo/catalog'&&window.__stActivityCatalog)return Promise.resolve(Response.json(window.__stActivityCatalog));if(u.pathname==='/api/medo/catalog')return Promise.resolve(Response.json(window.__stSavedFixture?{projects:[shortcutProjects[0]],chats:[shortcutChats[0],endedChat],organizationRevision:1}:window.__stExpandedShortcutsFixture?{projects:shortcutProjects,chats:shortcutChats,organizationRevision:1}:{projects:[{id:'garden',name:'Garden',path:'/fixtures/garden',folders:[],appearance:window.__stMedoState.appearance}],chats:[{id:'00000000-0000-4000-8000-000000000001',title:window.__stMedoState.title,project:'garden',cwd:'/fixtures/garden',updated:window.__stMedoState.updated,status:window.__stMedoState.status,archived:false,unavailable:null,folder:null,paneId:${JSON.stringify(panes.web)}}],organizationRevision:1}));if(u.pathname==='/api/medo/rename'){if(window.__stMedoState.renameFail)return Promise.resolve(Response.json({error:{message:'Fixture rename unavailable'}},{status:400}));const title=JSON.parse(init.body).name.trim();window.__stMedoState.title=title;localStorage.setItem('fixture:chat-name',title);return Promise.resolve(Response.json({ok:true,title}));}if(u.pathname==='/api/medo/style'){window.__stMedoState.appearance=JSON.parse(init.body).style;return Promise.resolve(Response.json({ok:true}));}if(u.pathname==='/api/medo/open')return new Promise(resolve=>setTimeout(()=>resolve(Response.json({address:shortcutChats.find(c=>c.id===JSON.parse(init.body).threadId)?.paneId??${JSON.stringify(panes.web)},reused:true})),window.__stOpenDelay??0));if(u.pathname==='/api/medo/new'){window.__stCreatedProjects.push(JSON.parse(init.body).projectId);return Promise.resolve(Response.json({address:${JSON.stringify(panes.web)},reused:true}));}if(u.pathname==='/api/medo/conversation'){u.pathname='/api/pane/conversation';u.searchParams.set('pane_id',${JSON.stringify(panes.web)});}return demoFetch(u.href,init);};
 window.WebSocket=function(url,protocols){const u=new URL(url,location.href);if(u.pathname==='/agents/ws')u.pathname='/ws';return new DemoSocket(u.href,protocols);};Object.setPrototypeOf(window.WebSocket,DemoSocket);
 window.EventSource=function(url,options){const u=new URL(url,location.href);if(u.pathname.startsWith('/agents/api/'))u.pathname=u.pathname.slice(7);return new DemoEvents(u.href,options);};Object.setPrototypeOf(window.EventSource,DemoEvents);
 `;
@@ -99,6 +100,7 @@ try {
   const base = `http://127.0.0.1:${server.port}`;
   await page.goto(base);
   await page.getByRole("heading", { name: "Your services" }).waitFor();
+  await verifyAgentActivity(page);
   await page.evaluate(() =>
     localStorage.setItem(
       "ovis:settings",
@@ -180,6 +182,7 @@ try {
       .getByRole("navigation", { name: "Main navigation" })
       .getByRole("link")
       .first()
+      .locator(".nav-label")
       .innerText(),
     "Agents",
   );
@@ -439,6 +442,7 @@ try {
   });
   await page.getByRole("button", { name: "Refresh projects" }).click();
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("link", { name: "Home", exact: true }).click();
   await page.getByRole("heading", { name: "Your services" }).waitFor();
   await page.getByRole("link", { name: "Agents", exact: true }).click();
@@ -449,11 +453,11 @@ try {
     ),
     "Mobile viewport does not overflow",
   );
+  const agentsBounds = (await page.locator(".st-ovis-section").boundingBox())!;
+  const navigationBounds = (await page.locator(".st-mobile-nav").boundingBox())!;
   assert(
-    await page
-      .locator(".st-ovis-section")
-      .evaluate((el) => el.getBoundingClientRect().bottom <= innerHeight + 1),
-    "Ovis fits below the restored mobile navigation",
+    agentsBounds.y + agentsBounds.height < navigationBounds.y - 15,
+    "Ovis fits above the floating mobile navigation and raised Agents action",
   );
   await page
     .getByRole("button", { name: "Open workspace list", exact: true })

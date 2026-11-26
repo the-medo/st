@@ -7,6 +7,19 @@ The React v2 migration is developed on `feature/st-v2`. See
 the built console; existing installations retain the legacy frontend during
 the migration. Built output and local configuration stay out of Git.
 
+The main sidebar collapses to an icon rail when you click its right border.
+The setting is remembered in this browser; the machine status, Workmode switch
+and version are hidden while collapsed. Labels remain available as tooltips.
+On screens up to 700px wide, a floating bottom bar replaces the main sidebar:
+**Overview**, **Calendar**, **Agents**, **Assistant**, and **More**. Agents uses
+the raised Herdr button. More opens a scrollable menu with the remaining pages
+and Workmode; Escape or a tap outside closes it. Embedded page sidebars keep
+their existing controls. The Agents item also shows working, finished-but-unread,
+and needs-attention counts, including updates while another page is open.
+Collapsed and mobile navigation prioritize attention, then unread results, then
+working agents. Opening a conversation clears its unread state; archived and
+user-completed conversations are excluded.
+
 The React console supports scoped shortcuts: tap and release **Ctrl twice**
 within 700 ms to show the current page's keys, or press and release **Ctrl+Shift**
 to open the main sidebar's keys directly. The bottom-right Ctrl ring fills halfway

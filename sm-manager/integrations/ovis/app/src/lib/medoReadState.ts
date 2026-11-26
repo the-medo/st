@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { MedoChat } from '../../shared/medo.ts';
 
 export const MEDO_READ_KEY = 'ovis:project-chat-activity:v1';
@@ -40,27 +40,52 @@ function load(): MedoReadState {
   catch { return new Map(); }
 }
 
+// The host navigation and the conversation list must share one read receipt.
+// In-memory subscribers also work when browser storage is unavailable.
+let current: MedoReadState | undefined;
+const listeners = new Set<() => void>();
+export const medoReadSnapshot = (): MedoReadState => current ??= load();
+const notify = () => listeners.forEach((listener) => listener());
+const storageChanged = (event: StorageEvent) => {
+  if (event.key !== MEDO_READ_KEY && event.key !== null) return;
+  current = load();
+  notify();
+};
+export function subscribeMedoReadState(listener: () => void): () => void {
+  if (!listeners.size) window.addEventListener('storage', storageChanged);
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+    if (!listeners.size) window.removeEventListener('storage', storageChanged);
+  };
+}
+export function observeSharedMedoChats(chats: readonly MedoChat[], visibleId: string | null): void {
+  const previous = medoReadSnapshot();
+  const next = observeMedoChats(previous, chats, visibleId);
+  if (next === previous) return;
+  current = next;
+  try { window.localStorage.setItem(MEDO_READ_KEY, JSON.stringify([...next])); }
+  catch { /* Private storage may be unavailable; activity still works for this visit. */ }
+  notify();
+}
+export function useMedoReadSnapshot(): MedoReadState {
+  return useSyncExternalStore(subscribeMedoReadState, medoReadSnapshot);
+}
+
 export function useMedoReadState(chats: readonly MedoChat[] | undefined, selectedPaneId: string | null, covered: boolean, readerId?: string): MedoReadState {
-  const [state, setState] = useState(load);
+  const state = useMedoReadSnapshot();
   const [visible, setVisible] = useState(() => document.visibilityState === 'visible');
   useEffect(() => {
     const visibility = () => setVisible(document.visibilityState === 'visible');
-    const storage = (event: StorageEvent) => { if (event.key === MEDO_READ_KEY || event.key === null) setState(load()); };
     document.addEventListener('visibilitychange', visibility);
-    window.addEventListener('storage', storage);
-    return () => { document.removeEventListener('visibilitychange', visibility); window.removeEventListener('storage', storage); };
+    return () => document.removeEventListener('visibilitychange', visibility);
   }, []);
   useEffect(() => {
-    if (!chats) return;
-    const visibleId = visible ? readerId ?? (!covered ? chats.find((chat) => chat.paneId === selectedPaneId)?.id ?? null : null) : null;
-    setState((previous) => observeMedoChats(previous, chats, visibleId));
+    // While this view is hidden, the host observes its fresh background catalog.
+    // A retained conversation list must not overwrite it with its old snapshot.
+    if (!chats || !visible) return;
+    const visibleId = readerId ?? (!covered ? chats.find((chat) => chat.paneId === selectedPaneId)?.id ?? null : null);
+    observeSharedMedoChats(chats, visibleId);
   }, [chats, selectedPaneId, visible, covered, readerId]);
-  useEffect(() => {
-    if (!state.size) return;
-    try {
-      const value = JSON.stringify([...state]);
-      if (window.localStorage.getItem(MEDO_READ_KEY) !== value) window.localStorage.setItem(MEDO_READ_KEY, value);
-    } catch { /* Private storage may be unavailable; activity still works for this visit. */ }
-  }, [state]);
   return state;
 }

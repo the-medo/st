@@ -25,6 +25,6 @@ export interface HostShortcutPane {
 export interface HostShortcuts {
   selection: (selection: HostShortcutSelection | null) => void;
   projects: (select: ((id: string) => void) | null) => void;
-  catalog: (catalog: MedoCatalog, open: (threadId: string, saved: boolean) => void) => void;
+  catalog: (catalog: MedoCatalog, open: (threadId: string, saved: boolean) => void, unavailable?: boolean) => void;
   panes: (panes: HostShortcutPane[], connectedMachines: string[]) => void;
 }
