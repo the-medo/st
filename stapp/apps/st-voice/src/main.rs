@@ -135,7 +135,13 @@ fn deliver(args: Args, state: PathBuf, suspended: Arc<AtomicU8>, stage: Arc<Atom
                             break;
                         }
                         after = seq;
-                        if !text.is_empty() && !state.join("muted").exists() {
+                        let cancelled = event["id"]
+                            .as_str()
+                            .is_some_and(|id| state.join("cancelled").join(id).exists());
+                        if !text.is_empty()
+                            && !state.join("muted").exists()
+                            && (!cancelled || kind == "cancelled")
+                        {
                             while matches!(stage.load(Ordering::Relaxed), 1 | 2)
                                 && !state.join("quit").exists()
                             {
@@ -326,7 +332,12 @@ fn listen(
     stream.play()?;
     if args.record_once {
         engine.start();
-        claim = Some(uuid::Uuid::new_v4().to_string());
+        let id = uuid::Uuid::new_v4().to_string();
+        atomic_write(
+            &state.join("active-capture.json"),
+            &json!({"id":id}).to_string(),
+        )?;
+        claim = Some(id);
         stage.store(1, Ordering::Relaxed);
     }
     loop {
@@ -377,9 +388,16 @@ fn listen(
             Some(Event::Wake) => {
                 let id = uuid::Uuid::new_v4().to_string();
                 stage.store(1, Ordering::Relaxed);
+                let _ = std::fs::remove_file(state.join("stop-speech"));
                 output::earcon(args.speaker.as_deref(), false, &state.join("stop-speech"));
                 match client.exchange(&json!({"op":"wake","id":id})) {
-                    Ok(v) if v["accepted"] == true => claim = Some(id),
+                    Ok(v) if v["accepted"] == true => {
+                        atomic_write(
+                            &state.join("active-capture.json"),
+                            &json!({"id":id}).to_string(),
+                        )?;
+                        claim = Some(id);
+                    }
                     _ => {
                         engine.reset();
                         stage.store(0, Ordering::Relaxed);
@@ -395,6 +413,18 @@ fn listen(
                     suspended.fetch_and(!2, Ordering::Relaxed);
                     while rx.try_recv().is_ok() {}
                     let raw = text?;
+                    if state.join("stop").exists()
+                        || state.join("muted").exists()
+                        || state.join("quit").exists()
+                        || state.join("cancelled").join(&id).exists()
+                    {
+                        let _ = client.exchange(&json!({"op":"release_wake","id":id}));
+                        stage.store(0, Ordering::Relaxed);
+                        if args.record_once {
+                            return Ok(());
+                        }
+                        continue;
+                    }
                     let text = if args.record_once {
                         raw
                     } else {
@@ -531,10 +561,12 @@ fn main() -> Result<()> {
                     let markers = state.join("cancelled");
                     std::fs::create_dir_all(&markers)?;
                     let mut ids = Vec::new();
-                    if let Ok(previous) = std::fs::read_to_string(state.join("last-request.json")) {
-                        if let Ok(value) = serde_json::from_str::<Value>(&previous) {
-                            if let Some(id) = value["id"].as_str() {
-                                ids.push(id.to_string());
+                    for name in ["last-request.json", "active-capture.json"] {
+                        if let Ok(previous) = std::fs::read_to_string(state.join(name)) {
+                            if let Ok(value) = serde_json::from_str::<Value>(&previous) {
+                                if let Some(id) = value["id"].as_str() {
+                                    ids.push(id.to_string());
+                                }
                             }
                         }
                     }
@@ -642,6 +674,7 @@ fn main() -> Result<()> {
         .context("An ST voice listener is already running")?;
     let _ = std::fs::remove_file(state.join("quit"));
     let _ = std::fs::remove_file(state.join("speaking"));
+    let _ = std::fs::remove_file(state.join("active-capture.json"));
     let stage = Arc::new(AtomicU8::new(0));
     let ui_stage = stage.clone();
     thread::spawn(move || ui::run(ui_stage));

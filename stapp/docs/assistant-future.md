@@ -31,3 +31,11 @@ Reference: [Android foreground-service types](https://developer.android.com/deve
 - [ ] Multi-intent or hierarchical routing when measurements justify it.
 - [ ] Optional cloud speech/continuous voice frontend, configured independently
   from local classification and subscription-backed agent execution.
+
+## Herdr action handoff
+
+- [ ] Route interactive sends in saved assistant conversations through the ST
+  coordinator so its per-job dynamic tools remain available in the generic Herdr
+  chat UI. Today, use voice follow-up or `st ask --parent REQUEST_ID` for actions.
+  Herdr already lists and displays the conversations; do not bypass job claims
+  by exposing a global household-mutation MCP process to every resumed chat.

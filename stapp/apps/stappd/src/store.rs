@@ -166,39 +166,63 @@ impl Store {
         let prompt = field(v, "text")?;
         ensure!(prompt.len() <= 32000, "Request too long");
         let tx = self.db.transaction()?;
+        // Resolve retries before interpreting current conversation state. A lost
+        // submission reply must not turn its original prompt into a later answer.
+        if let Some((who, original, project, parent)) = tx
+            .query_row(
+                "SELECT device,prompt,project,parent FROM jobs WHERE id=?",
+                [id],
+                |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, String>(2)?,
+                        r.get::<_, Option<String>>(3)?,
+                    ))
+                },
+            )
+            .optional()?
+        {
+            ensure!(
+                who == device
+                    && original == prompt
+                    && parent.as_deref() == v["parent"].as_str()
+                    && (parent.is_some()
+                        || project == v["project"].as_str().unwrap_or("assistant")),
+                "Request ID already used"
+            );
+            return Ok(json!({"id":id,"device":device}));
+        }
+        if let Some((who, original, job)) = tx
+            .query_row(
+                "SELECT device,prompt,job FROM voice_answers WHERE id=?",
+                [id],
+                |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, String>(2)?,
+                    ))
+                },
+            )
+            .optional()?
+        {
+            ensure!(
+                who == device && original == prompt,
+                "Request ID already used"
+            );
+            return Ok(json!({"id":job,"device":device}));
+        }
         let spoken = v.get("wake").is_some() || v["voice"] == true;
-        let explicit_answer = prompt.to_lowercase().starts_with("answer ");
+        let lower = prompt.to_lowercase();
+        let explicit_answer = lower.starts_with("answer ");
+        let new_request = lower.starts_with("new request ") || lower.starts_with("new request:");
         let pending: i64 = tx.query_row(
             "SELECT count(*) FROM jobs WHERE device=? AND status='waiting'",
             [device],
             |r| r.get(0),
         )?;
-        let answered: bool = tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM voice_answers WHERE id=?)",
-            [id],
-            |r| r.get(0),
-        )?;
-        if spoken && (explicit_answer || pending > 0 || answered) {
-            if let Some((who, original, job)) = tx
-                .query_row(
-                    "SELECT device,prompt,job FROM voice_answers WHERE id=?",
-                    [id],
-                    |r| {
-                        Ok((
-                            r.get::<_, String>(0)?,
-                            r.get::<_, String>(1)?,
-                            r.get::<_, String>(2)?,
-                        ))
-                    },
-                )
-                .optional()?
-            {
-                ensure!(
-                    who == device && original == prompt,
-                    "Request ID already used"
-                );
-                return Ok(json!({"id":job,"device":device}));
-            }
+        if spoken && !new_request && (explicit_answer || pending > 0) {
             let waiting = rows(
                 &tx,
                 "SELECT id FROM jobs WHERE device=? AND status='waiting' ORDER BY rowid",

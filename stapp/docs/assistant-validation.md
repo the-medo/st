@@ -6,7 +6,7 @@ are implemented and packaged; household microphone acceptance is still pending.
 
 ## Verified behavior
 
-- 24 assistant/router/protocol checks pass, including the existing daemon tests,
+- 26 assistant/router/protocol checks pass, including the existing daemon tests,
   bad/replaced credentials, provider backoff, bounded timeout, oversized input,
   context confinement, durable event payloads, device separation, cancellation,
   spoken-answer retries, wake-claim release and dynamic-tool binding.
@@ -15,6 +15,7 @@ are implemented and packaged; household microphone acceptance is still pending.
 - Real isolated Luna requests created distinct conversations, saved a note through
   the dynamic tool, and changed that note through a same-thread follow-up. Effects
   were checked directly in the temporary database. Household records were unchanged.
+  Repeating the follow-up after closing and replacing the app-server also passed.
 - The dedicated assistant project maps correctly in Herdr's sidebar; saved threads
   are available. Completion unsubscribes the worker's thread writer.
 - The deployed account token classified a synthetic system request in 234 ms.
@@ -23,7 +24,7 @@ are implemented and packaged; household microphone acceptance is still pending.
   not end-to-end p50/p95 estimates.
 - Windows CI built and linked the real x64 executable, packaged the pinned eSpeak
   library, generated speech, then recognized and transcribed its wake fixture.
-  [Successful Windows run](https://github.com/the-medo/st/actions/runs/45731719739).
+  [Successful Windows run](https://github.com/the-medo/st/actions/runs/45732442224).
   This is stronger than the earlier Linux-to-Windows source check; it still does
   not validate a physical microphone, popup focus, login or suspend.
 - The native audio suite passes Hey ST, Okay ST, a phrase without a wake word,

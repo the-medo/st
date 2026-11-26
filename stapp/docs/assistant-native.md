@@ -51,7 +51,8 @@ is discarded. This protects actions but can still briefly open capture. Wake
 accuracy with the owner’s voice and ambient sound needs physical calibration.
 
 A pending question on that device consumes the next spoken response, including
-bare answers such as “blue” or “yes.” Multiple pending questions require an
+bare answers such as “blue” or “yes.” Say “New request: …” to start a separate
+request while a question is waiting. Multiple pending questions require an
 explicit `st --device room answer REQUEST_ID "answer"`. A new request otherwise
 creates a new conversation. Say **“Follow up …”** after a result to continue the
 last completed conversation, or use `st ask --parent REQUEST_ID "..."`.
@@ -164,8 +165,12 @@ silently downgrade a database with new jobs.
 
 The assistant workspace is `~/.local/share/stapp/assistant`. Its native Codex
 project is also registered in the existing Herdr sidebar project configuration.
-Threads are unsubscribed after completion so Herdr can resume them without a
-second writer. Do not edit Codex history databases to register conversations.
+Threads are unsubscribed after completion so another client can open their history
+without a second writer. Action follow-ups should use voice or `st ask --parent`:
+the dynamic ST tools belong to the coordinator, and the generic Herdr chat view
+does not provide that tool dispatcher. General viewing and the dedicated sidebar
+project work; editing household data directly from that chat UI needs a future
+coordinator handoff. Do not edit Codex history databases to register conversations.
 
 ## Verification and remaining acceptance
 

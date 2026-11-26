@@ -313,3 +313,9 @@ Further decisions:
   compile on Windows CI in addition to Linux cross-checks.
 - Warm app-server slots retire after five idle minutes; release thread ownership
   after each result so Herdr can resume it. ASR and TTS have the same idle policy.
+
+The Herdr project/history integration is verified, including coordinator resumption
+after an app-server restart. The generic Herdr chat view does not dispatch ST's
+per-job dynamic tools. Action follow-ups currently use voice or `st ask --parent`;
+interactive Herdr-to-coordinator action handoff remains a documented integration
+limitation, rather than bypassing the job/device bindings to make it appear to work.

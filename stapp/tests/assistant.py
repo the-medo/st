@@ -67,8 +67,8 @@ class Routing(unittest.TestCase):
         self.assertEqual(r.decide(self.job,CATALOG)['effective_route'],'other')
     def test_context_never_follows_catalog_symlink_outside_manuals(self):
         manuals=self.root/'manuals';manuals.mkdir();secret=self.root/'secret';secret.write_text('DO NOT LOAD')
-        (manuals/'escape').symlink_to(secret)
-        catalog={'routes':[{'id':'other','description':'Other','status':'fallback','manuals':['escape','../secret'],'tools':[]}]}
+        (manuals/'escape.md').symlink_to(secret)
+        catalog={'routes':[{'id':'other','description':'Other','status':'fallback','manuals':['escape.md','../secret.md'],'tools':[]}]}
         result=build_context(self.job,{'effective_route':'other'},catalog)
         self.assertEqual(result['initial_context'],[]);self.assertEqual(result['transcript'],self.job['text'])
     def test_structured_output_does_not_read_code_or_claim_missing_success(self):
@@ -103,6 +103,29 @@ class Events(integration.Daemon):
         self.assertEqual(first,again);self.assertEqual(first['id'],job['id'])
         self.assertEqual(self.event(job,'poll'),'blue')
         with self.assertRaises(ValueError):rpc(req,'pc')
+
+    def test_spoken_submission_retry_does_not_answer_its_question(self):
+        submitted=self.ask('room','Create a task',voice=True);job=rpc({'op':'claim_job'},'owner')
+        self.event(job,'question','What title?')
+        self.assertEqual(rpc(submitted,'room')['id'],job['id'])
+        self.assertEqual(rpc({'op':'status','id':job['id']},'room')['status'],'waiting')
+        self.assertIsNone(self.event(job,'poll'))
+        other=self.ask('room','New request: explain the sky',voice=True)
+        self.assertNotEqual(other['id'],job['id'])
+        self.assertEqual(rpc({'op':'status','id':job['id']},'room')['status'],'waiting')
+
+    def test_native_stop_marks_unsent_capture_and_cancels_active_job(self):
+        import subprocess,uuid
+        self.ask('room','Cancellable native request');job=rpc({'op':'claim_job'},'owner')
+        state=self.data/'client';(state/'outbox').mkdir(parents=True)
+        pending=str(uuid.uuid4());capturing=str(uuid.uuid4())
+        (state/'last-request.json').write_text(json.dumps({'id':job['id']}))
+        (state/'active-capture.json').write_text(json.dumps({'id':capturing}))
+        (state/'outbox/pending.json').write_text(json.dumps({'op':'ask','id':pending,'text':'Unsent'}))
+        binary=Path(__file__).resolve().parents[1]/'target/release/st-voice'
+        subprocess.run([str(binary),'--state',str(state),'--device','room','--control','stop'],check=True,capture_output=True)
+        for ident in [job['id'],pending,capturing]:self.assertTrue((state/'cancelled'/ident).exists())
+        self.assertEqual(rpc({'op':'status','id':job['id']},'room')['status'],'cancelled')
 
     def test_release_wake_is_bound_to_authenticated_device(self):
         import uuid
