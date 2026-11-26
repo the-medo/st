@@ -55,6 +55,9 @@ impl Store {
         if tx.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))? < 3 {
             tx.execute_batch(include_str!("../migrations/003.sql"))?;
         }
+        if tx.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))? < 4 {
+            tx.execute_batch(include_str!("../migrations/004.sql"))?;
+        }
         tx.commit()?;
         db.execute(
             "INSERT OR IGNORE INTO projects VALUES('assistant',?,'local')",
@@ -90,6 +93,14 @@ impl Store {
                 let id=field(v,"id")?;
                 let (status,thread,project):(String,Option<String>,String)=self.db.query_row("SELECT status,thread,project FROM jobs WHERE id=? AND device=?",params![id,device],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).context("Unknown request for this device")?;
                 Ok(json!({"id":id,"status":status,"thread":thread,"project":project,"events":self.events(device,Some(id),0)?}))
+            }
+            "requests"=>{
+                let limit=v["limit"].as_i64().unwrap_or(20);
+                ensure!((1..=200).contains(&limit),"Limit must be 1–200");
+                let project=v["project"].as_str();
+                let status=v["status"].as_str();
+                ensure!(status.is_none_or(|s|matches!(s,"queued"|"running"|"waiting"|"completed"|"failed"|"interrupted")),"Invalid request status");
+                Ok(json!(rows(&self.db,"SELECT id,prompt,project,status,thread,updated FROM jobs WHERE device=?1 AND (?2 IS NULL OR project=?2) AND (?3 IS NULL OR status=?3) ORDER BY rowid DESC LIMIT ?4",params![device,project,status,limit],|r|Ok(json!({"id":r.get::<_,String>(0)?,"text":r.get::<_,String>(1)?,"project":r.get::<_,String>(2)?,"status":r.get::<_,String>(3)?,"thread":r.get::<_,Option<String>>(4)?,"updated":r.get::<_,i64>(5)?})))?))
             }
             "pending"=>Ok(json!(rows(&self.db,"SELECT j.id,(SELECT body FROM events e WHERE e.job=j.id AND e.kind='question' ORDER BY seq DESC LIMIT 1) FROM jobs j WHERE device=? AND status='waiting' ORDER BY j.rowid",[device],|r|Ok(json!({"id":r.get::<_,String>(0)?,"text":r.get::<_,String>(1)?})))?)),
             "inbox"=>Ok(json!(self.events(device,None,v["after"].as_i64().unwrap_or(0))?)),

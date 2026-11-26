@@ -800,3 +800,13 @@ For the opt-in transport check, point `ST_OVIS_HC_BIN` at an installed `hc` and 
 terminal, exercises the real Ovis/Herdr PTY through the gateway, verifies that
 stopping the web services leaves the terminal alive, then removes its own test
 session. It never uses the normal Herdr session or a live Codex conversation.
+
+## ST CLI
+
+The shared `st` executable delegates `agents`, `worktrees` and `containers` to
+SM Manager. The same commands are available directly as `sm agents list`,
+`sm worktrees --running`, and `sm containers --json`. Agents uses the existing
+v2 gateway's loopback API; it supports machine selection, session inspection,
+plans, conversation history, prompt answers and explicit terminal input. Run
+these commands on the host or through an owner SSH session. See the
+[ST CLI guide](../stapp/docs/cli.md) for examples and connection details.

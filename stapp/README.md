@@ -35,7 +35,22 @@ cover the shared backend, migration, backups and rollback.
 
 The owner shell has a separate inbox. Add `--device pc` or `--device room` when testing those deliveries locally. A remote key always has the device identity assigned during pairing. Use `ask --id UUID` to retry a submission with the same text. A disconnected client reads outstanding results on reconnect. If a worker disappears during a job, the daemon marks it interrupted after its lease expires. Check the effects of an interrupted task before starting another one.
 
-`st` is the shared command for the assistant, photos and system console.
+`st` is the shared command for Agents, the planner, assistant, photos and system console.
+See the [CLI guide](docs/cli.md) for tasks, calendar events, notes, task projects,
+agent sessions and terminal output, request history, and resource listings.
+
+```sh
+st agents list
+st agents plan PANE_ID
+st tasks list
+st tasks add "Replace printer filter" --due 2026-12-01
+st calendar list --from 2026-12-01 --to 2026-12-07
+st notes add "Printer setup" --body-file ./setup.txt
+st planner projects list
+st requests --status waiting
+st worktrees --running
+```
+
 With SM Manager installed, `st status` reads system status, `st night
 on|off|toggle|status` controls the faceplate, and `st cleanup-plan WORKTREE_ID`
 prints a read-only cleanup inventory. `st status REQUEST_ID` continues to

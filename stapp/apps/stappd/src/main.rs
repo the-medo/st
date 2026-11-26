@@ -1,3 +1,4 @@
+mod notes;
 mod photos;
 mod planner;
 mod store;
@@ -318,6 +319,18 @@ async fn call(a: &App, device: &str, v: &Value) -> Result<Value> {
     if v["op"] == "tools" {
         let name = v["name"].as_str().unwrap_or("");
         anyhow::ensure!(v["args"].is_object(), "Expected tool arguments");
+        if v["planner"] == true {
+            anyhow::ensure!(
+                a.planner.is_some(),
+                "Planner unavailable: configure STAPP_PLANNER_SOCKET"
+            );
+        }
+        if matches!(
+            name,
+            "list_notes" | "get_note" | "save_note" | "delete_note"
+        ) {
+            return a.store.lock().unwrap().notes(device, v);
+        }
         if matches!(
             name,
             "photos_status" | "photos_albums" | "photos_recent" | "photos_search" | "photos_show"

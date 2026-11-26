@@ -12,6 +12,13 @@
 Use the shared `st` command after installing STapp:
 
 ```sh
+st agents list                  # Agent sessions
+st tasks list                   # Open planner tasks
+st calendar list                # Calendar events
+st notes list                   # Local faceplate notes
+st planner projects list        # Task projects
+st requests --status waiting    # Assistant requests
+st worktrees --running          # Monitored worktrees
 st status                       # System monitor
 st night on                     # Screen off; services keep running
 st night off                    # Screen on
@@ -24,3 +31,5 @@ st status REQUEST_ID            # Assistant request status
 `st monitor ...` exposes the existing monitor commands. The `sm` and `stctl`
 commands remain available for existing scripts and paired devices.
 
+
+The [CLI guide](stapp/docs/cli.md) covers command options, editing, recurrence and safe retries.

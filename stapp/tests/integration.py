@@ -243,6 +243,52 @@ class Daemon(unittest.TestCase):
         self.ask("pc", "continue", parent=pc["id"])
         self.assertEqual(rpc({"op": "claim_job"}, "owner")["thread"], "thread-for-pc")
 
+
+    def test_cli_notes_and_requests_are_versioned_and_scoped(self):
+        env = dict(self.env, STAPP_SOCKET=str(self.data / "control.sock"), STAPP_DEVICE="owner")
+        env.pop("STAPP_SSH", None)
+        def cli(*args, input=None, ok=True):
+            result = subprocess.run([root / "target/release/st", *args], env=env, input=input,
+                                    capture_output=True, text=True, timeout=5)
+            if ok:
+                self.assertEqual(result.returncode, 0, result.stderr)
+                return json.loads(result.stdout)
+            self.assertNotEqual(result.returncode, 0)
+            return result.stderr
+        note = cli("notes", "add", "Printer", "--body-file", "-", input="Use PETG\nCheck nozzle")
+        edited = cli("notes", "edit", str(note["id"]), "--title", "Printer setup")
+        self.assertEqual(edited["body"], note["body"])
+        self.assertGreater(edited["version"], note["version"])
+        self.assertIn("changed", cli("notes", "edit", str(note["id"]), "--version", str(note["version"]), "--body", "stale", ok=False))
+        self.assertEqual(cli("notes", "list", "--search", "petg")[0]["title"], "Printer setup")
+        revision = json.loads(self.http("/api/display", "test-panel")[0])["revision"]
+        self.assertTrue(cli("notes", "delete", str(note["id"]))["deleted"])
+        self.assertGreater(json.loads(self.http("/api/display", "test-panel")[0])["revision"], revision)
+        self.assertEqual(cli("notes", "list"), [])
+        self.assertIn("Planner unavailable", cli("tasks", "add", "Must not fall back to SQLite", ok=False))
+        for device in ("pc", "room"):
+            self.assertIn("active assistant request", cli("--device", device, "notes", "list", ok=False))
+            self.ask(device, device + " only")
+        owner = cli("ask", "owner only")
+        self.assertEqual([j["id"] for j in cli("requests", "--status", "queued")], [owner["id"]])
+        self.assertEqual(cli("pending"), [])
+        self.assertEqual(len(cli("--device", "pc", "requests")), 1)
+        self.assertNotEqual(cli("--device", "pc", "requests")[0]["id"], owner["id"])
+
+    def test_note_operation_receipts_survive_restart(self):
+        create = {"op":"tools", "name":"save_note", "key":"note-create", "args":{"title":"Retry", "body":"Once"}}
+        first = rpc(create, "owner")
+        self.stop()
+        self.start()
+        self.assertEqual(rpc(create, "owner"), first)
+        self.assertEqual(len(self.tool("list_notes")), 1)
+        changed = dict(create, args={"title":"Different"})
+        with self.assertRaisesRegex(ValueError, "Operation key already used"):
+            rpc(changed, "owner")
+        delete = {"op":"tools", "name":"delete_note", "key":"note-delete", "args":{"id":first["id"], "version":first["version"]}}
+        self.assertEqual(rpc(delete, "owner"), rpc(delete, "owner"))
+        self.assertEqual(self.tool("list_notes"), [])
+
     def test_arbitration_and_voice_answer(self):
         room, pc = str(uuid.uuid4()), str(uuid.uuid4())
         with concurrent.futures.ThreadPoolExecutor() as pool:
