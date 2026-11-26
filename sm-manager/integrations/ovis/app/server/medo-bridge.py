@@ -9,7 +9,7 @@ import sys
 import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
-from integrations.ovis.bridge import server as sidebar, organization, resources
+from integrations.ovis.bridge import server as sidebar, organization, resources, questions
 from integrations.ovis.bridge.chat_service import request, Bridge
 root = sidebar.ROOT
 
@@ -147,6 +147,16 @@ def history(thread, p):
 
 def handle(p):
     op = p['operation']
+    if op == 'questions':
+        terminal = sidebar.hc('get', p['paneId'], '--json')
+        if not terminal.get('labels', {}).get('medo.ovis.project'):
+            return None
+        rows = sidebar.read_rows()
+        thread = terminal_thread(terminal, rows)
+        row = next((row for row in rows if row['id'] == thread), None)
+        if not row or row.get('history_mode') != 'paginated':
+            return None
+        return {'historyId': 'medo:' + thread, 'questions': questions.unanswered(sidebar.CODEX_HOME, thread)}
     if op == 'resources':
         pane = p.get('paneId', '')
         if pane.startswith('medo:'):

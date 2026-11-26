@@ -10,6 +10,7 @@ import { resolveAgent } from "./pane-context.ts";
 import { processAlive, processStartedAt, processStartUpperBoundAsync } from "./process-start.ts";
 import { commandInvocations, commandOutcome, CommandReservations, dialogSettlingScreen, ownsCommandDialog, WINDOW_MS as COMMAND_WINDOW_MS, type CommandSend } from "./outcome.ts";
 import { codexTranscriptPath, paneCodexHomePlaced, unansweredCodexQuestions } from "./codex.ts";
+import { medoCall } from "./medo.ts";
 import { HerdrError, paneGet, paneProcessInfo, paneRead, paneScrollInfo, paneSendKeys, paneSendText, type ProcessInfo } from "./herdr/client.ts";
 import { isPiProcess, piTranscriptPath } from "./pi.ts";
 import { heldOmoProcess } from "./omo.ts";
@@ -553,6 +554,7 @@ const FALLBACK_LOGGED_MAX = 256;
  * question leaves the rollout's newest-first guess behind): the next card shows it.
  */
 const queueFronts = new Map<string, QueueFront & { rollout: string }>();
+const queueHistories = new Map<string, string>();
 
 /**
  * A prompt's own id is a hash of what it says, so the same question asked twice in a row would be one card: an
@@ -1218,6 +1220,19 @@ async function readKnownPrompt(
     }
   }
   if (count === 0 || !pane.cwd) return { prompt, screen, inputUnverified, ...(settled ? { settled } : {}) };
+  if (process.env['MEDO_PROJECTS'] === '1') {
+    try {
+      const native = await medoCall({ operation: 'questions', paneId }, 3000);
+      if (native) {
+        queueHistories.set(paneId, native.historyId);
+        if (queueHistories.size > 64) queueHistories.delete(queueHistories.keys().next().value!);
+        const front = queueFronts.get(paneId);
+        if (front && front.rollout !== native.historyId) queueFronts.delete(paneId);
+        return { prompt: codexQueuedPrompt(screen, native.questions, front?.rollout === native.historyId ? front : null), screen };
+      }
+    } catch { /* A legacy or unavailable store can still use its rollout. */ }
+  }
+  queueHistories.delete(paneId);
   let rollout = queueRollouts.get(paneId);
   if (!rollout || Date.now() - rollout.at > QUEUE_ROLLOUT_MS) {
     const store = await paneCodexHomePlaced(paneId, codexHome);
@@ -1277,7 +1292,7 @@ async function openQueuedQuestion(paneId: string, queued: ParsedPrompt, givenUp:
     if (opened?.responder !== "codex-async-question") continue;
     if (sameText(opened.question, queued.question) && opened.options.length === queued.options.length
       && opened.options.every((option, index) => sameText(option.label, queued.options[index]!.label))) return publicPrompt(opened);
-    const rollout = queueRollouts.get(paneId)?.path;
+    const rollout = queueHistories.get(paneId) ?? queueRollouts.get(paneId)?.path;
     if (rollout) queueFronts.set(paneId, { question: opened.question, options: opened.options.map((option) => option.label), rollout });
     if (queueFronts.size > 64) queueFronts.delete(queueFronts.keys().next().value!);
     break;

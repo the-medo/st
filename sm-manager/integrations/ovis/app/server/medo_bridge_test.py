@@ -106,6 +106,24 @@ class RenameTests(unittest.TestCase):
         client.process.terminate.assert_called_once_with()
 
 
+class QuestionIdentityTests(unittest.TestCase):
+    def test_uses_only_the_live_owned_threads_indexed_history(self):
+        first = '01234567-1234-1234-1234-123456789abc'
+        second = 'fedcba98-1234-1234-1234-123456789abc'
+        terminal = {'foreground': {'name': 'codex'}, 'title': first,
+                    'labels': {'medo.ovis.project': 'fixture', 'medo.ovis.resume': second}}
+        rows = [{'id': first, 'history_mode': 'paginated'}, {'id': second, 'history_mode': 'paginated'}]
+        with patch.object(bridge.sidebar, 'hc', return_value=terminal), patch.object(bridge.sidebar, 'read_rows', return_value=rows), \
+                patch.object(bridge.questions, 'unanswered', return_value=[]) as read:
+            self.assertEqual(bridge.handle({'operation': 'questions', 'paneId': 't1'}), {'historyId': 'medo:' + first, 'questions': []})
+            read.assert_called_once_with(bridge.sidebar.CODEX_HOME, first)
+            read.reset_mock()
+            for title, foreground, labels in [('', 'codex', terminal['labels']), (first, 'bash', terminal['labels']), (first, 'codex', {})]:
+                terminal.update(title=title, foreground={'name': foreground}, labels=labels)
+                self.assertIsNone(bridge.handle({'operation': 'questions', 'paneId': 't1'}))
+            read.assert_not_called()
+
+
 class HistoryTests(unittest.TestCase):
     def test_paging_keeps_the_read_window_when_new_turns_arrive(self):
         pages={None:{'version':'v','thread':{'id':'chat'},'turns':[{'id':'4'},{'id':'5'},{'id':'6'}],'nextCursor':'old'},

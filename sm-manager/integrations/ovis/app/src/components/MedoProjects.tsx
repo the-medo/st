@@ -3,7 +3,7 @@ import { focusInOtherModal, useFocusTrap } from '../lib/useFocusTrap.ts';
 import { usePhoneSheetBack } from '../lib/sheetHistory.ts';
 import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Circle, Ellipsis, Folder, LoaderCircle, MessageCircle, Pencil, Plus, RefreshCw, Search, Settings, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Circle, CircleAlert, Ellipsis, Folder, LoaderCircle, MessageCircle, Pencil, Plus, RefreshCw, Search, Settings, X } from 'lucide-react';
 import type { MedoCatalog, MedoChat, MedoOpen, MedoProject, MedoStyle } from '../../shared/medo.ts';
 import { apiFetch } from '../lib/api-request-id.ts';
 import { RowMenu } from './RowMenu.tsx';
@@ -187,14 +187,15 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
     const group = chats.filter((chat) => chat.project === project.id && chat.folder === folder).sort((a, b) => b.updated - a.updated);
     const limit = limits[key] ?? 5;
     return <>{group.slice(0, limit).map((chat) => {
+      const needsAttention = chat.status === 'blocked';
       const working = chat.status === 'working' || opening === chat.id;
       const finished = !chat.status || chat.status === 'idle' || chat.status === 'done';
       const unread = !working && finished && readState.get(chat.id)?.unread;
-      const status = opening === chat.id ? 'Opening conversation' : working ? 'Working' : unread ? 'Unread conversation' : chat.paneId ? 'Open session' : 'Saved conversation';
+      const status = needsAttention ? 'Needs attention' : opening === chat.id ? 'Opening conversation' : working ? 'Working' : unread ? 'Unread conversation' : chat.paneId ? 'Open session' : 'Saved conversation';
       return <div key={chat.id} className={`medo-chat${chat.id === selectedThreadId || (!selectedThreadId && chat.paneId && chat.paneId === selectedPaneId) ? ' is-selected' : ''}${unread ? ' is-unread' : ''}`}>
       <button className="medo-chat-open" disabled={opening === chat.id} onClick={() => void open(chat)} title={chat.title} aria-label={chat.title || 'Untitled conversation'} aria-description={status} aria-busy={opening === chat.id}>
-        <span className={`medo-indicator${working ? ' is-working' : ''}`} title={status} role="img" aria-label={status}>{working ? <LoaderCircle className="medo-spinner" size={14} strokeWidth={2} /> : <Circle size={7} fill={unread || chat.paneId ? 'currentColor' : 'none'} />}</span>
-        <span className="medo-chat-title">{chat.title || 'Untitled conversation'}</span>
+        <span className={`medo-indicator${needsAttention ? ' needs-attention' : working ? ' is-working' : ''}`} title={status} role="img" aria-label={status}>{needsAttention ? <CircleAlert size={14} /> : working ? <LoaderCircle className="medo-spinner" size={14} strokeWidth={2} /> : <Circle size={7} fill={unread || chat.paneId ? 'currentColor' : 'none'} />}</span>
+        <span className="medo-chat-text"><span className="medo-chat-title">{chat.title || 'Untitled conversation'}</span>{needsAttention && <span className="medo-chat-attention">Needs attention</span>}</span>
       </button><button className="medo-row-action" aria-label={`Actions for ${chat.title}`} aria-haspopup="menu" aria-expanded={chatMenu?.chat.id === chat.id} onClick={(event) => setChatMenu(chatMenu?.chat.id === chat.id ? null : { chat, anchor: event.currentTarget })}><Ellipsis size={15} /></button>
     </div>; })}{group.length > limit && <button className="medo-more" onClick={() => setLimits((value) => ({ ...value, [key]: limit + 5 }))}>Show more ({group.length - limit})</button>}</>;
   };

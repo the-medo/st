@@ -2,13 +2,14 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import type { ConversationPart, ConversationTurn } from '../shared/protocol.ts';
 import { codexReadSkills, skillInvocationPrompt } from './skill-activity.ts';
+import { formatCodexQuestionReply } from '../shared/codex-question-reply.ts';
 import { badRequest, jsonResponse, readJsonObject, setRequestRoute } from './http.ts';
 
 import { HistoryChanged, type ConversationPage, type RecognizedConversation } from './conversation-shared.ts';
 
 const script = fileURLToPath(new URL('./medo-bridge.py', import.meta.url));
 export async function medoCall(payload: Record<string, unknown>, timeoutMs = 75_000): Promise<any> {
-  const child = Bun.spawn(['python3', script], { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
+  const child = Bun.spawn(['python3', script], { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', env: { ...process.env } });
   child.stdin.write(JSON.stringify(payload));
   child.stdin.end();
   const timeout = setTimeout(() => child.kill(), timeoutMs);
@@ -41,6 +42,11 @@ export function medoConversation(data: any): RecognizedConversation {
     for (const item of turn.items) {
       if (item.role === 'user') {
         flush();
+        const reply = formatCodexQuestionReply(String(item.text));
+        if (reply !== null) {
+          turns.push({ role: 'user', ts: started, message_id: item.id, turn_id: turn.id, parts: [{ kind: 'text', text: reply }] });
+          continue;
+        }
         // Ovis uploads images as explicit file mentions; show those files inline in saved history.
         const mentioned = [...String(item.text).matchAll(/@([^\s]+\.(?:png|jpe?g|webp|gif))(?=\s|$)/gi)].filter((match) => match[1]!.startsWith('/')).map((match) => ({ name: match[1]!.split('/').pop(), path: match[1]! }));
         const files = [...(item.attachments || []), ...mentioned];

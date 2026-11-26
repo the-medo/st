@@ -19,6 +19,7 @@ import { agentGet, HerdrError, paneGet, paneProcessInfo, paneRead, sessionSnapsh
 import { kiroCodexProcess, kiroNested, kiroWrapper } from "./kiro-terminal.ts";
 import { resolveAgent } from "./pane-context.ts";
 import { FOOTER } from "./codex-steering.ts";
+import { codexQuestionReplies } from "../shared/codex-question-reply.ts";
 import { codexStartScreenUnused } from "./start-screen.ts";
 
 type RecordValue = Record<string, unknown>;
@@ -38,16 +39,7 @@ function contextOnly(text: string): boolean {
  * `<send_user_message_question_reply>`.
  */
 function questionReply(text: string): string | null {
-  const match = text.trim().match(/^<send_user_message_question_reply>\s*([\s\S]*?)\s*<\/send_user_message_question_reply>$/);
-  if (!match) return null;
-  try {
-    const items: unknown = JSON.parse(match[1]!);
-    if (!Array.isArray(items)) return null;
-    const answers = items.map((item) => string(record(item).answer).trim()).filter(Boolean);
-    return answers.length > 0 ? answers.join("\n") : null;
-  } catch {
-    return null;
-  }
+  return codexQuestionReplies(text)?.map((item) => item.answer).join("\n") ?? null;
 }
 
 /** The questions of a request_user_input(_async) call: `title` (async) or `question` (plan mode). */

@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import type { HerdrPane } from "../../shared/protocol.ts";
 import type { ProgramPlatform } from "../agent-identity.ts";
 import { agentOf, buildSnapshot, type HcTerminal, keyBytes, opencodeRecords, OTHER_WORKSPACE_ID, terminalPlatform } from "./snapshot.ts";
+import { pushPaneTitle } from '../../shared/notify-policy.ts';
 
 function terminal(address: string, extra: Partial<HcTerminal> = {}): HcTerminal {
   return { address, cols: 120, rows: 40, cwd: "/home/u", state: "live", ...extra };
@@ -12,6 +13,18 @@ function block(address: string) {
 }
 
 describe("buildSnapshot", () => {
+  it('names ST completion alerts after the conversation while retaining the native thread title', () => {
+    const id = '00000000-0000-4000-8000-000000000001';
+    const labels = { 'medo.ovis.project': 'garden', 'ovis.tab': 'Plan the garden' };
+    const pane = buildSnapshot([terminal('t1', { title: id, name: 'ovis-00000000', labels })], null, '0.1.14').panes[0]!;
+    expect(pane.terminal_title).toBe(id);
+    expect(pane.label).toBe('Plan the garden');
+    expect(pushPaneTitle(pane)).toBe('Plan the garden');
+    const renamed = buildSnapshot([terminal('t1', { title: id, labels: { ...labels, 'ovis.tab': 'Planting schedule' } })], null, '0.1.14').panes[0]!;
+    expect(pushPaneTitle(renamed)).toBe('Planting schedule');
+    const ordinary = buildSnapshot([terminal('t2', { name: 'Build log', labels: { 'ovis.tab': 'Other tab' } })], null, '0.1.14').panes[0]!;
+    expect(ordinary.label).toBe('Build log');
+  });
   it("reads the app's spaces as workspaces, its tabs as tabs and each terminal block as a pane, in the app's order", () => {
     const layout = {
       spaces: [
