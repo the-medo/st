@@ -22,6 +22,24 @@ def nonnegative(value):
     return number
 
 
+def conversation_thread(value):
+    """Extract a stable thread reference; links are never fetched as arbitrary URLs."""
+    link = value.startswith(("https://", "http://"))
+    explicit = value.startswith("medo:")
+    candidate = value
+    if link:
+        url = urllib.parse.urlsplit(value)
+        ids = urllib.parse.parse_qs(url.query).get("saved", [])
+        candidate = ids[0] if url.path.rstrip("/") == "/agents" and len(ids) == 1 else ""
+    elif explicit:
+        candidate = value[5:]
+    if re.fullmatch(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", candidate):
+        return candidate.lower()
+    if link or explicit:
+        raise ValueError("Choose a copied Agents conversation link or conversation ID")
+    return None
+
+
 def add_commands(sub):
     agents = sub.add_parser("agents", help="Browse and control Agents through the local ST gateway")
     agents.add_argument("--machine", default="local", help="Machine ID from agents machines (default: local)")
@@ -49,7 +67,8 @@ def add_commands(sub):
     output = command("read", "Read terminal output without attaching or resizing", pane=True)
     output.add_argument("--lines", type=positive, default=80)
     output.add_argument("--source", choices=["visible", "recent", "recent_unwrapped"], default="recent")
-    conversation = command("conversation", "Read structured conversation history", pane=True)
+    conversation = command("conversation", "Read structured conversation history")
+    conversation.add_argument("pane", help="Pane ID, conversation ID, or copied conversation link")
     conversation.add_argument("--before", help="Opaque paging cursor returned by the server")
     command("plan", "Read the agent's current plan", pane=True)
     command("tasks", "Read the agent's background tasks", pane=True)
@@ -163,6 +182,11 @@ class Console:
             endpoint = "omo-tasks" if action == "tasks" else action
             if action == "conversation":
                 params["before"] = args.before
+                thread = conversation_thread(args.pane)
+                if thread:
+                    if machine != "local":
+                        raise ValueError("Saved conversation IDs and links belong to the local ST gateway")
+                    return request("medo/conversation", {**params, "pane_id": "medo:" + thread})
             return request("pane/" + endpoint, params)
         if action == "answer":
             body = {**params, "prompt_id": args.prompt_id}

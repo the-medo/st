@@ -16,12 +16,31 @@ def project_order(data, projects):
 
 
 def save(root, data):
-    # Both callers hold organization.lock, including while reading the old state.
+    # Callers hold organization.lock, including while reading the old state.
     data['revision'] += 1
     temporary = root / 'organization.json.tmp'
     temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
     temporary.chmod(0o600)
     temporary.replace(root / 'organization.json')
+
+
+def place_launched_chat(root, project, folder, launch, thread, chat_project):
+    """Apply a new terminal's folder once; later moves (including unfile) win."""
+    with (root / 'organization.lock').open('w') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        data = load(root)
+        group = data['projects'].get(project, {})
+        known = {f['id'] for f in group.get('folders', [])}
+        if chat_project != project:
+            return None
+        applied = data.setdefault('folderLaunches', {})
+        if launch not in applied:
+            if folder in known:
+                group.setdefault('chats', {}).setdefault(thread, folder)
+            applied[launch] = thread
+            save(root, data)
+        current = group.get('chats', {}).get(thread)
+        return current if current in known else None
 
 
 def move_project(root, projects, change):
@@ -55,7 +74,21 @@ def update(root, projects, chat_projects, change):
         operation = change.get('operation')
         folder_id = change.get('folderId')
         folder = next((x for x in group['folders'] if x['id'] == folder_id), None)
-        if operation in ('create', 'rename'):
+        if operation == 'set-done':
+            thread = change.get('threadId')
+            if chat_projects.get(thread) != project:
+                raise ValueError('The conversation does not belong to this project.')
+            done = change.get('done')
+            if not isinstance(done, bool):
+                raise ValueError('Choose whether the conversation is done.')
+            # Thread IDs remain stable across folder/project moves. Older writers
+            # preserve this top-level field when saving unrelated organization edits.
+            completed = data.setdefault('done', {})
+            if done:
+                completed[thread] = True
+            else:
+                completed.pop(thread, None)
+        elif operation in ('create', 'rename'):
             name = ' '.join(str(change.get('name', '')).split())
             if not name or len(name) > 60:
                 raise ValueError('Folder names must contain 1–60 characters.')
@@ -70,6 +103,26 @@ def update(root, projects, chat_projects, change):
                 folder['name'] = name
             else:
                 raise ValueError('That folder no longer exists. Refresh and try again.')
+        elif operation == 'move-folder':
+            if not folder:
+                raise ValueError('That folder no longer exists. Refresh and try again.')
+            relative_id = change.get('relativeTo')
+            relative = next((f for f in group['folders'] if f['id'] == relative_id), None)
+            if relative_id is not None:
+                if not relative or relative is folder or change.get('direction') not in ('up', 'down'):
+                    raise ValueError('Choose another folder from this project and move up or down.')
+                position = relative.get('position', 'end')
+            else:
+                position = change.get('position')
+            if position not in ('start', 'end'):
+                raise ValueError('Place folders before or after the conversations.')
+            ordered = [f for f in group['folders'] if f['id'] != folder_id]
+            index = ordered.index(relative) + (change['direction'] == 'down') if relative else (0 if position == 'start' else len(ordered))
+            ordered.insert(index, {**folder, 'position': position})
+            # Each placement is one contiguous block; chats are never interleaved
+            # with folder headers, even when another client has added a folder.
+            group['folders'] = [f for f in ordered if f.get('position', 'end') == 'start'] + [f for f in ordered if f.get('position', 'end') != 'start']
+            folder = next(f for f in group['folders'] if f['id'] == folder_id)
         elif operation == 'delete':
             if not folder:
                 raise ValueError('That folder no longer exists.')

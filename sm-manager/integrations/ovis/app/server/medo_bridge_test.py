@@ -196,6 +196,64 @@ class SidebarTests(unittest.TestCase):
         with patch.object(bridge.sidebar, 'catalog', return_value={'chats': [{'id': self.first, 'title': 'Saved conversation'}]}):
             return bridge.handle({'operation': 'index'})
 
+    def folder_setup(self):
+        project = {'id': 'project', 'name': 'Project', 'path': str(self.root)}
+        (self.root / 'projects.json').write_text(json.dumps({'coreId': 'fixture', 'workspaceRoot': str(self.root), 'projects': [project], 'threadProjects': {}}))
+        for row in self.rows: row.update(project_id='project', cwd=str(self.root))
+        folder = bridge.organization.update(self.root, ['project'], {}, {'operation': 'create', 'projectId': 'project', 'name': 'Ideas'})['folder']['id']
+        return project, folder
+
+    def test_folder_creation_keeps_draft_and_saved_thread_together_without_sending(self):
+        project, folder = self.folder_setup()
+        with patch.dict(os.environ, {'OVIS_STATE_DIR': str(self.root / 'preferences')}):
+            result = bridge.handle({'operation': 'new', 'projectId': project['id'], 'folderId': folder})
+        self.assertEqual(result['address'], 't1')
+        self.assertEqual(self.terminals[0]['labels']['medo.ovis.folder'], folder)
+        self.assertEqual(self.catalog()['drafts'][0]['folder'], folder)
+        self.terminals[0]['title'] = self.first
+        self.assertEqual(self.catalog()['chats'][0]['folder'], folder)
+        saved = bridge.organization.load(self.root)
+        self.assertEqual(saved['projects']['project']['chats'][self.first], folder)
+        self.assertEqual(self.catalog()['chats'][0]['folder'], folder)
+        self.assertEqual(bridge.organization.load(self.root)['revision'], saved['revision'])
+        self.client.rpc.assert_not_called()
+        self.assertEqual(sum(c[0] == 'run' for c in self.calls), 1)
+
+    def test_folder_launch_does_not_undo_unfiling_or_capture_a_later_new_thread(self):
+        project, folder = self.folder_setup()
+        terminal = self.terminal('t1', self.first)
+        terminal['labels']['medo.ovis.folder'] = folder
+        self.terminals = [terminal]
+        self.assertEqual(self.catalog()['chats'][0]['folder'], folder)
+        bridge.organization.update(self.root, ['project'], {self.first: 'project'},
+            {'operation': 'move', 'projectId': 'project', 'threadId': self.first, 'folderId': None})
+        self.assertIsNone(self.catalog()['chats'][0]['folder'])
+        terminal['title'] = self.second
+        self.assertIsNone(self.catalog()['drafts'][0]['folder'])
+        self.assertNotIn(self.second, bridge.organization.load(self.root)['projects']['project']['chats'])
+
+    def test_folder_bound_before_history_persists_and_deleted_folder_falls_back_to_unfiled(self):
+        project, folder = self.folder_setup()
+        terminal = self.terminal('t1', self.second)
+        terminal['labels']['medo.ovis.folder'] = folder
+        self.terminals = [terminal]
+        self.rows.clear()
+        self.assertEqual(self.catalog()['drafts'][0]['folder'], folder)
+        self.assertEqual(terminal['labels']['medo.ovis.folder-thread'], self.second)
+        self.assertEqual(bridge.organization.load(self.root)['projects']['project']['chats'][self.second], folder)
+        bridge.organization.update(self.root, ['project'], {}, {'operation': 'delete', 'projectId': 'project', 'folderId': folder})
+        self.rows.append({'id': self.second, 'project_id': 'project', 'cwd': str(self.root)})
+        self.assertIsNone(self.catalog()['drafts'][0]['folder'])
+        self.assertEqual(bridge.organization.load(self.root)['projects']['project']['chats'], {})
+
+    def test_invalid_folder_never_launches_a_conversation(self):
+        project, folder = self.folder_setup()
+        for invalid in ('missing', [], ''):
+            with self.subTest(folder=invalid), self.assertRaisesRegex(ValueError, 'folder'):
+                bridge.handle({'operation': 'new', 'projectId': project['id'], 'folderId': invalid})
+        self.assertFalse(self.terminals)
+        self.assertFalse(self.calls)
+
     def test_only_coordinator_threads_get_assistant_composer(self):
         with patch.object(bridge.assistant, 'owns', return_value=True):
             self.assertFalse(self.catalog()['chats'][0]['assistant'])

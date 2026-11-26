@@ -48,6 +48,38 @@ class SidebarTests(unittest.TestCase):
         self.assertIsNone(item['unavailable'])
         self.assertEqual(item['title'],'Renamed chat')
 
+    def test_done_survives_reload_folder_edits_and_project_reassignment(self):
+        rows = [dict(self.row, cwd='/home/example/dev/app')]
+        self.assertFalse(server.catalog(self.cfg, rows)['chats'][0]['done'])
+        def update(**change):
+            return organization.update(self.root, ['root', 'a'], {'c': 'a'}, change)
+        update(operation='set-done', projectId='a', threadId='c', done=True)
+        update(operation='set-done', projectId='a', threadId='c', done=True)
+        folder = update(operation='create', projectId='a', name='Completed')['folder']['id']
+        update(operation='move', projectId='a', threadId='c', folderId=folder)
+        item = server.catalog(self.cfg, rows)['chats'][0]
+        self.assertTrue(item['done'])
+        self.assertFalse(item['archived'])
+        self.assertEqual(item['folder'], folder)
+        update(operation='delete', projectId='a', folderId=folder)
+        self.cfg['threadProjects']['c'] = 'root'
+        item = server.catalog(self.cfg, rows)['chats'][0]
+        self.assertTrue(item['done'])
+        self.assertEqual(item['project'], 'root')
+        organization.update(self.root, ['root', 'a'], {'c': 'root'},
+                            dict(operation='set-done', projectId='root', threadId='c', done=False))
+        self.assertFalse(server.catalog(self.cfg, rows)['chats'][0]['done'])
+
+    def test_done_rejects_unknown_conversations_wrong_projects_and_non_booleans(self):
+        organization.update(self.root, ['root', 'a'], {'c': 'a'},
+                            dict(operation='set-done', projectId='a', threadId='c', done=True))
+        before = (self.root / 'organization.json').read_bytes()
+        for changes in ({'threadId': 'missing'}, {'projectId': 'root'}, {'done': 'false'}, {'done': 1}, {'done': None}):
+            with self.assertRaises(ValueError):
+                organization.update(self.root, ['root', 'a'], {'c': 'a'},
+                                    dict(operation='set-done', projectId='a', threadId='c', done=True) | changes)
+            self.assertEqual((self.root / 'organization.json').read_bytes(), before)
+
     def test_missing_checkout_remains_visible(self):
         (self.root/'thread_history_1.sqlite').touch()
         with patch.object(server,'CODEX_HOME',self.root):

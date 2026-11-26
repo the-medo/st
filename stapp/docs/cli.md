@@ -150,6 +150,8 @@ st agents read PANE_ID --lines 100
 st agents read PANE_ID --source visible
 st agents conversation PANE_ID --json
 st agents conversation PANE_ID --before CURSOR --json
+st agents conversation CONVERSATION_ID --json
+st agents conversation 'https://your-st-host/agents?saved=CONVERSATION_ID' --json
 st agents plan PANE_ID
 st agents tasks PANE_ID
 st agents prompt PANE_ID
@@ -164,6 +166,12 @@ st agents keys PANE_ID Enter
 Use exact pane, workspace and machine IDs from the listings. `--machine` and
 `--json` can appear before or after the Agents subcommand. `machines` always
 lists the gateway's machine roster. Other commands default to `local`.
+
+The Agents sidebar menu can copy a stable conversation link or ID. Pass either
+to `st agents conversation` to read its saved history, including done or archived
+conversations without a running terminal. Links resolve through the configured
+local ST gateway; the CLI never fetches the supplied URL. This requires the
+conversation to belong to that gateway. `--before` also pages saved history.
 
 `start` creates a workspace and starts an agent in it. It accepts repeated
 `--arg` values (use `--arg=--flag` for an argument starting with `-`) and an
