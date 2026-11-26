@@ -1,3 +1,5 @@
+mod planner;
+
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
 use serde_json::{json, Value};
@@ -12,7 +14,7 @@ use uuid::Uuid;
 #[derive(Parser)]
 #[command(
     name = "st",
-    about = "S.T. assistant, photos, system status and faceplate control"
+    about = "S.T. agents, planner, assistant and system console"
 )]
 struct Cli {
     #[arg(long, global = true, env = "STAPP_SSH")]
@@ -63,7 +65,57 @@ enum Op {
         #[arg(long, default_value_t = 0)]
         after: i64,
     },
+    /// List registered coding workspaces.
     Projects,
+    /// Browse and change personal planner records.
+    Planner {
+        #[command(subcommand)]
+        command: planner::PlannerOp,
+    },
+    /// List, create, edit and complete planner tasks.
+    Tasks {
+        #[command(subcommand)]
+        command: planner::TaskOp,
+    },
+    /// Browse and edit calendar events.
+    Calendar {
+        #[command(subcommand)]
+        command: planner::CalendarOp,
+    },
+    /// Search and edit local faceplate notes.
+    Notes {
+        #[command(subcommand)]
+        command: planner::NoteOp,
+    },
+    /// List unanswered assistant questions for this device.
+    Pending,
+    /// List recent assistant requests for this device.
+    Requests {
+        #[arg(long)]
+        project: Option<String>,
+        #[arg(long, value_parser = ["queued", "running", "waiting", "completed", "failed", "interrupted"])]
+        status: Option<String>,
+        #[arg(long, default_value_t = 20, value_parser = clap::value_parser!(u32).range(1..=200))]
+        limit: u32,
+    },
+    /// Agents sessions, output, plans and input (run on the host).
+    #[command(disable_help_flag = true)]
+    Agents {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// List monitored worktrees and resources (run on the host).
+    #[command(disable_help_flag = true)]
+    Worktrees {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// List monitored containers (run on the host).
+    #[command(disable_help_flag = true)]
+    Containers {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
     /// Browse the configured Immich library through S.T.
     Photos {
         #[command(subcommand)]
@@ -90,6 +142,7 @@ enum Op {
         path: PathBuf,
     },
     Bridge,
+    /// Send a raw request: JSON, @file, or @- for stdin.
     Rpc {
         json: String,
     },
@@ -173,7 +226,40 @@ enum PhotoOp {
 }
 pub fn run() -> Result<()> {
     let cli = Cli::parse();
+    let client = planner::Client {
+        ssh: cli.ssh.as_deref(),
+        device: &cli.device,
+    };
+    let print = |value: Value| -> Result<()> {
+        println!("{}", serde_json::to_string_pretty(&value)?);
+        Ok(())
+    };
     let v = match cli.op {
+        Op::Planner { command } => return print(client.planner(command)?),
+        Op::Tasks { command } => return print(client.tasks(command)?),
+        Op::Calendar { command } => return print(client.calendar(command)?),
+        Op::Notes { command } => return print(client.notes(command)?),
+        Op::Pending => json!({"op":"pending"}),
+        Op::Requests {
+            project,
+            status,
+            limit,
+        } => json!({"op":"requests","project":project,"status":status,"limit":limit}),
+        Op::Agents { args } => {
+            return monitor([vec!["agents".into()], args].concat(), cli.ssh.as_deref())
+        }
+        Op::Worktrees { args } => {
+            return monitor(
+                [vec!["worktrees".into()], args].concat(),
+                cli.ssh.as_deref(),
+            )
+        }
+        Op::Containers { args } => {
+            return monitor(
+                [vec!["containers".into()], args].concat(),
+                cli.ssh.as_deref(),
+            )
+        }
         Op::Ask {
             text,
             project,
@@ -249,7 +335,7 @@ pub fn run() -> Result<()> {
         Op::ImportApp { name, path } => {
             json!({"op":"tools","name":"publish_app","args":{"name":name,"html":std::fs::read_to_string(path)?}})
         }
-        Op::Rpc { json } => serde_json::from_str(&json)?,
+        Op::Rpc { json } => planner::json_input(&json)?,
         Op::Bridge => {
             // Use a fixed server-side role even when the client supplies its own device field.
             let device = if cli.device == "owner" {

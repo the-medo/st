@@ -9,7 +9,7 @@ import urllib.request
 
 from .config import load_config
 from .server import serve
-from . import night_mode
+from . import night_mode, console_cli
 
 
 def main():
@@ -25,8 +25,11 @@ def main():
     status.add_argument("--json", action="store_true")
     plan = sub.add_parser("cleanup-plan", help="Print a read-only resource inventory for a worktree")
     plan.add_argument("worktree_id")
+    console_cli.add_commands(sub)
     args = parser.parse_args()
     config = load_config(args.config)
+    if args.command in {"agents", "worktrees", "containers"}:
+        return console_cli.run(args, config, parser)
     if args.command == "faceplate-service":
         os.umask(0o077)
         night_mode.serve(config)
