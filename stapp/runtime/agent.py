@@ -215,6 +215,10 @@ def execute(job,decision,catalog,emit):
                     for question in p['questions']:
                         answers[question['id']]={'answers':[wait_answer(question['question'])]}
                     conn.send({'id':ident,'result':{'answers':answers}})
+                elif method=='item/permissions/requestApproval':
+                    description=p.get('reason') or 'Allow the requested access for this task?'
+                    answer=wait_answer(description+' '+json.dumps(p['permissions'],ensure_ascii=False)+' — reply approve or decline')
+                    conn.send({'id':ident,'result':{'permissions':p['permissions'] if answer.strip().lower()=='approve' else {},'scope':'turn'}})
                 elif method in ('item/commandExecution/requestApproval','item/fileChange/requestApproval'):
                     answer=wait_answer(str(p.get('command') or p.get('reason') or 'Allow this change?')+' — reply approve or decline')
                     conn.send({'id':ident,'result':{'decision':'accept' if answer.strip().lower()=='approve' else 'decline'}})
