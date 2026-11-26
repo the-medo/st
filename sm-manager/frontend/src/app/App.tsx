@@ -43,6 +43,9 @@ const AirQuality = lazy(() =>
 const Faceplate = lazy(() =>
   import("../features/Faceplate").then((m) => ({ default: m.Faceplate })),
 );
+const Assistant = lazy(() =>
+  import("../features/Assistant").then((m) => ({ default: m.Assistant })),
+);
 const navigation = [
   ["overview", "Overview", "◫", "O"],
   ["projects", "Projects", "⌘", "P"],
@@ -231,6 +234,16 @@ export function App() {
             <nav className="sidebar-devices" aria-label="Devices">
               <h2 className="sidebar-heading">Devices</h2>
               <NavLink
+                className="nav-link"
+                to="/assistant"
+                aria-label="Voice assistant"
+              >
+                <span className="nav-icon" aria-hidden="true">
+                  ◉
+                </span>
+                Assistant
+              </NavLink>
+              <NavLink
                 {...shortcut("F")}
                 className="nav-link"
                 title="Faceplate"
@@ -353,6 +366,7 @@ export function App() {
                 ["dbs", <Dbs />],
                 ["air-quality", <AirQuality />],
                 ["faceplate", <Faceplate />],
+                ["assistant", <Assistant />],
               ].map(([path, element]) => (
                 <Route key={String(path)} path={`/${path}`} element={element} />
               ))}

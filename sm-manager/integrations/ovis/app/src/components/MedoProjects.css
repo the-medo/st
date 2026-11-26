@@ -89,3 +89,5 @@
 .medo-conversation-page { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
 .medo-conversation-page .medo-reader-body { flex: 1; min-height: 0; height: auto; }
 .medo-conversation-notice { padding: 10px 20px; color: var(--text-dim); border-bottom: 1px solid var(--border); font-size: 12px; }
+
+.medo-assistant{padding:12px 18px;border-top:1px solid var(--border);flex-shrink:0;max-height:45vh;overflow:auto}.medo-assistant p{margin:0 0 8px;font-size:13px}.medo-assistant form{display:grid;gap:8px}.medo-assistant textarea{width:100%;resize:vertical;color:var(--text);background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:8px}.medo-assistant form>div{display:flex;gap:8px}.medo-assistant button{padding:6px 12px;border:1px solid var(--border);border-radius:6px}.medo-assistant button:disabled{opacity:.45}

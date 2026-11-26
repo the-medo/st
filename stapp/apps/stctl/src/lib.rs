@@ -57,6 +57,10 @@ enum Op {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
+    /// Stop a queued/running request belonging to this device.
+    Cancel {
+        id: String,
+    },
     Answer {
         id: String,
         text: String,
@@ -93,7 +97,7 @@ enum Op {
     Requests {
         #[arg(long)]
         project: Option<String>,
-        #[arg(long, value_parser = ["queued", "running", "waiting", "completed", "failed", "interrupted"])]
+        #[arg(long, value_parser = ["queued", "running", "waiting", "completed", "failed", "interrupted", "cancelled"])]
         status: Option<String>,
         #[arg(long, default_value_t = 20, value_parser = clap::value_parser!(u32).range(1..=200))]
         limit: u32,
@@ -296,6 +300,7 @@ pub fn run() -> Result<()> {
                 cli.ssh.as_deref(),
             )
         }
+        Op::Cancel { id } => json!({"op":"cancel","id":id}),
         Op::Answer { id, text } => json!({"op":"answer","id":id,"text":text}),
         Op::Inbox { after } => json!({"op":"inbox","after":after}),
         Op::Projects => json!({"op":"projects"}),

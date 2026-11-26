@@ -1,0 +1,30 @@
+[Unit]
+Description=S.T. local Laya decisions through Unsloth Studio
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=UNSLOTH_STUDIO_HOME=%h/.local/share/st-laya/studio
+Environment=HF_HOME=%h/.local/share/st-laya/huggingface
+Environment=UNSLOTH_SYSTEMONE_MODEL=laya-multilingual
+Environment=UNSLOTH_SYSTEMONE_DEVICE=cpu
+Environment=OMP_NUM_THREADS=2
+Environment=MKL_NUM_THREADS=2
+Environment=HF_HUB_DISABLE_TELEMETRY=1
+Environment=HF_HUB_OFFLINE=1
+Environment=TRANSFORMERS_OFFLINE=1
+Environment=DO_NOT_TRACK=1
+EnvironmentFile=%h/.config/st-laya/service.env
+WorkingDirectory=%h/.local/share/st-laya/unsloth
+ExecStart=%h/.local/share/st-laya/studio/bin/unsloth studio -H 127.0.0.1 -p 18888 --no-cloudflare --disable-tools --silent
+Restart=on-failure
+RestartSec=5
+Nice=10
+CPUWeight=20
+MemoryHigh=4G
+MemoryMax=8G
+UMask=0077
+
+[Install]
+WantedBy=default.target

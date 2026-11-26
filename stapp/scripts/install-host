@@ -59,6 +59,9 @@ for name in ["st", "stctl", "stappd", "st-voice"]:
 for file in (root / "runtime").glob("*.py"):
     shutil.copy2(file, install / file.name)
 shutil.copytree(root / "assistant", data / "assistant", dirs_exist_ok=True)
+# Package only reviewed manual sources, never arbitrary checkout/private files.
+manuals=data / "assistant/manuals/stapp/assistant/manuals"
+shutil.copytree(root / "assistant/manuals", manuals, dirs_exist_ok=True)
 shutil.copytree(root / "apps/kiosk/dist", install / "web", dirs_exist_ok=True)
 key = config / "panel.key"
 if not key.exists():
@@ -67,9 +70,13 @@ if not key.exists():
         f.write(secrets.token_urlsafe(32))
 environment = config / "host.env"
 extra = config / "integrations.env"
-environment.write_text(
-    f"STAPP_DATA={data}\nSTAPP_WEB={install}/web\nSTAPP_ORIGIN={origin}\nSTAPP_OWNER={owner}\nSTAPP_PORT={port}\nSTAPP_PANEL_KEY={key.read_text().strip()}\nSTAPP_PROJECTS_ROOT={home}/dev\n"
-)
+# Preserve existing user settings and credentials; refresh only install-owned paths.
+existing=environment.read_text() if environment.exists() else ""
+settings={line.split("=",1)[0]:line.split("=",1)[1] for line in existing.splitlines() if "=" in line and not line.startswith("#")}
+settings.update(STAPP_DATA=str(data),STAPP_WEB=str(install/"web"),STAPP_ORIGIN=origin,STAPP_OWNER=owner,STAPP_PORT=str(port))
+settings.setdefault("STAPP_PANEL_KEY",key.read_text().strip())
+settings.setdefault("STAPP_PROJECTS_ROOT",str(home/"dev"))
+environment.write_text("".join(f"{k}={v}\n" for k,v in settings.items()))
 environment.chmod(0o600)
 
 

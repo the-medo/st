@@ -58,6 +58,12 @@ impl Store {
         if tx.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))? < 4 {
             tx.execute_batch(include_str!("../migrations/004.sql"))?;
         }
+        if tx.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))? < 5 {
+            tx.execute_batch(include_str!("../migrations/005.sql"))?;
+        }
+        if tx.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))? < 6 {
+            tx.execute_batch(include_str!("../migrations/006.sql"))?;
+        }
         tx.commit()?;
         db.execute(
             "INSERT OR IGNORE INTO projects VALUES('assistant',?,'local')",
@@ -67,6 +73,9 @@ impl Store {
     }
     pub fn call(&mut self, device: &str, v: &Value) -> Result<Value> {
         let op = field(v, "op")?;
+        if op.starts_with("assistant_") || op == "voice_sync" {
+            return self.assistant(device, v);
+        }
         match op {
             "projects"=>Ok(json!(rows(&self.db,"SELECT name,host FROM projects ORDER BY name",[],|r|Ok(json!({"name":r.get::<_,String>(0)?,"host":r.get::<_,String>(1)?})))?)),
             "register"|"create_project"=>{
@@ -89,6 +98,13 @@ impl Store {
                 Ok(json!({"name":name,"path":path,"host":host}))
             }
             "ask"=>self.ask(device,v),
+            "cancel"=>{
+                let id=field(v,"id")?;
+                let tx=self.db.transaction()?;
+                ensure!(tx.execute("UPDATE jobs SET status='cancelled',claim=NULL,updated=unixepoch() WHERE id=? AND device=? AND status IN ('queued','running','waiting')",params![id,device])?==1,"No cancellable request for this device");
+                event(&tx,id,"cancelled","Stopped. Any already confirmed actions remain in effect.")?;
+                tx.commit()?;Ok(json!(true))
+            },
             "status"=>{
                 let id=field(v,"id")?;
                 let (status,thread,project):(String,Option<String>,String)=self.db.query_row("SELECT status,thread,project FROM jobs WHERE id=? AND device=?",params![id,device],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).context("Unknown request for this device")?;
@@ -99,7 +115,7 @@ impl Store {
                 ensure!((1..=200).contains(&limit),"Limit must be 1–200");
                 let project=v["project"].as_str();
                 let status=v["status"].as_str();
-                ensure!(status.is_none_or(|s|matches!(s,"queued"|"running"|"waiting"|"completed"|"failed"|"interrupted")),"Invalid request status");
+                ensure!(status.is_none_or(|s|matches!(s,"queued"|"running"|"waiting"|"completed"|"failed"|"interrupted"|"cancelled")),"Invalid request status");
                 Ok(json!(rows(&self.db,"SELECT id,prompt,project,status,thread,updated FROM jobs WHERE device=?1 AND (?2 IS NULL OR project=?2) AND (?3 IS NULL OR status=?3) ORDER BY rowid DESC LIMIT ?4",params![device,project,status,limit],|r|Ok(json!({"id":r.get::<_,String>(0)?,"text":r.get::<_,String>(1)?,"project":r.get::<_,String>(2)?,"status":r.get::<_,String>(3)?,"thread":r.get::<_,Option<String>>(4)?,"updated":r.get::<_,i64>(5)?})))?))
             }
             "pending"=>Ok(json!(rows(&self.db,"SELECT j.id,(SELECT body FROM events e WHERE e.job=j.id AND e.kind='question' ORDER BY seq DESC LIMIT 1) FROM jobs j WHERE device=? AND status='waiting' ORDER BY j.rowid",[device],|r|Ok(json!({"id":r.get::<_,String>(0)?,"text":r.get::<_,String>(1)?})))?)),
@@ -131,7 +147,15 @@ impl Store {
                     "thread"=>{tx.execute("UPDATE jobs SET thread=? WHERE id=?",params![body,id])?;}
                     "question"=>{tx.execute("UPDATE jobs SET status='waiting' WHERE id=?",[id])?;event(&tx,id,kind,body)?;}
                     "poll"=>{reply=tx.query_row("SELECT answer FROM answers WHERE job=?",[id],|r|r.get::<_,String>(0)).optional()?.map(Value::String).unwrap_or(Value::Null);tx.execute("DELETE FROM answers WHERE job=?",[id])?;}
-                    "completed"|"failed"=>{tx.execute("UPDATE jobs SET status=?,claim=NULL WHERE id=?",params![kind,id])?;event(&tx,id,kind,body)?;}
+                    "routing"|"acknowledged"=>{
+                        ensure!(body.len()<=32000,"Event too large");
+                        tx.execute("INSERT OR IGNORE INTO events(job,kind,body,payload) VALUES(?,?,?,?)",params![id,kind,body,v.get("payload").map(Value::to_string)])?;
+                    }
+                    "completed"|"failed"=>{
+                        ensure!(body.len()<=64000,"Result too large");
+                        tx.execute("UPDATE jobs SET status=?,claim=NULL WHERE id=?",params![kind,id])?;
+                        tx.execute("INSERT INTO events(job,kind,body,payload) VALUES(?,?,?,?)",params![id,kind,body,v.get("payload").map(Value::to_string)])?;
+                    }
                     _=>bail!("Unknown worker event")
                 }tx.commit()?;Ok(reply)
             }
@@ -140,7 +164,7 @@ impl Store {
         }
     }
     fn events(&self, device: &str, id: Option<&str>, after: i64) -> Result<Vec<Value>> {
-        rows(&self.db,"SELECT seq,job,kind,body FROM events JOIN jobs ON jobs.id=events.job WHERE device=? AND (? IS NULL OR job=?) AND seq>? ORDER BY seq LIMIT 100",params![device,id,id,after],|r|Ok(json!({"seq":r.get::<_,i64>(0)?,"id":r.get::<_,String>(1)?,"kind":r.get::<_,String>(2)?,"text":r.get::<_,String>(3)?})))
+        rows(&self.db,"SELECT seq,job,kind,body,payload FROM events JOIN jobs ON jobs.id=events.job WHERE device=? AND (? IS NULL OR job=?) AND seq>? ORDER BY seq LIMIT 100",params![device,id,id,after],|r|Ok(json!({"seq":r.get::<_,i64>(0)?,"id":r.get::<_,String>(1)?,"kind":r.get::<_,String>(2)?,"text":r.get::<_,String>(3)?,"payload":r.get::<_,Option<String>>(4)?.and_then(|s|serde_json::from_str::<Value>(&s).ok())})))
     }
     fn ask(&mut self, device: &str, v: &Value) -> Result<Value> {
         let id = field(v, "id")?;
@@ -148,27 +172,65 @@ impl Store {
         let prompt = field(v, "text")?;
         ensure!(prompt.len() <= 32000, "Request too long");
         let tx = self.db.transaction()?;
-        if v.get("wake").is_some() && prompt.to_lowercase().starts_with("answer ") {
-            if let Some((who, original, job)) = tx
-                .query_row(
-                    "SELECT device,prompt,job FROM voice_answers WHERE id=?",
-                    [id],
-                    |r| {
-                        Ok((
-                            r.get::<_, String>(0)?,
-                            r.get::<_, String>(1)?,
-                            r.get::<_, String>(2)?,
-                        ))
-                    },
-                )
-                .optional()?
-            {
-                ensure!(
-                    who == device && original == prompt,
-                    "Request ID already used"
-                );
-                return Ok(json!({"id":job,"device":device}));
-            }
+        // Resolve retries before interpreting current conversation state. A lost
+        // submission reply must not turn its original prompt into a later answer.
+        if let Some((who, original, project, parent)) = tx
+            .query_row(
+                "SELECT device,prompt,project,parent FROM jobs WHERE id=?",
+                [id],
+                |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, String>(2)?,
+                        r.get::<_, Option<String>>(3)?,
+                    ))
+                },
+            )
+            .optional()?
+        {
+            ensure!(
+                who == device
+                    && original == prompt
+                    && parent.as_deref() == v["parent"].as_str()
+                    && (parent.is_some()
+                        || project == v["project"].as_str().unwrap_or("assistant")),
+                "Request ID already used"
+            );
+            return Ok(json!({"id":id,"device":device}));
+        }
+        if let Some((who, original, job)) = tx
+            .query_row(
+                "SELECT device,prompt,job FROM voice_answers WHERE id=?",
+                [id],
+                |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, String>(2)?,
+                    ))
+                },
+            )
+            .optional()?
+        {
+            ensure!(
+                who == device && original == prompt,
+                "Request ID already used"
+            );
+            return Ok(json!({"id":job,"device":device}));
+        }
+        let spoken = v.get("wake").is_some() || v["voice"] == true;
+        let lower = prompt.to_lowercase();
+        let explicit_answer = lower.starts_with("answer ");
+        let new_request = lower
+            .strip_prefix("new request")
+            .is_some_and(|rest| rest.chars().next().is_none_or(|c| !c.is_alphanumeric()));
+        let pending: i64 = tx.query_row(
+            "SELECT count(*) FROM jobs WHERE device=? AND status='waiting'",
+            [device],
+            |r| r.get(0),
+        )?;
+        if spoken && !new_request && (explicit_answer || pending > 0) {
             let waiting = rows(
                 &tx,
                 "SELECT id FROM jobs WHERE device=? AND status='waiting' ORDER BY rowid",
@@ -180,7 +242,11 @@ impl Store {
                 "A spoken answer needs one pending question. Use stctl answer with the request ID."
             );
             let job = waiting[0].as_str().unwrap();
-            let answer = prompt[7..].trim();
+            let answer = if explicit_answer {
+                prompt[7..].trim()
+            } else {
+                prompt
+            };
             ensure!(!answer.is_empty(), "Missing answer");
             tx.execute(
                 "INSERT INTO voice_answers VALUES(?,?,?,?)",
@@ -196,7 +262,7 @@ impl Store {
         }
         let parent = v["parent"].as_str();
         let (project, thread) = if let Some(parent) = parent {
-            tx.query_row("SELECT project,thread FROM jobs WHERE id=? AND device=? AND thread IS NOT NULL AND status IN ('completed','failed','interrupted')",params![parent,device],|r|Ok((r.get::<_,String>(0)?,r.get::<_,Option<String>>(1)?))).context("Previous conversation is unavailable")?
+            tx.query_row("SELECT project,thread FROM jobs WHERE id=? AND device=? AND thread IS NOT NULL AND status IN ('completed','failed','interrupted','cancelled')",params![parent,device],|r|Ok((r.get::<_,String>(0)?,r.get::<_,Option<String>>(1)?))).context("Previous conversation is unavailable")?
         } else {
             (
                 v["project"].as_str().unwrap_or("assistant").to_owned(),

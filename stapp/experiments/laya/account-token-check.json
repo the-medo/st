@@ -1,0 +1,46 @@
+{
+  "checked_at": "2026-11-25T23:37:56.798864+00:00",
+  "provider": "cloudflare",
+  "model": "clef-flash",
+  "authentication": "dedicated_account_api_token_file",
+  "wrangler_used": false,
+  "token_verification": {
+    "status": "active",
+    "http_status": 200,
+    "expiration_field_present": false
+  },
+  "catalog_version": "2026-11-25-v3-clef-selected",
+  "cases": [
+    {
+      "transcript": "Add a task to buy milk tomorrow.",
+      "expected_route": "planner",
+      "actual_route": "planner",
+      "correct": true,
+      "http_status": 200,
+      "elapsed_ms": 155.58,
+      "response_validated": true,
+      "input_tokens": 435
+    },
+    {
+      "transcript": "Jaká je teď kvalita vzduchu v místnosti?",
+      "expected_route": "air_quality",
+      "actual_route": "air_quality",
+      "correct": true,
+      "http_status": 200,
+      "elapsed_ms": 154.99,
+      "response_validated": true,
+      "input_tokens": 440
+    },
+    {
+      "transcript": "Explain why the sky is blue.",
+      "expected_route": "other",
+      "actual_route": "other",
+      "correct": true,
+      "http_status": 200,
+      "elapsed_ms": 156.07,
+      "response_validated": true,
+      "input_tokens": 435
+    }
+  ],
+  "agent_invocations": 0
+}

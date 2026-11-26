@@ -1,0 +1,101 @@
+{
+  "recorded_at": "2026-11-25T21:34:16.555622+00:00",
+  "host": {
+    "os": "Linux-7.2.7-valve2-2-neptune-72-g31504582a073-x86_64-with-glibc2.43",
+    "cpu": "AMD Custom CPU 1772",
+    "physical_cores": 6,
+    "logical_cores": 12,
+    "ram_gib": 62,
+    "inference_device": "cpu",
+    "omp_threads": 2,
+    "mkl_threads": 2
+  },
+  "python": "3.13.17",
+  "packages": {
+    "torch": "2.11.0+cpu",
+    "unsloth": "2026.11.12",
+    "unsloth_zoo": "2026.11.12",
+    "transformers": "5.5.4"
+  },
+  "unsloth_commit": "f38ba996940fa17a2a0b6173a00c23e729003c98",
+  "unsloth_zoo_commit": "e59bba221692a7388ce424382ef30e49e73a24eb",
+  "vendored_laya_version": "0.3.5",
+  "model": {
+    "name": "laya-multilingual",
+    "repository": "convaiinnovations/laya",
+    "subfolder": "multilingual",
+    "revision": "246177e5cb70334c9831c0730864a93c836aac8f",
+    "files": {
+      "encoder/config.json": {
+        "bytes": 1938,
+        "sha256": "83f6916d13ef0f556ac461f28308dc2bffa7ebeadee8ec9e2db5812020ea5bb4"
+      },
+      "model.safetensors": {
+        "bytes": 643835514,
+        "sha256": "9d628fd971b700382ac6f65920a86f149777b2e748e0c955fb3b19695aa8f204"
+      },
+      "rl_agent_config.json": {
+        "bytes": 472,
+        "sha256": "25061739243b617ad88d1219ba6f8a9c86c5881ca28df024fa2d9b3b2fcc30c6"
+      },
+      "tokenizer/tokenizer.json": {
+        "bytes": 34363188,
+        "sha256": "609d8f4c067cd3950f88594c5a802616cea245823836ef5848ee4fc40aab5b6f"
+      },
+      "tokenizer/tokenizer_config.json": {
+        "bytes": 524,
+        "sha256": "6c6b2d8e3c84ce0e671c129cd6b374b235d6f9863042a5836358d00a89bbb5a1"
+      }
+    }
+  },
+  "endpoint": "http://127.0.0.1:18888/v1/systemone",
+  "agent_invocations": 0,
+  "comparison_models": [
+    {
+      "model": "kev-0.8b",
+      "repository": "ggml-org/Kev-0.8B-GGUF",
+      "revision": "e551e319d483ff57e1ff208924b349d397cffc1c",
+      "filename": "Kev-0.8B-Q8_0.gguf",
+      "bytes": 812406304,
+      "sha256": "27278f34eb3273bceea4c053dc50dd61a5161da21a718c4aacdf8fd5830771d0"
+    },
+    {
+      "model": "kev-4b",
+      "repository": "ggml-org/Kev-4B-GGUF",
+      "revision": "d924f2e2c3872da8b8aaf3eb4453b4126deceb79",
+      "filename": "Kev-4B-Q8_0.gguf",
+      "bytes": 4483801504,
+      "sha256": "7c2ebed90560522c2801389db482ac1dc4c36d828f201f6074c1d60e433948da"
+    },
+    {
+      "model": "d1-2b",
+      "repository": "LiquidAI/d1-2B-GGUF",
+      "revision": "e968f6575f0d4fad928312d7af15cad90fd365c0",
+      "filename": "d1-2B-Q8_0.gguf",
+      "bytes": 1846240576,
+      "sha256": "073313d92b53b0ac8193db6e906cb3c78a98183d244b15b7b8f5426115c6738c"
+    },
+    {
+      "model": "d1-2b",
+      "repository": "LiquidAI/d1-2B-GGUF",
+      "revision": "e968f6575f0d4fad928312d7af15cad90fd365c0",
+      "filename": "mmproj-d1-2B-Q8_0.gguf",
+      "bytes": 203031584,
+      "sha256": "62cc6d74fd1e5b1d6b48518566bf4c0cfd2468079a0c096ea323b74eed01e0d1"
+    }
+  ],
+  "llama_cpp_version": "1.0.0-dev; build 12676; commit 6a74164b3; Unsloth bundled CPU binary",
+  "comparison_configuration": {
+    "local_device": "cpu",
+    "cpu_threads": 2,
+    "cpu_quota_percent_of_one_core": 200,
+    "memory_high_gib": 10,
+    "memory_max_gib": 12,
+    "native_context_tokens": 1024,
+    "sample_interval_seconds": 0.5,
+    "baseline_seconds": 15,
+    "loaded_idle_seconds": 30,
+    "remote_model": "@cf/cloudflare/clef-flash",
+    "remote_cpu_ram": "unavailable"
+  }
+}

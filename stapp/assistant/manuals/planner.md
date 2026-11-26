@@ -1,0 +1,3 @@
+# Planner
+
+Use list_records/list_task_projects, then get_record before edits. Preserve current version; task projects are distinct from coding workspaces. complete_task advances one recurring occurrence: never retry with a newer version to compensate for a lost response. Store IANA zones and local dates; all-day ends are exclusive. Recurrence due follows scheduled dates; completion follows actual completion. Clarify ambiguous recurrence. Do not promise recurring calendar events, reminders, mobile push or attachments: these are not implemented. Use the planner API tools, never raw CalDAV or SQLite. The host CLI also documents these operations in stapp/docs/cli.md, but dynamic tools bind changes to this job and retries.

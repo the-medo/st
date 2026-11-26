@@ -11,6 +11,7 @@ import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 from integrations.ovis.bridge import server as sidebar, organization, resources, questions
 from integrations.ovis.bridge.chat_service import request, Bridge
+from integrations.ovis.bridge import assistant
 root = sidebar.ROOT
 
 
@@ -128,7 +129,18 @@ def history(thread, p):
             binding, boundary, native = json.loads(base64.urlsafe_b64decode(held+'='*(-len(held)%4)))
             if binding != thread: return {'historyChanged':True}
         except (ValueError, TypeError): return {'historyChanged':True}
-    data = request({'operation':'read', 'threadId':thread, 'cursor':native if p.get('before') else None})
+    row, _ = sidebar.checked_thread(thread)
+    def read_page(next_cursor):
+        # The web UI may share an older graphical-chat service. Read managed
+        # assistant history passively here; never resume its dynamic tools in a TUI.
+        if assistant.owns(row):
+            client = Bridge()
+            try:
+                return client.read(thread, next_cursor)
+            finally:
+                client.process.terminate()
+        return request({'operation':'read', 'threadId':thread, 'cursor':next_cursor})
+    data = read_page(native if p.get('before') else None)
     if p.get('from'):
         newest = data
         turns = list(data['turns'])
@@ -138,7 +150,7 @@ def history(thread, p):
                 data = {**newest, 'turns':turns[at:], 'ovisCursor':held}
                 return data
             if not data.get('nextCursor'): return {'historyChanged':True}
-            data = request({'operation':'read', 'threadId':thread, 'cursor':data['nextCursor']})
+            data = read_page(data['nextCursor'])
             turns = data['turns'] + turns
         raise ValueError('This view is too large. Reload the conversation to its newest messages.')
     data['ovisCursor'] = cursor(thread, data)
@@ -147,6 +159,14 @@ def history(thread, p):
 
 def handle(p):
     op = p['operation']
+    if op in ('assistant_state', 'assistant_send', 'assistant_answer', 'assistant_stop'):
+        row, item = sidebar.checked_thread(p['threadId'])
+        if not assistant.owns(row):
+            if op == 'assistant_state': return None
+            raise ValueError('Choose an S.T. assistant conversation.')
+        if op != 'assistant_state' and (row.get('archived') or item.get('unavailable')):
+            raise ValueError(item.get('unavailable') or 'Unarchive this conversation before continuing.')
+        return assistant.action({**p, 'operation': op if op == 'assistant_state' else op.removeprefix('assistant_')})
     if op == 'questions':
         terminal = sidebar.hc('get', p['paneId'], '--json')
         if not terminal.get('labels', {}).get('medo.ovis.project'):
@@ -214,7 +234,10 @@ def handle(p):
                 # A resumed placeholder or a resume still starting is not a
                 # draft. An explicit new chat (also /new) remains reachable.
                 drafts.append({'address':detail['address'], 'project':project, 'title':'New conversation'})
+        rows_by_id = {row['id']: row for row in rows}
+        managed_threads = assistant.threads()
         for chat in result['chats']:
+            chat['assistant'] = assistant.owns(rows_by_id.get(chat['id'], {})) and (managed_threads is None or chat['id'] in managed_threads)
             terminal = by_thread.get(chat['id'])
             if terminal:
                 chat['paneId'] = terminal['address']
@@ -225,6 +248,8 @@ def handle(p):
         return result
     if op == 'open':
         row, item = sidebar.checked_thread(p['threadId'])
+        if assistant.owns(row):
+            raise ValueError('Continue this assistant conversation in its saved chat view.')
         if row.get('archived'): raise ValueError('Unarchive this conversation in Codex before continuing.')
         project = next((x for x in sidebar.config()['projects'] if x['id']==item['project']), {'id':'other','name':'Other'})
         return launch({**project, 'path':item['cwd']}, p['threadId'], item['title'])

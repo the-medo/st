@@ -1,0 +1,73 @@
+.assistant-page {
+  display: grid;
+  gap: 18px;
+}
+.assistant-devices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: 18px;
+}
+.assistant-fields,
+.assistant-health {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.assistant-fields label {
+  display: grid;
+  gap: 7px;
+  flex: 1;
+  min-width: 180px;
+}
+.assistant-fields select {
+  width: 100%;
+  max-width: 100%;
+  padding: 8px;
+  color: inherit;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.assistant-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 14px 12px;
+}
+.assistant-device form > button {
+  margin-top: 12px;
+}
+.assistant-help {
+  font-size: 0.88rem;
+  opacity: 0.8;
+}
+.assistant-device blockquote {
+  margin: 12px 0;
+  padding: 12px;
+  border-left: 3px solid var(--accent);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.assistant-requests article {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.assistant-requests p {
+  font-size: 0.9rem;
+}
+.assistant-requests a {
+  margin-left: 10px;
+}
+.assistant-health > p {
+  flex: 1;
+  min-width: 220px;
+}
+
+.assistant-device form {
+  padding: 0 12px;
+}
+.assistant-health,
+.assistant-requests {
+  padding: 0 12px;
+}

@@ -99,6 +99,9 @@ export async function handleMedoRequest(request: Request, url: URL, readOnly: bo
     }
 
     if (request.method === 'GET' && url.pathname === '/api/medo/catalog') return jsonResponse(await medoCall({ operation: 'index' }), 200, { 'cache-control': 'no-store' });
+    if (request.method === 'GET' && url.pathname === '/api/medo/assistant') {
+      return jsonResponse(await medoCall({ operation: 'assistant_state', threadId: url.searchParams.get('thread') }), 200, { 'cache-control': 'no-store' });
+    }
     if (request.method === 'GET' && url.pathname === '/api/medo/icon') {
       const name = url.searchParams.get('name');
       if (!name || !/^[a-f0-9]{64}\.(png|jpg|webp)$/.test(name)) return badRequest('invalid_icon', 'Choose a project image.');
@@ -108,6 +111,10 @@ export async function handleMedoRequest(request: Request, url: URL, readOnly: bo
     if (request.method !== 'POST') return badRequest('method_not_allowed', 'Use POST for this action.');
     const payload = await readJsonObject(request);
     if (payload instanceof Response) return payload;
+    if (url.pathname === '/api/medo/assistant') {
+      if (!['send', 'answer', 'stop'].includes(String(payload.action))) return badRequest('unknown_action', 'Choose an assistant action.');
+      return jsonResponse(await medoCall({ ...payload, operation: `assistant_${payload.action}` }));
+    }
     const operations: Record<string, string> = { '/api/medo/models': 'models', '/api/medo/settings': 'settings', '/api/medo/open': 'open', '/api/medo/new': 'new', '/api/medo/rename': 'rename', '/api/medo/organize': 'organize', '/api/medo/style': 'style', '/api/medo/icon': 'icon-put' };
     const operation = operations[url.pathname];
     if (!operation) return badRequest('unknown_action', 'Unknown project action.');

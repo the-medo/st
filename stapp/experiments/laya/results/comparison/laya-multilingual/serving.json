@@ -1,0 +1,8 @@
+{
+  "backend": "pytorch",
+  "device": "cpu",
+  "native_context_tokens": 1024,
+  "cpu_threads": 2,
+  "limits": "MemoryPeak=2898120704\nCPUUsageNSec=70135451000\nCPUQuotaPerSecUSec=2s\nMemoryHigh=10737418240\nMemoryMax=12884901888\n",
+  "benchmark_exit_code": 0
+}

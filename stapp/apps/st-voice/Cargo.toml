@@ -9,3 +9,11 @@ st-core.workspace=true
 clap.workspace=true
 uuid.workspace=true
 cpal="0.15"
+
+st-audio = { path = "../../crates/st-audio" }
+sherpa-onnx = "=2.0.3"
+libloading = "0.8"
+fs2 = "0.4"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi", "Win32_System_LibraryLoader", "Win32_System_SystemServices"] }

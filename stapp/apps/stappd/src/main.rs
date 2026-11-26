@@ -1,3 +1,4 @@
+mod assistant;
 mod notes;
 mod photos;
 mod planner;
@@ -425,6 +426,11 @@ async fn call(a: &App, device: &str, v: &Value) -> Result<Value> {
             }
         }
     }
+    if v["op"] == "release_wake" {
+        let key = format!("{device}/{}", field(v, "id")?);
+        a.claims.lock().unwrap().retain(|_, (_, id)| id != &key);
+        return Ok(json!(true));
+    }
     if v["op"] == "wake" {
         let token = field(v, "id")?;
         uuid::Uuid::parse_str(token)?;
@@ -435,7 +441,7 @@ async fn call(a: &App, device: &str, v: &Value) -> Result<Value> {
             tokio::time::sleep(Duration::from_millis(300)).await;
         }
         let mut map = a.claims.lock().unwrap();
-        map.retain(|_, (when, _)| now.saturating_duration_since(*when) < Duration::from_secs(45));
+        map.retain(|_, (when, _)| now.saturating_duration_since(*when) < Duration::from_secs(300));
         let winner = &map
             .entry(group.to_string())
             .or_insert((now, format!("{device}/{token}")))
@@ -452,7 +458,7 @@ async fn call(a: &App, device: &str, v: &Value) -> Result<Value> {
             existing
                 || claims
                     .values()
-                    .any(|(t, id)| id == &key && t.elapsed() < Duration::from_secs(45)),
+                    .any(|(t, id)| id == &key && t.elapsed() < Duration::from_secs(300)),
             "Wake claim expired"
         );
         let reply = store.call(device, v)?;

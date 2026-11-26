@@ -35,10 +35,10 @@ class ConsoleAssetsTests(unittest.TestCase):
                 return result
 
             try:
-                for path in ['/', '/overview?workmode=1', '/projects', '/agents', '/agents/chat/example',
+                for path in ['/', '/overview?workmode=1', '/projects', '/assistant', '/agents', '/agents/chat/example',
                              '/agents/session/example', '/planner/tasks', '/planner/calendar']:
                     self.assertEqual(request(path), (200, b'<h1>Console fixture</h1>'), path)
-                for path in ['/api/snapshot', '/api/night-mode', '/planner/api/tasks',
+                for path in ['/api/snapshot', '/api/assistant', '/api/night-mode', '/planner/api/tasks',
                              '/planner/calendar?st-embedded=1', '/assets/example.js']:
                     self.assertEqual(request(path)[0], 403, path)
                 for headers in [{'Sec-Fetch-Mode': 'cors'}, {'Sec-Fetch-Mode': 'no-cors'},

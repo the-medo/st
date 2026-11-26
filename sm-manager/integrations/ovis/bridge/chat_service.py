@@ -23,6 +23,7 @@ from urllib.parse import unquote, urlsplit
 
 from . import server
 from . import attachments
+from . import assistant
 from .daemon_transport import DaemonConnection
 
 SOCKET = Path(os.environ.get('ST_OVIS_CHAT_SOCKET', str(Path(os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}')) / 'herdr-codex-chat.sock')))
@@ -293,14 +294,16 @@ class Bridge:
 
     def read(self, thread_id, cursor=None, version=None):
         row, display = self.metadata(thread_id)
+        managed = assistant.owns(row)
+        current = assistant.state(thread_id) if managed else None
         thread = self.rpc('thread/read', {'threadId': thread_id})['thread']
-        if getattr(self, 'shared_daemon', False) and thread_id not in self.loaded and thread.get('status', {}).get('type') in ('active','idle'):
+        if not managed and getattr(self, 'shared_daemon', False) and thread_id not in self.loaded and thread.get('status', {}).get('type') in ('active','idle'):
             resumed = self.rpc('thread/resume', {'threadId': thread_id, 'excludeTurns': True})
             self.loaded.add(thread_id)
             self.settings[thread_id] = {k: resumed.get(k) for k in ('model','reasoningEffort','approvalPolicy','sandbox')}
         with self.lock:
             current_version = f"{self.generation}:{row.get('updated_at_ms', row.get('updated_at'))}:{self.revisions.get(thread_id, 0)}:{display['unavailable']}:{row.get('archived')}:{thread.get('status',{}).get('type')}"
-        if not cursor and current_version == version:
+        if not managed and not cursor and current_version == version:
             return {'unchanged': True, 'version': current_version}
         params = {'threadId': thread_id, 'limit': 3, 'itemsView': 'full', 'sortDirection': 'desc'}
         if cursor:
@@ -328,12 +331,13 @@ class Bridge:
                 turns[existing] = live
         active = bool(live and live['status'] == 'inProgress')
         active = active or thread.get('status', {}).get('type') == 'active'
-        return {'version': current_version, 'activity': self.activity(), 'thread': {**display, 'model': settings.get('model') or thread.get('model') or row.get('model'),
+        result = {'version': current_version, 'activity': self.activity(), 'thread': {**display, 'model': settings.get('model') or thread.get('model') or row.get('model'),
                           'effort': settings.get('reasoningEffort') or thread.get('reasoningEffort') or row.get('reasoning_effort')},
                 'turns': [normalize_turn(t) for t in turns], 'nextCursor': page.get('nextCursor'),
                 'active': active, 'turnId': live['id'] if live and active else next((t['id'] for t in turns if t.get('status')=='inProgress'), None), 'requests': requests,
                 'canSend': not display['unavailable'] and not row.get('archived'),
                 'readOnlyReason': display['unavailable'] or ('Unarchive this chat in Codex before continuing.' if row.get('archived') else None)}
+        return assistant.decorate(result, current if not cursor else None) if managed else result
 
     def send(self, payload):
         thread_id = payload['threadId']
@@ -351,6 +355,10 @@ class Bridge:
             row, display = self.metadata(thread_id)
             if display['unavailable'] or row.get('archived'):
                 raise ValueError(display['unavailable'] or 'Unarchive this chat in Codex before continuing.')
+            if assistant.owns(row):
+                if files:
+                    raise ValueError('Assistant follow-ups accept text. Describe the file or task in your message.')
+                return assistant.action({**payload, 'operation': 'send', 'text': text})
             with self.lock:
                 if self.live.get(thread_id, {}).get('status') == 'inProgress':
                     raise ValueError('This chat is already working. Stop it before sending another message.')
@@ -473,6 +481,24 @@ class Bridge:
 
     def handle(self, payload):
         operation = payload.get('operation')
+        if operation in ('answer', 'stop', 'settings') and payload.get('threadId'):
+            row, display = self.metadata(payload['threadId'])
+            if assistant.owns(row):
+                if display['unavailable'] or row.get('archived'):
+                    raise ValueError(display['unavailable'] or 'Unarchive this conversation before continuing.')
+                if operation == 'settings':
+                    raise ValueError('This conversation uses the S.T. assistant model profile.')
+                if operation == 'stop':
+                    current = assistant.state(payload['threadId'])
+                    return assistant.action({**payload, 'job': (current or {}).get('id')})
+                parts = str(payload.get('requestId', '')).split(':')
+                if len(parts) != 3 or parts[0] != 'st':
+                    raise ValueError('Refresh this assistant question before answering.')
+                answer = (payload.get('answers') or {}).get('answer')
+                if not isinstance(answer, str) or not answer.strip():
+                    raise ValueError('Enter an answer.')
+                return assistant.action({**payload, 'job': parts[1], 'question': int(parts[2]), 'text': answer,
+                    'nonce': str(uuid.uuid5(uuid.NAMESPACE_URL, payload['requestId'] + answer))})
         if operation == 'health':
             return {'ok': not self.failure, 'error': self.failure}
         if operation == 'read':

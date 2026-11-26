@@ -194,7 +194,7 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
     const ticket = ++selectionTicket.current;
     openingRef.current = chat.id;
     setError('');
-    if (chat.archived || chat.unavailable) { setOpening(null); openingRef.current = null; read(chat); return; }
+    if (chat.assistant || chat.archived || chat.unavailable) { setOpening(null); openingRef.current = null; read(chat); return; }
     setOpening(chat.id);
     try {
       const result = await call<MedoOpen>('open', { threadId: chat.id });
