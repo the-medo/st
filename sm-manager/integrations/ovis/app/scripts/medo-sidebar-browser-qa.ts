@@ -161,6 +161,107 @@ try {
   assert.deepEqual(await names(), ['Studio', 'Garden', 'Home']);
   assert.deepEqual(errors, []);
   if (evidence) await page.screenshot({ path: join(evidence, 'sidebar.png') });
+
+  // Folder expansion is opt-in, scoped to the project, and survives reloads.
+  catalog.projects = catalog.projects.map((project) => ({ ...project, folders: project.id === 'garden'
+    ? [{ id: 'ideas', name: 'Ideas' }, { id: 'later', name: 'Later' }]
+    : project.id === 'studio' ? [{ id: 'ideas', name: 'Studio ideas' }] : [] }));
+  catalog.chats.push({ ...chat('folder-chat', 'Folder conversation'), folder: 'ideas' });
+  await row('Refresh projects').click();
+  await row('Ideas').waitFor();
+  assert.equal(await row('Ideas').getAttribute('aria-expanded'), 'false');
+  assert.equal(await row('Folder conversation').count(), 0);
+  await row('Ideas').click();
+  await row('Folder conversation').waitFor();
+  await page.reload();
+  await row('Folder conversation').waitFor();
+  assert.equal(await row('Ideas').getAttribute('aria-expanded'), 'true');
+  assert.equal(await row('Later').getAttribute('aria-expanded'), 'false');
+  assert.equal(await row('Studio ideas').getAttribute('aria-expanded'), 'false');
+
+  // Project/folder chevrons, icons/status indicators and text share columns.
+  const checkAlignment = async () => {
+    const columns = await page.locator('[data-st-project="garden"]').evaluate((project) => {
+      const rect = (selector: string) => project.querySelector(selector)!.getBoundingClientRect();
+      const center = (selector: string) => { const box = rect(selector); return box.x + box.width / 2; };
+      return {
+        projectChevron: center('.medo-project-toggle>svg'), folderChevron: center('.medo-folder-head>svg'),
+        folderIcon: center('.medo-folder-icon'),
+        indicators: [...project.querySelectorAll('.medo-chat .medo-indicator')].map((element) => { const box = element.getBoundingClientRect(); return box.x + box.width / 2; }),
+        title: rect('.medo-folder-head>span').x,
+        chatTitles: [...project.querySelectorAll('.medo-chat-open>span:last-child')].map((element) => element.getBoundingClientRect().x),
+      };
+    });
+    assert.ok(Math.abs(columns.projectChevron - columns.folderChevron) < 1, JSON.stringify(columns));
+    assert.ok(columns.indicators.every((x) => Math.abs(x - columns.folderIcon) < 1), JSON.stringify(columns));
+    assert.ok(columns.chatTitles.every((x) => Math.abs(x - columns.title) < 1), JSON.stringify(columns));
+  };
+  await checkAlignment();
+  if (evidence) await page.screenshot({ path: join(evidence, 'folders-desktop.png') });
+  await row('Ideas').click();
+  await page.reload();
+  await row('Ideas').waitFor();
+  assert.equal(await row('Ideas').getAttribute('aria-expanded'), 'false');
+
+  // Searching temporarily reveals results without overwriting saved expansion.
+  await page.getByRole('textbox', { name: 'Search conversations' }).fill('Folder conversation');
+  await row('Folder conversation').waitFor();
+  await page.getByRole('textbox', { name: 'Search conversations' }).fill('');
+  assert.equal(await row('Ideas').getAttribute('aria-expanded'), 'false');
+  await row('Refresh projects').click();
+  assert.equal(await row('Ideas').getAttribute('aria-expanded'), 'false');
+
+  // A failed delete leaves the folder intact; success unwraps its conversations.
+  await row('Actions for folder Ideas').click();
+  const folderMenu = page.getByRole('menu', { name: 'Folder actions', exact: true });
+  assert.equal(await row('Ideas').getAttribute('aria-expanded'), 'false');
+  await folderMenu.getByRole('menuitem', { name: 'Delete folder Keep conversations', exact: true }).click();
+  await waitCount(moves, 1);
+  const failedDelete = moves.shift()!;
+  assert.deepEqual(failedDelete.request().postDataJSON(), { change: { operation: 'delete', projectId: 'garden', folderId: 'ideas' } });
+  await failedDelete.fulfill({ status: 400, json: { error: { message: 'Folder could not be deleted' } } });
+  await page.getByRole('alert').filter({ hasText: 'Folder could not be deleted' }).waitFor();
+  await row('Ideas').click();
+  await page.setViewportSize({ width: 600, height: 800 });
+  await checkAlignment();
+  await row('Actions for folder Ideas').click();
+  const folderSheet = page.getByRole('dialog', { name: 'Folder actions', exact: true });
+  await folderSheet.waitFor();
+  await folderSheet.evaluate(async (element) => {
+    await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished));
+  });
+  if (evidence) await page.screenshot({ path: join(evidence, 'folders-narrow-menu.png') });
+  await folderSheet.getByRole('button', { name: 'Delete folder Keep conversations', exact: true }).click();
+  await waitCount(moves, 1);
+  catalog.projects = catalog.projects.map((project) => project.id === 'garden' ? { ...project, folders: project.folders.filter((folder) => folder.id !== 'ideas') } : project);
+  catalog.chats = catalog.chats.map((item) => item.id === 'folder-chat' ? { ...item, folder: null } : item);
+  await moves.shift()!.fulfill({ json: { ok: true } });
+  await row('Ideas').waitFor({ state: 'hidden' });
+  await row('Folder conversation').waitFor();
+  assert.equal(await row('Studio ideas').getAttribute('aria-expanded'), 'false');
+  await page.reload();
+  await row('Folder conversation').waitFor();
+  assert.equal(await row('Ideas').count(), 0);
+
+  // Malformed or unavailable browser storage must not break the sidebar.
+  await page.evaluate(() => localStorage.setItem('ovis:project-folders:v1', '{broken'));
+  await page.reload();
+  await row('Later').waitFor();
+  assert.equal(await row('Later').getAttribute('aria-expanded'), 'false');
+  await page.addInitScript(() => {
+    if (!new URL(location.href).searchParams.has('storage-blocked')) return;
+    Storage.prototype.getItem = () => { throw new DOMException('Storage unavailable', 'SecurityError'); };
+    Storage.prototype.setItem = () => { throw new DOMException('Storage unavailable', 'SecurityError'); };
+  });
+  await page.goto(`http://127.0.0.1:${server.port}/?storage-blocked`);
+  await row('Later').click();
+  assert.equal(await row('Later').getAttribute('aria-expanded'), 'true');
+  await row('Later').click();
+  assert.equal(await row('Later').getAttribute('aria-expanded'), 'false');
+  await page.setViewportSize({ width: 1100, height: 720 });
+
+  await page.goto(`http://127.0.0.1:${server.port}/`);
+
   // A blocked question stays visible even when selected, then clears when work resumes.
   catalog = { ...catalog, chats: [{ ...chat('a', 'Archive defaults'), paneId: 'a', status: 'blocked' }] };
   const rawReply = '<send_user_message_question_reply>' + JSON.stringify([{ question: 'Which `GET /Files` default should we use?', answer: 'Make REST active-only by default too', questionItemId: '["request_user_input_async","call",0]' }]) + '</send_user_message_question_reply>';
@@ -236,7 +337,7 @@ try {
   holdPoll = false;
   await polls.shift()!.fulfill({ json: beforeDone });
   await row('Automation work').waitFor({ state: 'hidden' });
-  await row('Ideas').click();
+  assert.equal(await row('Ideas').getAttribute('aria-expanded'), 'false');
   await row('Show done').click();
   await row('Automation work').waitFor();
   await row('Finished studio plan').waitFor();
@@ -417,7 +518,7 @@ try {
   if (evidence) await mobile.screenshot({ path: join(evidence, 'conversation-actions-touch.png') });
   await phone.close();
   assert.deepEqual(errors, []);
-  console.log('Sidebar browser regressions passed: navigation, project/folder ordering, native folder and conversation dragging, global done filtering, persistence/errors, pagination, copy links/IDs and touch actions.');
+  console.log('Sidebar browser regressions passed: navigation, folder expansion/alignment/deletion, project/folder ordering, native folder and conversation dragging, global done filtering, persistence/errors, pagination, copy links/IDs and touch actions.');
 } finally {
   await browser.close();
   await server.stop(true);

@@ -3,13 +3,14 @@ import { focusInOtherModal, useFocusTrap } from '../lib/useFocusTrap.ts';
 import { usePhoneSheetBack } from '../lib/sheetHistory.ts';
 import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react';
-import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpToLine, Check, ChevronDown, ChevronRight, Circle, CircleAlert, Copy, Ellipsis, Folder, GripVertical, Link, LoaderCircle, MessageCircle, Pencil, Plus, RefreshCw, Search, Settings, X } from 'lucide-react';
+import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpToLine, Check, ChevronDown, ChevronRight, Circle, CircleAlert, Copy, Ellipsis, Folder, GripVertical, Link, LoaderCircle, MessageCircle, Pencil, Plus, RefreshCw, Search, Settings, Trash2, X } from 'lucide-react';
 import type { MedoCatalog, MedoChat, MedoFolder, MedoOpen, MedoProject, MedoStyle } from '../../shared/medo.ts';
 import { apiFetch } from '../lib/api-request-id.ts';
 import { RowMenu } from './RowMenu.tsx';
 import './MedoProjects.css';
 import {useResourceUrl} from '../lib/useResourceUrl.ts';
 import { useMedoReadState } from '../lib/medoReadState.ts';
+import { useMedoFolderState } from '../lib/medoFolderState.ts';
 import { copyText } from '../lib/clipboard.ts';
 import { savedConversationLink } from '../lib/savedConversation.ts';
 
@@ -58,6 +59,7 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
   const [query, setQuery] = useState('');
   const [archived, setArchived] = useState(false);
   const [closed, setClosed] = useState<Set<string>>(new Set());
+  const [openFolders, setOpenFolders] = useMedoFolderState();
   const [limits, setLimits] = useState<Record<string, number>>({});
   const [showDone, setShowDone] = useState(false);
   const [savingDone, setSavingDone] = useState<Set<string>>(new Set());
@@ -170,7 +172,7 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
         if (!change) return;
         event.preventDefault(); event.stopPropagation(); clearDrag();
         void saveOrganization(change).then((ok) => {
-          if (ok && mounted.current && change.operation === 'move' && folder) setClosed((current) => { const next = new Set(current); next.delete(`${projectId}/${folder.id}`); return next; });
+          if (ok && mounted.current && change.operation === 'move' && folder) setOpenFolders((current) => new Set(current).add(`${projectId}/${folder.id}`));
         });
       },
     };
@@ -188,6 +190,7 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
     setError(copied ? '' : 'Could not copy to the clipboard. Please try again.');
   };
   const toggle = (key: string) => setClosed((current) => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
+  const toggleFolder = (key: string) => setOpenFolders((current) => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
   const read = (chat: MedoChat) => {
     selectionTicket.current++; openingRef.current = null; setOpening(null); setError(''); onRead(chat);
   };
@@ -232,7 +235,8 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
       void refresh(true);
       if (ticket === selectionTicket.current) {
         setArchived(false); setQuery('');
-        setClosed((current) => { const next = new Set(current); next.delete(project.id); if (folder) next.delete(`${project.id}/${folder.id}`); return next; });
+        setClosed((current) => { const next = new Set(current); next.delete(project.id); return next; });
+        if (folder) setOpenFolders((current) => new Set(current).add(`${project.id}/${folder.id}`));
         await onOpen(result.address, () => ticket === selectionTicket.current);
       }
     } catch (cause) { if (ticket === selectionTicket.current) setError(cause instanceof Error ? cause.message : 'The conversation could not open.'); }
@@ -260,9 +264,9 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
       ])[0];
       setClosed((current) => {
         const next = new Set(current); next.delete(id);
-        if (first && 'folder' in first && first.folder) next.delete(`${id}/${first.folder}`);
         return next;
       });
+      if (first?.folder) setOpenFolders((current) => new Set(current).add(`${id}/${first.folder}`));
       if (first) { if ('address' in first) void openDraft(first.address); else void open(first); }
     });
   });
@@ -290,11 +294,11 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
     const zone = dragging?.kind === 'folder' && dragging.projectId === project.id && <div className="medo-folder-drop-zone" data-folder-position={position} {...dropProps(project.id, undefined, position)}>Folders {position === 'start' ? 'before' : 'after'} conversations</div>;
     return <>{position === 'start' && zone}{foldersAt(project, position).map((folder) => {
       const key = `${project.id}/${folder.id}`;
-      const folded = !query && closed.has(key);
+      const folded = !query && !openFolders.has(key);
       return <div className="medo-folder" key={folder.id} data-folder-id={folder.id} data-folder-position={position}>
         <div className="medo-folder-row" draggable={!organizing} onDragStart={(event) => startDrag(event, { kind: 'folder', projectId: project.id, id: folder.id })} onDragEnd={clearDrag} {...dropProps(project.id, folder)}>
+          <button className="medo-folder-head" aria-expanded={!folded} onClick={() => toggleFolder(key)} title="Drag to reorder folder">{folded ? <ChevronRight size={13} /> : <ChevronDown size={13} />}<Folder className="medo-folder-icon" size={13} /><span>{folder.name}</span></button>
           <GripVertical className="medo-folder-grip" size={12} aria-hidden="true" />
-          <button className="medo-folder-head" aria-expanded={!folded} onClick={() => toggle(key)} title="Drag to reorder folder">{folded ? <ChevronRight size={12} /> : <ChevronDown size={12} />}<Folder size={13} /><span>{folder.name}</span></button>
           {project.path && <button className="medo-row-action" disabled={creating} aria-label={`New conversation in folder ${folder.name}`} title="New conversation in this folder" onClick={() => void start(project, folder)}><Plus size={15} /></button>}
           <button className="medo-row-action" aria-label={`Actions for folder ${folder.name}`} aria-haspopup="menu" aria-expanded={folderMenu?.projectId === project.id && folderMenu.folderId === folder.id} onClick={(event) => setFolderMenu({ projectId: project.id, folderId: folder.id, anchor: event.currentTarget })}><Ellipsis size={15} /></button>
         </div>{!folded && rows(project, folder.id)}
@@ -338,6 +342,7 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
       { id: 'end', label: 'Place after conversations', icon: ArrowDownToLine, disabled: organizing, checked: menuFolder.position !== 'start', run: () => moveFolder({ position: 'end' }) },
       { id: 'up', label: 'Move up', icon: ArrowUp, divider: true, disabled: organizing || folderIndex <= 0, run: () => moveFolder({ relativeTo: menuSiblings[folderIndex - 1]?.id, direction: 'up' }) },
       { id: 'down', label: 'Move down', icon: ArrowDown, disabled: organizing || folderIndex < 0 || folderIndex >= menuSiblings.length - 1, run: () => moveFolder({ relativeTo: menuSiblings[folderIndex + 1]?.id, direction: 'down' }) },
+      { id: 'delete', label: 'Delete folder', hint: 'Keep conversations', icon: Trash2, divider: true, danger: true, disabled: organizing, run: () => void saveOrganization({ operation: 'delete', projectId: folderMenu.projectId, folderId: folderMenu.folderId }) },
     ]} />}
     {projectMenu && <RowMenu anchor={projectMenu.anchor} title="Project actions" subtitle={projectMenu.project.name} onClose={() => setProjectMenu(null)} items={[
       { id: 'customize', label: 'Customize project', icon: Settings, run: () => setEdit(projectMenu.project) },

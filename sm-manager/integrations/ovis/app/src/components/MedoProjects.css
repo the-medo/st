@@ -13,6 +13,7 @@
 .medo-project button:hover{background:var(--medo-hover)}
 .medo-project-head{display:flex;align-items:center;min-height:34px;color:var(--medo-title)}
 .medo-projects button.medo-project-toggle{display:flex;align-items:center;gap:6px;flex:1;min-width:0;padding:7px 3px;text-align:left;font-weight:600}
+.medo-project-toggle>svg{flex:0 0 13px}
 .medo-project-toggle>span:last-child,.medo-chat-open>span:last-child,.medo-folder-head>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .medo-project-icon{color:var(--medo-icon);display:flex;align-items:center;justify-content:center;flex:0 0 19px;height:19px}
 .medo-project-icon img{width:19px;height:19px;object-fit:cover;border-radius:4px}
@@ -24,8 +25,8 @@
 .medo-project .medo-chat .medo-chat-open:hover{background:transparent}
 .medo-chat.is-unread .medo-chat-title{font-weight:650;color:var(--text-strong)}
 .medo-chat.is-unread .medo-indicator{color:var(--medo-activity)}
-.medo-chat-open{display:flex;align-items:center;min-width:0;width:100%;gap:2px;padding:7px 2px;text-align:left;line-height:18px}
-.medo-indicator{width:25px;flex:0 0 25px;display:flex;align-items:center;justify-content:center;color:var(--text-dim)}
+.medo-chat-open{display:flex;align-items:center;min-width:0;width:100%;gap:6px;padding:7px 3px 7px 22px;text-align:left;line-height:18px}
+.medo-indicator{width:19px;flex:0 0 19px;display:flex;align-items:center;justify-content:center;color:var(--text-dim)}
 .medo-indicator.is-working{color:var(--medo-activity)}
 .medo-chat-text{display:flex;flex-direction:column;min-width:0}
 .medo-chat-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -35,7 +36,8 @@
 @keyframes medo-progress{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.medo-spinner{animation:none}}
 
-.medo-folder{margin-left:13px}.medo-projects button.medo-folder-head{display:flex;gap:6px;align-items:center;padding:6px 0;flex:1;min-width:0;text-align:left;color:var(--text-dim)}
+.medo-projects button.medo-folder-head{display:grid;grid-template-columns:13px 19px minmax(0,1fr);gap:6px;align-items:center;flex:1;min-width:0;padding:7px 3px;text-align:left;color:var(--text-dim)}
+.medo-folder-icon{justify-self:center}
 .medo-folder-head>svg{flex-shrink:0}
 .medo-folder-row{display:flex;align-items:center;border-radius:4px;cursor:grab}
 .medo-folder-grip{flex:0 0 12px;color:var(--text-dim);opacity:0}
@@ -44,14 +46,14 @@
 .medo-folder-row[data-drop="down"]{box-shadow:inset 0 -2px var(--accent)}
 .medo-folder-row[data-drop="inside"],.medo-project-head[data-drop="inside"],.medo-folder-drop-zone[data-drop]{background:var(--medo-selected);outline:1px solid var(--accent);outline-offset:-1px}
 .medo-folder-drop-zone{margin:3px 6px;padding:7px 4px;border:1px dashed var(--border-strong);border-radius:4px;color:var(--text-dim);font-size:10px;text-align:center}
-.medo-list-controls{display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px;padding:2px 0 2px 23px}
+.medo-list-controls{display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px;padding:2px 0 2px 43px}
 .medo-projects button.medo-more{padding:3px 4px;color:var(--text-dim);font-size:10px;line-height:16px}
 .medo-projects button.medo-done-action{color:var(--status-done)}
 .medo-chat.is-done .medo-done-action{opacity:1}
 .medo-chat.is-done .medo-chat-title{color:var(--text-dim)}
 .medo-copy-notice{display:flex;align-items:center;justify-content:space-between;gap:6px;margin:0 12px 8px;font-size:11px;color:var(--text-dim)}
 .medo-copy-notice button{display:flex;padding:4px}
-.medo-empty{display:block;color:var(--text-dim);padding:5px 27px;font-size:12px}
+.medo-empty{display:block;color:var(--text-dim);padding:5px 47px;font-size:12px}
 .medo-projects footer{display:flex;align-items:center;justify-content:space-between;gap:2px;padding:8px 6px;border-top:1px solid var(--border)}
 .medo-projects footer button{gap:5px;padding:6px 4px;white-space:nowrap}
 .medo-projects footer .medo-show-done{font-size:11px;color:var(--text-dim)}

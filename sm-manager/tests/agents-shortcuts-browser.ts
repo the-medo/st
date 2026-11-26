@@ -18,6 +18,10 @@ export async function verifyAgentsShortcuts(page: Page) {
   await page
     .getByRole("button", { name: "Actions for project Orchard" })
     .waitFor();
+  const folder = page.getByRole("button", { name: "More conversations", exact: true });
+  await folder.waitFor();
+  assert.equal(await folder.getAttribute("aria-expanded"), "false");
+  await folder.click();
   await armShortcuts(page);
   await page.keyboard.press("a");
   await page
