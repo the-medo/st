@@ -16,12 +16,31 @@ def project_order(data, projects):
 
 
 def save(root, data):
-    # Both callers hold organization.lock, including while reading the old state.
+    # Callers hold organization.lock, including while reading the old state.
     data['revision'] += 1
     temporary = root / 'organization.json.tmp'
     temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
     temporary.chmod(0o600)
     temporary.replace(root / 'organization.json')
+
+
+def place_launched_chat(root, project, folder, launch, thread, chat_project):
+    """Apply a new terminal's folder once; later moves (including unfile) win."""
+    with (root / 'organization.lock').open('w') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        data = load(root)
+        group = data['projects'].get(project, {})
+        known = {f['id'] for f in group.get('folders', [])}
+        if chat_project != project:
+            return None
+        applied = data.setdefault('folderLaunches', {})
+        if launch not in applied:
+            if folder in known:
+                group.setdefault('chats', {}).setdefault(thread, folder)
+            applied[launch] = thread
+            save(root, data)
+        current = group.get('chats', {}).get(thread)
+        return current if current in known else None
 
 
 def move_project(root, projects, change):

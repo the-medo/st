@@ -389,6 +389,24 @@ try {
   assert.deepEqual(moves[0]!.request().postDataJSON().change, { operation: 'move-folder', projectId: 'garden', folderId: 'first', relativeTo: 'ideas', direction: 'up' });
   catalog.projects[0]!.folders = [catalog.projects[0]!.folders[0]!, catalog.projects[0]!.folders[2]!, catalog.projects[0]!.folders[1]!];
   await moves.shift()!.fulfill({ json: { ok: true } });
+  // The folder + creates once, expands its folder, and keeps its draft there on reload.
+  await row('Ideas').click();
+  const folderPlus = row('New conversation in folder Ideas');
+  await folderPlus.dblclick();
+  await waitCount(creates, 1);
+  const folderCreate = creates.shift()!;
+  assert.deepEqual(folderCreate.request().postDataJSON(), { projectId: 'garden', folderId: 'ideas' });
+  catalog.drafts = [{ address: 'folder-draft', project: 'garden', folder: 'ideas', title: 'New conversation' }];
+  await folderCreate.fulfill({ json: { address: 'folder-draft', reused: false } });
+  await waitCount(selects, 1);
+  await selects.shift()!.fulfill({ json: {} });
+  await garden.locator('[data-folder-id="ideas"]').getByRole('button', { name: 'New conversation', exact: true }).waitFor();
+  assert.equal(await row('Ideas').getAttribute('aria-expanded'), 'true');
+  assert.equal(await garden.locator('.medo-unfiled').getByRole('button', { name: 'New conversation', exact: true }).count(), 0);
+  await page.reload();
+  await garden.locator('[data-folder-id="ideas"]').getByRole('button', { name: 'New conversation', exact: true }).waitFor();
+  await folderPlus.hover();
+  if (evidence) await page.screenshot({ path: join(evidence, 'folder-new-conversation.png') });
   // Touch devices expose the checkmark without a hover, with no horizontal overflow.
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const mobile = await phone.newPage();

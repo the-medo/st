@@ -75,7 +75,7 @@ def resumed_thread(terminal):
     return argv[-1] if 'resume' in argv and argv else None
 
 
-def launch(project, thread=None, title="New conversation"):
+def launch(project, thread=None, title="New conversation", folder=None):
     if not Path(project['path']).is_dir():
         raise ValueError('This project folder is no longer available.')
     preferences = Path(os.environ.get('OVIS_STATE_DIR', str(Path.home()/'.local/state/medo-ovis')))
@@ -107,6 +107,7 @@ def launch(project, thread=None, title="New conversation"):
         if thread: args += ['resume', '--cd', project['path'], thread]
         else: args += [*permissions, '--cd', project['path']]
         launch_labels = ['--label', 'medo.ovis.starting=1']
+        if folder: launch_labels += ['--label', 'medo.ovis.folder='+folder]
         if thread: launch_labels += ['--label', 'medo.ovis.resume='+thread]
         result = sidebar.hc('run', '--bg', '--keep', '--no-parent', '--json', '--name', 'ovis-'+key,
             '--cwd', project['path'], '--label', 'herdr.space=medo-ovis-'+project['id'],
@@ -114,6 +115,37 @@ def launch(project, thread=None, title="New conversation"):
             '--label', 'ovis.workspace='+project['name'], '--label', 'medo.ovis.project='+project['id'],
             '--label', 'where='+project['name'], *launch_labels, '--', *map(str,args))
         return {'address':result['address'], 'reused':False}
+
+
+def launch_folder(terminal, thread, rows):
+    """A folder launch follows its first native thread, never a later /new or /resume."""
+    labels = terminal.get('labels', {})
+    folder = labels.get('medo.ovis.folder')
+    if not folder:
+        return None, False
+    project = labels['medo.ovis.project']
+    data = organization.load(sidebar.ROOT)
+    known = {f['id'] for f in data['projects'].get(project, {}).get('folders', [])}
+    if folder not in known: folder = None
+    prefix = thread_title_prefix(terminal)
+    bound = labels.get('medo.ovis.folder-thread')
+    if not prefix:
+        return (folder if not bound else None), False
+    if bound and not (prefix.startswith(bound) or bound.startswith(prefix)):
+        return None, False
+    if not bound:
+        sidebar.hc('label', terminal['address'], 'medo.ovis.folder-thread='+prefix)
+    row = next((row for row in rows if row['id'] == thread), None)
+    if row:
+        folder = organization.place_launched_chat(sidebar.ROOT, project, folder,
+            terminal['name'], thread, sidebar.project_for(row, sidebar.config()))
+        return folder, True
+    if len(prefix) == 36:
+        # The owned TUI already reports the exact native ID before its first
+        # message is indexed. Persist now so ending the terminal cannot lose it.
+        folder = organization.place_launched_chat(sidebar.ROOT, project, folder,
+            terminal['name'], prefix, project)
+    return folder, False
 
 
 def cursor(thread, page):
@@ -217,6 +249,7 @@ def handle(p):
         result = sidebar.catalog(rows=rows)
         saved = {chat['id'] for chat in result['chats']}
         by_thread = {}
+        folder_updates = {}
         drafts = []
         for terminal in sidebar.hc('ls', '--json')['terminals']:
             if terminal.get('state') != 'live' or not (terminal.get('name') or '').startswith('ovis-'): continue
@@ -224,6 +257,8 @@ def handle(p):
             project = detail.get('labels', {}).get('medo.ovis.project')
             if not project: continue
             thread = terminal_thread(detail, rows, starting=True)
+            folder, assigned = launch_folder(detail, thread, rows)
+            if assigned: folder_updates[thread] = folder
             if thread in saved:
                 # Match launch()'s first live terminal, not the last duplicate.
                 by_thread.setdefault(thread, detail)
@@ -233,10 +268,11 @@ def handle(p):
             ):
                 # A resumed placeholder or a resume still starting is not a
                 # draft. An explicit new chat (also /new) remains reachable.
-                drafts.append({'address':detail['address'], 'project':project, 'title':'New conversation'})
+                drafts.append({'address':detail['address'], 'project':project, 'folder':folder, 'title':'New conversation'})
         rows_by_id = {row['id']: row for row in rows}
         managed_threads = assistant.threads()
         for chat in result['chats']:
+            if chat['id'] in folder_updates: chat['folder'] = folder_updates[chat['id']]
             chat['assistant'] = assistant.owns(rows_by_id.get(chat['id'], {})) and (managed_threads is None or chat['id'] in managed_threads)
             terminal = by_thread.get(chat['id'])
             if terminal:
@@ -256,7 +292,10 @@ def handle(p):
     if op == 'new':
         project = next((x for x in sidebar.config()['projects'] if x['id']==p['projectId']), None)
         if not project: raise ValueError('Choose a project for this conversation.')
-        return launch(project)
+        folder = p.get('folderId')
+        if folder is not None and (not isinstance(folder, str) or not any(f['id'] == folder for f in organization.load(sidebar.ROOT)['projects'].get(project['id'], {}).get('folders', []))):
+            raise ValueError('That folder no longer exists in this project. Refresh and try again.')
+        return launch(project, folder=folder)
     if op == 'organize':
         cfg = sidebar.config()
         return organization.update(root, [x['id'] for x in cfg['projects']] + ['other'],

@@ -219,16 +219,20 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
       if (chat) { if (saved) read(chat); else void open(chat); }
     });
   });
-  const start = async (project: MedoProject) => {
+  const start = async (project: MedoProject, folder?: MedoFolder) => {
     if (creatingRef.current) return;
     creatingRef.current = true; setCreating(true);
     const ticket = ++selectionTicket.current;
     openingRef.current = null; setOpening(null); setError('');
     setNewProject(false);
     try {
-      const result = await call<MedoOpen>('new', { projectId: project.id });
+      const result = await call<MedoOpen>('new', { projectId: project.id, ...(folder ? { folderId: folder.id } : {}) });
       void refresh(true);
-      if (ticket === selectionTicket.current) await onOpen(result.address, () => ticket === selectionTicket.current);
+      if (ticket === selectionTicket.current) {
+        setArchived(false); setQuery('');
+        setClosed((current) => { const next = new Set(current); next.delete(project.id); if (folder) next.delete(`${project.id}/${folder.id}`); return next; });
+        await onOpen(result.address, () => ticket === selectionTicket.current);
+      }
     } catch (cause) { if (ticket === selectionTicket.current) setError(cause instanceof Error ? cause.message : 'The conversation could not open.'); }
     finally { creatingRef.current = false; if (mounted.current) setCreating(false); }
   };
@@ -249,7 +253,7 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
       if (!project) return;
       const order = [...foldersAt(project, 'start').map((folder) => folder.id), null, ...foldersAt(project, 'end').map((folder) => folder.id)];
       const first = order.flatMap((folder): (MedoChat | NonNullable<MedoCatalog['drafts']>[number])[] => [
-        ...(folder === null ? drafts.filter((item) => item.project === id) : []),
+        ...drafts.filter((item) => item.project === id && (item.folder ?? null) === folder),
         ...chats.filter((chat) => chat.project === id && chat.folder === folder).sort((a, b) => b.updated - a.updated),
       ])[0];
       setClosed((current) => {
@@ -278,7 +282,7 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
       </button><button className="medo-row-action medo-done-action" disabled={savingDone.has(chat.id)} aria-label={`${chat.done ? 'Mark as active' : 'Mark as done'}: ${chat.title}`} title={chat.done ? 'Mark as active' : 'Mark as done'} aria-pressed={Boolean(chat.done)} onClick={() => void markDone(chat)}>{savingDone.has(chat.id) ? <LoaderCircle className="medo-spinner" size={15} /> : <Check size={15} />}</button><button className="medo-row-action" aria-label={`Actions for ${chat.title}`} aria-haspopup="menu" aria-expanded={chatMenu?.chat.id === chat.id} onClick={(event) => setChatMenu(chatMenu?.chat.id === chat.id ? null : { chat, anchor: event.currentTarget })}><Ellipsis size={15} /></button>
     </div>;
     };
-    return <>{group.slice(0, limit).map(renderChat)}{group.length > limit && <div className="medo-list-controls"><button className="medo-more" onClick={() => setLimits((value) => ({ ...value, [key]: limit + 5 }))}>Show more ({group.length - limit})</button></div>}</>;
+    return <>{drafts.filter((draft) => draft.project === project.id && (draft.folder ?? null) === folder).map((draft) => <div key={draft.address} className={`medo-chat${!selectedThreadId && draft.address === selectedPaneId ? ' is-selected' : ''}`}><button className="medo-chat-open" onClick={() => void openDraft(draft.address)}><span className="medo-indicator"><Circle size={7} /></span><span>{draft.title}</span></button></div>)}{group.slice(0, limit).map(renderChat)}{group.length > limit && <div className="medo-list-controls"><button className="medo-more" onClick={() => setLimits((value) => ({ ...value, [key]: limit + 5 }))}>Show more ({group.length - limit})</button></div>}</>;
   };
   const renderFolders = (project: MedoProject, position: FolderPosition) => {
     const zone = dragging?.kind === 'folder' && dragging.projectId === project.id && <div className="medo-folder-drop-zone" data-folder-position={position} {...dropProps(project.id, undefined, position)}>Folders {position === 'start' ? 'before' : 'after'} conversations</div>;
@@ -289,6 +293,7 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
         <div className="medo-folder-row" draggable={!organizing} onDragStart={(event) => startDrag(event, { kind: 'folder', projectId: project.id, id: folder.id })} onDragEnd={clearDrag} {...dropProps(project.id, folder)}>
           <GripVertical className="medo-folder-grip" size={12} aria-hidden="true" />
           <button className="medo-folder-head" aria-expanded={!folded} onClick={() => toggle(key)} title="Drag to reorder folder">{folded ? <ChevronRight size={12} /> : <ChevronDown size={12} />}<Folder size={13} /><span>{folder.name}</span></button>
+          {project.path && <button className="medo-row-action" disabled={creating} aria-label={`New conversation in folder ${folder.name}`} title="New conversation in this folder" onClick={() => void start(project, folder)}><Plus size={15} /></button>}
           <button className="medo-row-action" aria-label={`Actions for folder ${folder.name}`} aria-haspopup="menu" aria-expanded={folderMenu?.projectId === project.id && folderMenu.folderId === folder.id} onClick={(event) => setFolderMenu({ projectId: project.id, folderId: folder.id, anchor: event.currentTarget })}><Ellipsis size={15} /></button>
         </div>{!folded && rows(project, folder.id)}
       </div>;
@@ -321,7 +326,7 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
             <span>{project.name}</span></button>
             {project.path && <button className="medo-row-action" disabled={creating} aria-label={`New conversation in ${project.name}`} onClick={() => void start(project)}><Plus size={15} /></button>}
             <button className="medo-row-action" aria-label={`Actions for project ${project.name}`} aria-haspopup="menu" aria-expanded={projectMenu?.project.id === project.id} onClick={(event) => setProjectMenu(projectMenu?.project.id === project.id ? null : { project, anchor: event.currentTarget })}><Ellipsis size={15} /></button>
-          </div>{!hidden && <div className="medo-project-chats">{renderFolders(project, 'start')}<div className="medo-unfiled">{projectDrafts.map((draft) => <div key={draft.address} className={`medo-chat${!selectedThreadId && draft.address === selectedPaneId ? ' is-selected' : ''}`}><button className="medo-chat-open" onClick={() => void openDraft(draft.address)}><span className="medo-indicator"><Circle size={7} /></span><span>{draft.title}</span></button></div>)}{rows(project, null)}</div>{renderFolders(project, 'end')}{!matching && !project.folders.length && <span className="medo-empty">No {archived ? 'archived ' : ''}conversations</span>}</div>}
+          </div>{!hidden && <div className="medo-project-chats">{renderFolders(project, 'start')}<div className="medo-unfiled">{rows(project, null)}</div>{renderFolders(project, 'end')}{!matching && !project.folders.length && <span className="medo-empty">No {archived ? 'archived ' : ''}conversations</span>}</div>}
         </section>;
       })}
     </div>
