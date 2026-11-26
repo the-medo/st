@@ -1,0 +1,120 @@
+{
+  "started_at": "2026-11-25T21:34:39.954525+00:00",
+  "finished_at": "2026-11-25T21:34:55.008570+00:00",
+  "provider": "local",
+  "model": "kev-0.8b",
+  "catalog_version": "2026-11-25-v2-experiment",
+  "catalog_sha256": "25379eeccca6309f99a7f1f265320ef3157beb65c0dee6ea6966380f8ebefb75",
+  "corpus_sha256": "212c509f4434eb4068bb061a713982e4005c9be55eecb665db1f28a0935544f7",
+  "policy": {
+    "minimum_probability": 0.65,
+    "minimum_margin": 0.2,
+    "fallback": "other",
+    "note": "Experimental thresholds, not calibrated guarantees; routing never authorizes actions."
+  },
+  "first_request": {},
+  "request_count": 0,
+  "successful_responses": 0,
+  "raw_correct": 0,
+  "effective_correct": 0,
+  "uncertain_fallbacks": 0,
+  "accepted_specific_routes": 0,
+  "accepted_specific_correct": 0,
+  "confident_errors": [],
+  "latency_ms": {
+    "median": null,
+    "p95": null,
+    "max": null
+  },
+  "cpu_seconds_per_request": {
+    "mean": null,
+    "median": null,
+    "total": 0
+  },
+  "by_group": {
+    "language": {},
+    "tag": {},
+    "expected_route": {}
+  },
+  "confusion": {},
+  "resources": {
+    "scope": "Unsloth service and descendants",
+    "sample_interval_seconds": 0.5,
+    "sampling_errors": [],
+    "logical_cpu_count": 12,
+    "phases": {
+      "startup": {
+        "samples": 1,
+        "pss_bytes": {
+          "median": 417613824,
+          "max": 417613824
+        },
+        "rss_bytes": {
+          "median": 422293504,
+          "max": 422293504
+        },
+        "private_bytes": {
+          "median": 417484800,
+          "max": 417484800
+        },
+        "cgroup_current_bytes": {
+          "median": 325332992,
+          "max": 325332992
+        },
+        "cgroup_anon_bytes": {
+          "median": 322011136,
+          "max": 322011136
+        },
+        "cgroup_file_bytes": {
+          "median": 131072,
+          "max": 131072
+        },
+        "cgroup_swap_bytes": {
+          "median": 0,
+          "max": 0
+        }
+      },
+      "unloaded_idle": {
+        "samples": 29,
+        "pss_bytes": {
+          "median": 417888256,
+          "max": 417908736
+        },
+        "rss_bytes": {
+          "median": 422567936,
+          "max": 422588416
+        },
+        "private_bytes": {
+          "median": 417759232,
+          "max": 417779712
+        },
+        "cgroup_current_bytes": {
+          "median": 324513792,
+          "max": 324579328
+        },
+        "cgroup_anon_bytes": {
+          "median": 322277376,
+          "max": 322306048
+        },
+        "cgroup_file_bytes": {
+          "median": 131072,
+          "max": 131072
+        },
+        "cgroup_swap_bytes": {
+          "median": 0,
+          "max": 0
+        },
+        "wall_seconds": 14.151,
+        "cpu_seconds": 0.05783499999999986,
+        "cpu_percent_one_core": 0.4086990318705382,
+        "cpu_percent_machine": 0.03405825265587818
+      }
+    }
+  },
+  "fatal_error": {
+    "type": "HTTPError",
+    "http_status": 403
+  },
+  "agent_invocations": 0,
+  "measurement": "Sequential synchronous HTTP from Steam Machine; no connection pooling, proxies or redirects. Downloads completed before local measurement."
+}

@@ -125,7 +125,8 @@ class QuestionIdentityTests(unittest.TestCase):
 
 
 class HistoryTests(unittest.TestCase):
-    def test_paging_keeps_the_read_window_when_new_turns_arrive(self):
+    @patch.object(bridge.sidebar, 'checked_thread', return_value=({'cwd':'/synthetic/project'}, {}))
+    def test_paging_keeps_the_read_window_when_new_turns_arrive(self, checked):
         pages={None:{'version':'v','thread':{'id':'chat'},'turns':[{'id':'4'},{'id':'5'},{'id':'6'}],'nextCursor':'old'},
                'old':{'version':'v','thread':{'id':'chat'},'turns':[{'id':'1'},{'id':'2'},{'id':'3'}],'nextCursor':None}}
         with patch.object(bridge,'request',side_effect=lambda p:pages[p.get('cursor')].copy()):
@@ -181,7 +182,8 @@ class SidebarTests(unittest.TestCase):
         self.client = Mock()
         for obj, name, options in ((bridge.sidebar, 'hc', {'side_effect': hc}),
                                    (bridge.sidebar, 'read_rows', {'return_value': self.rows}),
-                                   (bridge, 'Bridge', {'return_value': self.client})):
+                                   (bridge, 'Bridge', {'return_value': self.client}),
+                                   (bridge.assistant, 'threads', {'return_value': set()})):
             patched = patch.object(obj, name, **options)
             patched.start(); self.addCleanup(patched.stop)
 
@@ -193,6 +195,12 @@ class SidebarTests(unittest.TestCase):
     def catalog(self):
         with patch.object(bridge.sidebar, 'catalog', return_value={'chats': [{'id': self.first, 'title': 'Saved conversation'}]}):
             return bridge.handle({'operation': 'index'})
+
+    def test_only_coordinator_threads_get_assistant_composer(self):
+        with patch.object(bridge.assistant, 'owns', return_value=True):
+            self.assertFalse(self.catalog()['chats'][0]['assistant'])
+            with patch.object(bridge.assistant, 'threads', return_value={self.first}):
+                self.assertTrue(self.catalog()['chats'][0]['assistant'])
 
     def test_starting_resume_is_one_saved_row_and_concurrent_reopen_reuses_it(self):
         project = {'path': str(self.root), 'id': 'project', 'name': 'Project'}

@@ -1,0 +1,180 @@
+{
+  "schema_version": 1,
+  "catalog_version": "2026-11-25-v2-experiment",
+  "model": "laya-multilingual",
+  "instructions": "What action does the user want? Select the best assistant capability, or other if none fits.",
+  "provisional_policy": {
+    "minimum_probability": 0.65,
+    "minimum_margin": 0.2,
+    "fallback": "other",
+    "note": "Experimental thresholds, not calibrated guarantees; routing never authorizes actions."
+  },
+  "routes": [
+    {
+      "id": "planner",
+      "description": "Create, edit or list tasks, reminders and calendar appointments.",
+      "status": "existing",
+      "manuals": [
+        "stapp/docs/planner.md",
+        "stapp/runtime/mcp.py"
+      ],
+      "tools": [
+        "list_records",
+        "get_record",
+        "save_record",
+        "complete_task",
+        "delete_record",
+        "list_task_projects",
+        "save_task_project"
+      ],
+      "acknowledgement": "I’ll check your planner."
+    },
+    {
+      "id": "notes",
+      "description": "Write down, remember or retrieve a personal note.",
+      "status": "existing",
+      "manuals": [
+        "stapp/runtime/mcp.py"
+      ],
+      "tools": [
+        "list_records",
+        "save_record"
+      ],
+      "acknowledgement": "I’ll look at your notes."
+    },
+    {
+      "id": "agents",
+      "description": "Write or fix software code; manage coding projects and agent chats.",
+      "status": "existing-partial",
+      "manuals": [
+        "stapp/README.md",
+        "sm-manager/integrations/ovis/app/docs/herdr-core-layout.md"
+      ],
+      "tools": [
+        "list_projects",
+        "start_project_task"
+      ],
+      "acknowledgement": "I’ll take a look at that project request."
+    },
+    {
+      "id": "system",
+      "description": "Inspect or manage computer resources, processes and services.",
+      "status": "adapter-needed",
+      "manuals": [
+        "sm-manager/README.md",
+        "sm-manager/sm_manager/__main__.py"
+      ],
+      "tools": [
+        "st status",
+        "st monitor cleanup-plan"
+      ],
+      "acknowledgement": "I’ll check the system."
+    },
+    {
+      "id": "databases",
+      "description": "Inspect database tables, run SQL, manage database connections or backups.",
+      "status": "adapter-needed",
+      "manuals": [
+        "sm-manager/README.md",
+        "sm-manager/sm_manager/dbs.py"
+      ],
+      "tools": [
+        "GET /api/dbs"
+      ],
+      "acknowledgement": "I’ll look into the database request."
+    },
+    {
+      "id": "air_quality",
+      "description": "Read or compare indoor air sensor measurements.",
+      "status": "adapter-needed",
+      "manuals": [
+        "sm-manager/README.md",
+        "sm-manager/sm_manager/air_quality.py"
+      ],
+      "tools": [
+        "GET /api/air-quality"
+      ],
+      "acknowledgement": "I’ll check the air readings."
+    },
+    {
+      "id": "display",
+      "description": "Turn the faceplate screen on/off or change its view.",
+      "status": "existing-partial",
+      "manuals": [
+        "stapp/README.md",
+        "sm-manager/README.md"
+      ],
+      "tools": [
+        "show_view",
+        "save_view",
+        "publish_app",
+        "st night"
+      ],
+      "acknowledgement": "I’ll check the display request."
+    },
+    {
+      "id": "photos",
+      "description": "Search, list or display personal photographs or photo albums.",
+      "status": "existing",
+      "manuals": [
+        "stapp/docs/immich.md"
+      ],
+      "tools": [
+        "photos_status",
+        "photos_albums",
+        "photos_recent",
+        "photos_search",
+        "photos_show"
+      ],
+      "acknowledgement": "I’ll look through the photos."
+    },
+    {
+      "id": "shopping",
+      "description": "Find products to buy or manage a grocery cart.",
+      "status": "existing-partial",
+      "manuals": [
+        "stapp/assistant/.agents/skills/shopping/SKILL.md"
+      ],
+      "tools": [
+        "Rohlik MCP when configured"
+      ],
+      "acknowledgement": "I’ll look into the shopping request."
+    },
+    {
+      "id": "printing",
+      "description": "Design, slice or print a 3D model; inspect a 3D printer.",
+      "status": "external-setup",
+      "manuals": [
+        "sm-manager/README.md"
+      ],
+      "tools": [
+        "Prusa Local adapter to be added"
+      ],
+      "acknowledgement": "I’ll look into the printing request."
+    },
+    {
+      "id": "documents",
+      "description": "Search, read or organize stored documents, scanned invoices or receipts.",
+      "status": "external-setup",
+      "manuals": [
+        "sm-manager/sm_manager/home.py"
+      ],
+      "tools": [
+        "Paperless adapter to be added"
+      ],
+      "acknowledgement": "I’ll look for the document."
+    },
+    {
+      "id": "other",
+      "description": "General questions, explanations, weather, translation, music, chat, or none above.",
+      "status": "fallback",
+      "manuals": [
+        "stapp/assistant/AGENTS.md"
+      ],
+      "tools": [
+        "General agent capability discovery"
+      ],
+      "acknowledgement": "I’ll take a look."
+    }
+  ]
+}

@@ -19,7 +19,7 @@ from .dbs import read_db_catalog
 from .history import RETENTION_HOURS
 from .github import GitHubDashboard
 from .home import service_cards, ui_config
-from . import web
+from . import web, assistant
 from .zed import read_catalog
 from .night_mode import request as night_request
 from .dave import DaveBridge, DaveUnavailable, MAX_BODY, MAX_RESPONSE, PAGES, PREFIX, upstream_path
@@ -225,6 +225,20 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
         def do_POST(self):
             if error := self.access_error():
                 return self.respond(403, {"error": error})
+            if urlsplit(self.path).path == "/api/assistant":
+                if not secrets.compare_digest(self.headers.get("X-SM-Token", "").encode(), token.encode()):
+                    return self.respond(403, {"error": "Refresh the assistant page before changing settings."})
+                try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                    if self.headers.get("Content-Type") != "application/json" or self.headers.get("Transfer-Encoding") or not 0 < length <= 16000:
+                        raise ValueError("Expected a small JSON action")
+                    self.connection.settimeout(5)
+                    payload = json.loads(self.rfile.read(length))
+                    if not isinstance(payload, dict):
+                        raise ValueError("Expected an action")
+                    return self.respond(200, assistant.action(payload))
+                except (OSError, ValueError) as error:
+                    return self.respond(400, {"error": str(error)})
             if urlsplit(self.path).path.startswith(PREFIX + "/"):
                 return self.dave_request()
             if urlsplit(self.path).path != "/api/night-mode":
@@ -269,6 +283,8 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
             if url.path == "/api/night-mode":
                 return self.respond(200, {**night_control("status"), "token": token})
             if url.path.startswith("/api/"):
+                if url.path == "/api/assistant":
+                    return self.respond(200, {**assistant.status(), "token": token})
                 if url.path == "/api/github":
                     return self.respond(200, github.get(force=parse_qs(url.query).get("refresh") == ["1"]))
                 if url.path == "/api/ui-config":

@@ -1,0 +1,97 @@
+{
+  "kind": "synthetic-audio-only",
+  "long_audio_seconds": 47.11,
+  "cases": [
+    {
+      "case": "hey-tts",
+      "wall_seconds": 0.604,
+      "cpu_seconds": 0.747,
+      "max_rss_mib": 154.3,
+      "output": ""
+    },
+    {
+      "case": "hey",
+      "wall_seconds": 1.187,
+      "cpu_seconds": 1.564,
+      "max_rss_mib": 381.1,
+      "output": "wake\ntranscript: what is the air quality in this room?\nwake_count: 1\nconfirmed_count: 1"
+    },
+    {
+      "case": "okay-tts",
+      "wall_seconds": 0.565,
+      "cpu_seconds": 0.691,
+      "max_rss_mib": 137.6,
+      "output": ""
+    },
+    {
+      "case": "okay",
+      "wall_seconds": 1.114,
+      "cpu_seconds": 1.435,
+      "max_rss_mib": 376.5,
+      "output": "wake\ntranscript: please list my tasks.\nwake_count: 1\nconfirmed_count: 1"
+    },
+    {
+      "case": "no-wake-tts",
+      "wall_seconds": 0.52,
+      "cpu_seconds": 0.596,
+      "max_rss_mib": 138.2,
+      "output": ""
+    },
+    {
+      "case": "no-wake",
+      "wall_seconds": 0.51,
+      "cpu_seconds": 0.507,
+      "max_rss_mib": 70.3,
+      "output": "wake_count: 0\nconfirmed_count: 0"
+    },
+    {
+      "case": "neighbor-tts",
+      "wall_seconds": 0.563,
+      "cpu_seconds": 0.67,
+      "max_rss_mib": 137.4,
+      "output": ""
+    },
+    {
+      "case": "neighbor",
+      "wall_seconds": 1.098,
+      "cpu_seconds": 1.431,
+      "max_rss_mib": 379.9,
+      "output": "wake\nrejected wake phrase\nwake_count: 1\nconfirmed_count: 0"
+    },
+    {
+      "case": "silence60",
+      "wall_seconds": 1.712,
+      "cpu_seconds": 1.705,
+      "max_rss_mib": 97.4,
+      "output": "wake_count: 0\nconfirmed_count: 0"
+    },
+    {
+      "case": "long-part-tts",
+      "wall_seconds": 0.604,
+      "cpu_seconds": 0.754,
+      "max_rss_mib": 148.9,
+      "output": ""
+    },
+    {
+      "case": "long-tail-tts",
+      "wall_seconds": 0.594,
+      "cpu_seconds": 0.742,
+      "max_rss_mib": 150.4,
+      "output": ""
+    },
+    {
+      "case": "long-transcription",
+      "wall_seconds": 3.893,
+      "cpu_seconds": 6.845,
+      "max_rss_mib": 692.9,
+      "output": "This is a long dictation test. Please keep every part of the message. This is a long dictation test. Please keep every part of the message. This is a long dictation test. Please keep every part of the message. This is a long dictation test. Please keep every part of the message. This is a long dictation test. Please keep every part of the message. This is a long dictation test. Please keep every part of the message. The final password is cobalt. This is the end of the message."
+    },
+    {
+      "case": "long-wake",
+      "wall_seconds": 7.05,
+      "cpu_seconds": 12.51,
+      "max_rss_mib": 731.5,
+      "output": "wake\ntranscript: what is the air quality in this room? This is a long dictation test. Please keep every part of the message. This is a long dictation test. Please keep every part of the message. This is a long dictation test. Please keep every part of the message. This is a long dictation test. Please keep every part of the message. This is a long dictation test. Please keep every part of the message. This is a long dictation test. Please keep every part of the message. This is a long dictation test. Please keep every part of the message. This is a long dictation test. Please keep every part of the message. This is a long dictation test. Please keep every part of the message. This is a long dictation test. Please keep every part of the message. This is a long dictation test. Please keep every part of the message. This is a long dictation test. Please keep every part of the message. The final password is cobalt. This is the end of the message.\nwake_count: 1\nconfirmed_count: 1"
+    }
+  ]
+}

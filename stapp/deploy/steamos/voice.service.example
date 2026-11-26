@@ -2,8 +2,11 @@
 Description=S.T. room microphone and speaker
 After=pipewire.service
 [Service]
-EnvironmentFile=%h/.config/stapp/room.env
-ExecStart=%h/.local/share/stapp-voice-venv/bin/python %h/.local/lib/stapp/client.py
+ExecStart=%h/.local/lib/stapp/st-voice --config %h/.config/stapp/room.json
+Nice=10
+UMask=0077
+CPUWeight=20
+MemoryHigh=800M
 Restart=on-failure
 RestartSec=3
 [Install]

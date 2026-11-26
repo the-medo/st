@@ -1,0 +1,237 @@
+{
+  "started_at": "2026-11-25T19:42:32.044301+00:00",
+  "finished_at": "2026-11-25T19:43:02.532851+00:00",
+  "catalog_sha256": "25379eeccca6309f99a7f1f265320ef3157beb65c0dee6ea6966380f8ebefb75",
+  "corpus_sha256": "212c509f4434eb4068bb061a713982e4005c9be55eecb665db1f28a0935544f7",
+  "catalog_version": "2026-11-25-v2-experiment",
+  "model": "laya-multilingual",
+  "request_count": 100,
+  "successful_responses": 100,
+  "warmup_requests": 1,
+  "warmup_ms": 350.4,
+  "raw_correct": 64,
+  "effective_correct": 61,
+  "uncertain_fallbacks": 32,
+  "accepted_specific_routes": 67,
+  "accepted_specific_correct": 51,
+  "confident_errors": [
+    "001",
+    "005",
+    "015",
+    "021",
+    "024",
+    "034",
+    "035",
+    "036",
+    "056",
+    "058",
+    "063",
+    "070",
+    "071",
+    "084",
+    "095",
+    "100"
+  ],
+  "latency_ms": {
+    "median": 296.255,
+    "p95": 334.23,
+    "max": 379.6
+  },
+  "policy": {
+    "minimum_probability": 0.65,
+    "minimum_margin": 0.2,
+    "fallback": "other",
+    "note": "Experimental thresholds, not calibrated guarantees; routing never authorizes actions."
+  },
+  "by_group": {
+    "language": {
+      "cs": {
+        "count": 24,
+        "correct": 12
+      },
+      "en": {
+        "count": 76,
+        "correct": 52
+      }
+    },
+    "tag": {
+      "cross-domain": {
+        "count": 8,
+        "correct": 2
+      },
+      "destructive": {
+        "count": 1,
+        "correct": 1
+      },
+      "direct": {
+        "count": 68,
+        "correct": 45
+      },
+      "disfluent": {
+        "count": 1,
+        "correct": 1
+      },
+      "empty-command": {
+        "count": 1,
+        "correct": 0
+      },
+      "follow-up": {
+        "count": 2,
+        "correct": 1
+      },
+      "instruction-in-data": {
+        "count": 1,
+        "correct": 0
+      },
+      "mutation": {
+        "count": 4,
+        "correct": 4
+      },
+      "physical-action": {
+        "count": 2,
+        "correct": 2
+      },
+      "purchase": {
+        "count": 1,
+        "correct": 1
+      },
+      "research": {
+        "count": 1,
+        "correct": 1
+      },
+      "unavailable-capability": {
+        "count": 2,
+        "correct": 0
+      },
+      "unrelated": {
+        "count": 6,
+        "correct": 5
+      },
+      "unsupported-detail": {
+        "count": 2,
+        "correct": 1
+      }
+    },
+    "expected_route": {
+      "agents": {
+        "count": 8,
+        "correct": 4
+      },
+      "air_quality": {
+        "count": 8,
+        "correct": 7
+      },
+      "databases": {
+        "count": 8,
+        "correct": 5
+      },
+      "display": {
+        "count": 8,
+        "correct": 5
+      },
+      "documents": {
+        "count": 8,
+        "correct": 3
+      },
+      "notes": {
+        "count": 8,
+        "correct": 6
+      },
+      "other": {
+        "count": 12,
+        "correct": 6
+      },
+      "photos": {
+        "count": 8,
+        "correct": 5
+      },
+      "planner": {
+        "count": 8,
+        "correct": 2
+      },
+      "printing": {
+        "count": 8,
+        "correct": 7
+      },
+      "shopping": {
+        "count": 8,
+        "correct": 6
+      },
+      "system": {
+        "count": 8,
+        "correct": 8
+      }
+    }
+  },
+  "confusion": {
+    "planner": {
+      "shopping": 2,
+      "system": 1,
+      "planner": 2,
+      "air_quality": 1,
+      "agents": 1,
+      "documents": 1
+    },
+    "notes": {
+      "notes": 6,
+      "display": 1,
+      "shopping": 1
+    },
+    "agents": {
+      "agents": 4,
+      "system": 1,
+      "air_quality": 1,
+      "printing": 1,
+      "planner": 1
+    },
+    "system": {
+      "system": 8
+    },
+    "databases": {
+      "databases": 5,
+      "system": 1,
+      "shopping": 2
+    },
+    "air_quality": {
+      "air_quality": 7,
+      "other": 1
+    },
+    "display": {
+      "display": 5,
+      "system": 1,
+      "printing": 1,
+      "air_quality": 1
+    },
+    "photos": {
+      "photos": 5,
+      "display": 2,
+      "system": 1
+    },
+    "shopping": {
+      "shopping": 6,
+      "printing": 1,
+      "air_quality": 1
+    },
+    "printing": {
+      "system": 1,
+      "printing": 7
+    },
+    "documents": {
+      "documents": 3,
+      "system": 1,
+      "shopping": 2,
+      "printing": 1,
+      "databases": 1
+    },
+    "other": {
+      "other": 6,
+      "display": 1,
+      "air_quality": 1,
+      "system": 2,
+      "shopping": 1,
+      "planner": 1
+    }
+  },
+  "agent_invocations": 0,
+  "scope": "Synthetic text routing only; not microphone, ASR, agent execution or TTS validation."
+}

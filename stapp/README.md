@@ -1,8 +1,13 @@
 # S.T. home assistant
 
-Say “Hey S.T., add oatmeal to Rohlík” at the Windows desk or in the living room. The microphone client detects the wake phrase and transcribes on that device. STapp on the Steam Machine accepts the text, immediately queues an acknowledgement for that device, and runs Codex in the background. The same device receives the result or a clarification. On Windows the tray shows notifications. In the living room a selected PipeWire output plays speech and the faceplate shows the latest room reply.
+Say “Hey ST” or “Okay ST” at the Windows desk or in the living room. Native Rust clients detect the wake phrase, transcribe locally and submit an idempotent request. Cloudflare Clef Flash selects initial context; Luna performs the task through ST tools. Each request has its own conversation, with compact spoken results on its originating device. Windows shows a small recording popup without taking focus.
 
 ![Device and service diagram](docs/device-map.svg)
+
+See the [native setup and operations guide](docs/assistant-native.md),
+[implementation status](IMPLEMENTATION.md), and [validation report](docs/assistant-validation.md).
+The historical [decision-model comparison](experiments/laya/COMPARISON.md) explains
+why Clef Flash replaced the local models.
 
 ## Try it on the Steam Machine
 
@@ -91,7 +96,7 @@ For a Windows-owned checkout, register its name on the Steam Machine with `st re
 
 ## Pair the Windows microphone
 
-Download **stapp-windows-x64.zip** from the release, extract it, and install Python 3.13 with the Windows py launcher. Enable microphone access for desktop apps and install the Windows OpenSSH client. In PowerShell generate a dedicated unattended key.
+Download the **stapp-windows-x64** artifact from the Windows client workflow and extract it. No Python installation is required. Enable microphone access for desktop apps and install the Windows OpenSSH client. In PowerShell generate a dedicated unattended key.
 
 ```powershell
 ssh-keygen -t ed25519 -f "$HOME/.ssh/stapp-pc"
@@ -112,16 +117,21 @@ Host stapp-pc
 .\install.ps1 -SshAlias stapp-pc
 ```
 
-An optional `-Microphone "exact device name"` pins MIC-PC. List inputs with `.\bin\st-voice.exe --list | Out-String`. The per-user **STapp Voice** scheduled task starts at interactive logon. Right-click the S.T. tray icon to mute, answer a question, or quit. The two clients use identical pinned keyword and multilingual Whisper base model files. English transcription is the default. Each endpoint stores its own delivery cursor. On either microphone, “Hey S.T., answer Saturday” answers a single waiting question. With multiple questions, select the request in the tray or use its ID with `st answer`.
+Optional `-Microphone` and `-Speaker` arguments select exact CPAL device names.
+The per-user **STapp Voice** scheduled task starts at interactive logon; Start
+menu shortcuts provide mute, unmute, stop and quit. Both clients use the same
+pinned keyword, VAD, multilingual Whisper and Piper models. A single pending
+question accepts the next spoken answer. Use `st answer REQUEST_ID "..."` when
+several questions are pending. See the native guide for follow-ups and diagnostics.
 
 ## Connect the room microphone and speaker
 
-Use the **room** account that owns the physical PipeWire session. Extract **stapp-room-linux-x64.tar.gz** there, generate a separate Ed25519 key in that account, and pair its public key as `room` using the same owner-side command. Configure the SSH alias `stapp-room` to reach OpenSSH on `127.0.0.1` as the STapp owner. Check that the projects probe above returns a result. Use the exact CPAL microphone name and the PipeWire speaker’s stable `node.name`.
+Use the **room** account that owns the physical PipeWire session. Extract **stapp-room-linux-x64.tar.gz** there, generate a separate Ed25519 key in that account, and pair its public key as `room` using the same owner-side command. Configure the SSH alias `stapp-room` to reach OpenSSH on `127.0.0.1` as the STapp owner. Check that the projects probe above returns a result. Use exact CPAL input and output names; `pipewire` follows the physical defaults configured in PipeWire. The package is built by `scripts/package-room` and published as a Linux workflow artifact.
 
 ```sh
 ./st-voice --list
 wpctl status -n
-python3.13 ./install-room --ssh stapp-room --mic 'MICROPHONE NAME' --speaker 'OUTPUT NODE'
+python3 ./install-room --ssh stapp-room --mic 'MICROPHONE NAME' --speaker 'OUTPUT DEVICE'
 systemctl --user status stapp-room
 ```
 
@@ -175,7 +185,12 @@ screen; displaying a photo is a separate request.
 
 ### Routing and shopping
 
-The host responds immediately after accepting a request. Project work and routing run afterward. The default uses local rules and Codex. To enable Cloudflare Workers AI classification, place `STAPP_CF_ACCOUNT` and `STAPP_CF_TOKEN` in `~/.config/stapp/integrations.env` (mode 0600). Enabling this sends eligible command text and a capability list to Workers AI. The router uses Granite 4.0 H Micro and falls back to general routing on timeout. [Cloudflare model](https://developers.cloudflare.com/workers-ai/models/granite-4.0-h-micro/)
+The host durably accepts the request, calls Clef Flash with a two-second deadline,
+and issues one generic acknowledgement before the agent turn. Configure the
+separate account token using [routing maintenance](docs/assistant-routing.md).
+The router reloads replacement credentials and falls back to general capability
+discovery on outages, quota errors or invalid credentials. The full transcript
+always reaches the agent; tokens and manuals are not sent to the classifier.
 
 For Rohlík, run the following as the Codex worker’s account, complete browser sign-in, set `STAPP_ROHLIK=1` in that same file, and restart the worker. The shopping skill asks about ambiguous products and checks the cart after an uncertain write. Start with a product lookup. [Rohlík MCP](https://www.rohlik.cz/en-CZ/mcp-docs)
 

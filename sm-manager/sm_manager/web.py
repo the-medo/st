@@ -4,7 +4,7 @@ from pathlib import Path, PurePosixPath
 
 WEB = Path(__file__).parent / "web"
 PAGES = {"/", "/overview", "/projects", "/containers", "/github", "/storage",
-         "/zed", "/dbs", "/air-quality", "/faceplate", "/agents"}
+         "/zed", "/dbs", "/air-quality", "/faceplate", "/agents", "/assistant"}
 PUBLIC = {"st-logo.svg", "favicon.svg", "zed.svg", "db.svg", "prusa-connect.svg", "ydistri.svg", "home-icons.svg"}
 
 

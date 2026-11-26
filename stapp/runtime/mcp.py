@@ -181,23 +181,28 @@ def dispatch(method, params, call_id):
     return {"content": [{"type": "text", "text": json.dumps(res, ensure_ascii=False)}]}
 
 
-for line in sys.stdin:
-    msg = {}
-    try:
-        msg = json.loads(line)
-        if "id" not in msg:
-            continue
-        result = dispatch(msg["method"], msg.get("params", {}), msg["id"])
-        reply = {"result": result}
-    except Exception as exc:
-        reply = (
-            {
-                "result": {
-                    "isError": True,
-                    "content": [{"type": "text", "text": str(exc)}],
+def main():
+    for line in sys.stdin:
+        msg = {}
+        try:
+            msg = json.loads(line)
+            if "id" not in msg:
+                continue
+            result = dispatch(msg["method"], msg.get("params", {}), msg["id"])
+            reply = {"result": result}
+        except Exception as exc:
+            reply = (
+                {
+                    "result": {
+                        "isError": True,
+                        "content": [{"type": "text", "text": str(exc)}],
+                    }
                 }
-            }
-            if msg.get("method") == "tools/call"
-            else {"error": {"code": -32601, "message": str(exc)}}
-        )
-    print(json.dumps(dict(reply, jsonrpc="2.0", id=msg.get("id"))), flush=True)
+                if msg.get("method") == "tools/call"
+                else {"error": {"code": -32601, "message": str(exc)}}
+            )
+        print(json.dumps(dict(reply, jsonrpc="2.0", id=msg.get("id"))), flush=True)
+
+
+if __name__ == "__main__":
+    main()

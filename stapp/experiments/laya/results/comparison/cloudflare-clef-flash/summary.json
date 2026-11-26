@@ -1,0 +1,336 @@
+{
+  "started_at": "2026-11-25T21:57:28.169482+00:00",
+  "finished_at": "2026-11-25T21:58:36.446997+00:00",
+  "provider": "cloudflare",
+  "model": "clef-flash",
+  "catalog_version": "2026-11-25-v2-experiment",
+  "catalog_sha256": "25379eeccca6309f99a7f1f265320ef3157beb65c0dee6ea6966380f8ebefb75",
+  "corpus_sha256": "212c509f4434eb4068bb061a713982e4005c9be55eecb665db1f28a0935544f7",
+  "policy": {
+    "minimum_probability": 0.65,
+    "minimum_margin": 0.2,
+    "fallback": "other",
+    "note": "Experimental thresholds, not calibrated guarantees; routing never authorizes actions."
+  },
+  "first_request": {
+    "elapsed_ms": 506.11,
+    "cpu_seconds": 0.007247140999999999,
+    "attempts": 1,
+    "response": {
+      "model": "clef-flash",
+      "answers": {
+        "route": {
+          "type": "choice",
+          "choice": "system",
+          "probabilities": {
+            "planner": 0.0013,
+            "notes": 0.0011,
+            "agents": 0.0014,
+            "system": 0.9839,
+            "databases": 0.0023,
+            "air_quality": 0.0013,
+            "display": 0.001,
+            "photos": 0.0013,
+            "shopping": 0.0014,
+            "printing": 0.0015,
+            "documents": 0.0014,
+            "other": 0.0021
+          },
+          "confidence": 0.9652
+        }
+      },
+      "usage": {
+        "input_tokens": 433,
+        "output_tokens": 0
+      }
+    },
+    "note": "First request after local service restart with files cached; cloud coldness unknown."
+  },
+  "request_count": 100,
+  "successful_responses": 100,
+  "raw_correct": 97,
+  "effective_correct": 96,
+  "uncertain_fallbacks": 4,
+  "accepted_specific_routes": 87,
+  "accepted_specific_correct": 85,
+  "confident_errors": [
+    "032",
+    "096"
+  ],
+  "latency_ms": {
+    "median": 190.39,
+    "p95": 448.2,
+    "max": 814.73
+  },
+  "cpu_seconds_per_request": {
+    "mean": 0.0036246382599999984,
+    "median": 0.0036373570000000077,
+    "total": 0.3624638259999998
+  },
+  "by_group": {
+    "language": {
+      "cs": {
+        "count": 24,
+        "correct": 24
+      },
+      "en": {
+        "count": 76,
+        "correct": 73
+      }
+    },
+    "tag": {
+      "cross-domain": {
+        "count": 8,
+        "correct": 6
+      },
+      "destructive": {
+        "count": 1,
+        "correct": 1
+      },
+      "direct": {
+        "count": 68,
+        "correct": 68
+      },
+      "disfluent": {
+        "count": 1,
+        "correct": 1
+      },
+      "empty-command": {
+        "count": 1,
+        "correct": 1
+      },
+      "follow-up": {
+        "count": 2,
+        "correct": 1
+      },
+      "instruction-in-data": {
+        "count": 1,
+        "correct": 1
+      },
+      "mutation": {
+        "count": 4,
+        "correct": 4
+      },
+      "physical-action": {
+        "count": 2,
+        "correct": 2
+      },
+      "purchase": {
+        "count": 1,
+        "correct": 1
+      },
+      "research": {
+        "count": 1,
+        "correct": 1
+      },
+      "unavailable-capability": {
+        "count": 2,
+        "correct": 2
+      },
+      "unrelated": {
+        "count": 6,
+        "correct": 6
+      },
+      "unsupported-detail": {
+        "count": 2,
+        "correct": 2
+      }
+    },
+    "expected_route": {
+      "agents": {
+        "count": 8,
+        "correct": 7
+      },
+      "air_quality": {
+        "count": 8,
+        "correct": 8
+      },
+      "databases": {
+        "count": 8,
+        "correct": 8
+      },
+      "display": {
+        "count": 8,
+        "correct": 8
+      },
+      "documents": {
+        "count": 8,
+        "correct": 8
+      },
+      "notes": {
+        "count": 8,
+        "correct": 8
+      },
+      "other": {
+        "count": 12,
+        "correct": 11
+      },
+      "photos": {
+        "count": 8,
+        "correct": 8
+      },
+      "planner": {
+        "count": 8,
+        "correct": 8
+      },
+      "printing": {
+        "count": 8,
+        "correct": 8
+      },
+      "shopping": {
+        "count": 8,
+        "correct": 8
+      },
+      "system": {
+        "count": 8,
+        "correct": 7
+      }
+    }
+  },
+  "confusion": {
+    "planner": {
+      "planner": 8
+    },
+    "notes": {
+      "notes": 8
+    },
+    "agents": {
+      "agents": 7,
+      "air_quality": 1
+    },
+    "system": {
+      "system": 7,
+      "agents": 1
+    },
+    "databases": {
+      "databases": 8
+    },
+    "air_quality": {
+      "air_quality": 8
+    },
+    "display": {
+      "display": 8
+    },
+    "photos": {
+      "photos": 8
+    },
+    "shopping": {
+      "shopping": 8
+    },
+    "printing": {
+      "printing": 8
+    },
+    "documents": {
+      "documents": 8
+    },
+    "other": {
+      "other": 11,
+      "planner": 1
+    }
+  },
+  "resources": {
+    "scope": "benchmark HTTP client only; remote server unavailable",
+    "sample_interval_seconds": 0.5,
+    "sampling_errors": [],
+    "logical_cpu_count": 12,
+    "phases": {
+      "startup": {
+        "samples": 1,
+        "pss_bytes": {
+          "median": 15737856,
+          "max": 15737856
+        },
+        "rss_bytes": {
+          "median": 28229632,
+          "max": 28229632
+        },
+        "private_bytes": {
+          "median": 14897152,
+          "max": 14897152
+        }
+      },
+      "unloaded_idle": {
+        "samples": 29,
+        "pss_bytes": {
+          "median": 15782912,
+          "max": 15819776
+        },
+        "rss_bytes": {
+          "median": 28266496,
+          "max": 28286976
+        },
+        "private_bytes": {
+          "median": 14934016,
+          "max": 14954496
+        },
+        "wall_seconds": 14.025,
+        "cpu_seconds": 0.023282308999999994,
+        "cpu_percent_one_core": 0.1660057682709447,
+        "cpu_percent_machine": 0.013833814022578725
+      },
+      "first_request": {
+        "samples": 1,
+        "pss_bytes": {
+          "median": 16547840,
+          "max": 16547840
+        },
+        "rss_bytes": {
+          "median": 30785536,
+          "max": 30785536
+        },
+        "private_bytes": {
+          "median": 15446016,
+          "max": 15446016
+        }
+      },
+      "warm_requests": {
+        "samples": 46,
+        "pss_bytes": {
+          "median": 16958464.0,
+          "max": 17229824
+        },
+        "rss_bytes": {
+          "median": 31311872.0,
+          "max": 31555584
+        },
+        "private_bytes": {
+          "median": 15841280.0,
+          "max": 16084992
+        },
+        "wall_seconds": 22.541000000000004,
+        "cpu_seconds": 0.365560405,
+        "cpu_percent_one_core": 1.6217577081762118,
+        "cpu_percent_machine": 0.135146475681351
+      },
+      "loaded_idle": {
+        "samples": 60,
+        "pss_bytes": {
+          "median": 17239040.0,
+          "max": 17266688
+        },
+        "rss_bytes": {
+          "median": 31582208.0,
+          "max": 31596544
+        },
+        "private_bytes": {
+          "median": 16111616.0,
+          "max": 16125952
+        },
+        "wall_seconds": 29.555000000000007,
+        "cpu_seconds": 0.05102678400000005,
+        "cpu_percent_one_core": 0.17265025883945198,
+        "cpu_percent_machine": 0.014387521569954332
+      }
+    }
+  },
+  "fatal_error": null,
+  "agent_invocations": 0,
+  "measurement": "Sequential synchronous HTTP from Steam Machine; no connection pooling, proxies or redirects. Downloads completed before local measurement.",
+  "cloudflare_cost": {
+    "input_tokens_scored": 43703,
+    "usd_per_million_input_tokens": 0.038,
+    "estimated_usd_scored": 0.001660714,
+    "pricing_source": "https://developers.cloudflare.com/workers-ai/models/clef-flash/",
+    "note": "Published rate estimate before any free allowance; no remote CPU/RAM telemetry."
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "backend": "llama.cpp",
+  "device": "cpu",
+  "native_context_tokens": 1024,
+  "cpu_threads": 2,
+  "limits": "MemoryPeak=327725056\nCPUUsageNSec=3390909000\nCPUQuotaPerSecUSec=2s\nMemoryHigh=10737418240\nMemoryMax=12884901888\n",
+  "benchmark_exit_code": 1
+}
