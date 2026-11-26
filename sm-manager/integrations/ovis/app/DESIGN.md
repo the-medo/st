@@ -30,6 +30,15 @@ Hover and selection are one neutral fill at two strengths, with no stroke around
 Brand marks are the only color there that is not a state, and a ready row draws no state at all.
 Amber connects focus, the chosen lens glyph and the terminal cursor.
 
+ST's conversation sidebar follows the project grouping in the
+[Claude Code desktop sidebar](https://claude.com/resources/articles/claude-code-desktop-redesign).
+Its optional folders are ST-specific: project and folder chevrons share a column,
+folder icons line up with conversation activity indicators, and names share one
+text column. Folders start closed and remember explicit expansion in this browser;
+search can reveal matches without changing that preference. Each folder uses the
+existing row menu (a sheet on narrow screens) to delete the group while keeping
+its conversations in the project.
+
 Messages say only what the person needs now, not everything the app knows:
 - Something to do: one sentence and the control that does it ("Couldn't attach [Try again]").
 - Only waiting: one muted phrase, in one place ("Connecting…"); never the same state twice on screen.
