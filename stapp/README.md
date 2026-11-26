@@ -2,6 +2,12 @@
 
 Say “Hey ST” or “Okay ST” at the Windows desk or in the living room. Native Rust clients detect the wake phrase, transcribe locally and submit an idempotent request. Cloudflare Clef Flash selects initial context; Luna performs the task through ST tools. Each request has its own conversation, with compact spoken results on its originating device. Windows shows a small recording popup without taking focus.
 
+The faceplate and Windows shortcuts use the shared [Seam identity](../brand/README.md).
+The faceplate switches between dark and light marks with its theme; its logo
+and browser icons are included in the offline shell. Windows packages include
+the icon used by the native client's Start menu controls. The legacy Python
+client also uses Seam for its tray icon.
+
 ![Device and service diagram](docs/device-map.svg)
 
 See the [native setup and operations guide](docs/assistant-native.md),

@@ -46,7 +46,8 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .masthead, .dialog-head { justify-content: space-between; }
 .masthead { min-height: 32px; }
 .identity { gap: 10px; font-size: clamp(14px,1.3vw,20px); color: var(--muted); }
-.wordmark { font: 700 clamp(23px,2.25vw,36px)/1 'Space Grotesk', sans-serif; color: var(--text); letter-spacing: -.09em; }
+.brand-mark { display: block; width: clamp(28px,2.5vw,40px); height: auto; flex-shrink: 0; }
+.home-mark { display: block; width: 22px; height: 22px; flex-shrink: 0; }
 .divider { height: 17px; width: 1px; background: var(--line); margin: 0 3px; }
 .connection { gap: 8px; color: var(--muted); font-size: clamp(12px,.92vw,15px); }
 .connection i { width: 7px; height: 7px; border-radius: 50%; background: #dca264; }

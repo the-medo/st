@@ -81,10 +81,11 @@ agent to inspect the host every time.
 
 **Linux · Python 3.11+ · buildless system console; optional DAVe subapp uses Node.js**
 
-The dashboard is branded **ST**. Its chiseled vector mark lives in
-`sm_manager/static/st-logo.svg`; `sm_manager/static/favicon.svg` uses the same
-geometry in black on an ivory tile for browser tabs. Keep both paths in sync
-when editing the mark. The header uses the light mark against the dark sidebar.
+The dashboard uses the **S.T. Seam** mark. Its editable source, light/dark
+variants, raster exports and regeneration instructions live in [brand](../brand/README.md).
+Both console frontends use the ivory mark against their dark sidebar and
+an adaptive browser favicon. Generate assets from the shared source with
+`python3 ../scripts/generate-brand.py --raster`; do not edit the deployed copies.
 The shared `st` CLI covers the assistant, photos, system status and screen
 control. Python package, service and configuration names remain stable; `sm`
 is retained as the monitor backend and a compatibility command.

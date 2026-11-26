@@ -97,7 +97,7 @@ body[data-st-view="planner"] #st-console {
 .brand img {
   display: block;
   flex-shrink: 0;
-  width: 86px;
+  width: 48px;
   height: auto;
 }
 .brand-caption {
@@ -1720,7 +1720,7 @@ dialog::backdrop {
     padding: 0;
   }
   .brand img {
-    width: 40px;
+    width: 32px;
   }
   .brand > span,
   .nav-count,
@@ -1786,7 +1786,7 @@ dialog::backdrop {
     row-gap: 8px;
   }
   .brand img {
-    width: 48px;
+    width: 36px;
   }
   nav {
     display: flex;

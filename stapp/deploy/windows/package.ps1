@@ -1,6 +1,7 @@
 $ErrorActionPreference="Stop"
 New-Item -ItemType Directory -Force package/bin,package/audio | Out-Null
 Copy-Item target/release/st.exe,target/release/stctl.exe,target/release/st-voice.exe package/bin
+Copy-Item deploy/windows/st-icon.ico package/bin/st-icon.ico
 Copy-Item assistant/audio/* package/audio
 Copy-Item deploy/windows/install.ps1 package/
 # Pinned official 64-bit eSpeak release. Extract without installing a machine service.

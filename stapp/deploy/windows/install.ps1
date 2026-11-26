@@ -53,6 +53,7 @@ New-Item -ItemType Directory -Force $start | Out-Null
 foreach ($command in @('mute','unmute','stop','quit')) {
   $link=$shell.CreateShortcut((Join-Path $start "$command.lnk"))
   $link.TargetPath="$root/bin/st-voice.exe"
+  $link.IconLocation="$root/bin/st-icon.ico,0"
   $link.Arguments='--config "'+$root+'/client.json" --control '+$command
   $link.Save()
 }
