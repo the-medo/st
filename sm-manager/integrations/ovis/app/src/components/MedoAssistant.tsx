@@ -40,6 +40,7 @@ export function MedoAssistant({
         const value = await response.json();
         if (!response.ok)
           throw new Error(value.error?.message || "Assistant unavailable");
+        if (!closed && !value) setError("This conversation is not linked to an assistant request.");
         if (!closed && value) {
           setState(value);
           changed.current(value);

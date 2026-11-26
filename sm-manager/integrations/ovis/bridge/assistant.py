@@ -13,6 +13,13 @@ def state(thread):
     return rpc({'op': 'assistant_thread', 'thread': thread})
 
 
+def threads():
+    try:
+        return set(rpc({'op': 'assistant_threads'}))
+    except (OSError, ValueError):
+        return None
+
+
 def action(payload):
     operation = payload['operation']
     thread = payload['threadId']

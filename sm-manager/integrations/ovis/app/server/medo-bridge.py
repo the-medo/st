@@ -235,8 +235,9 @@ def handle(p):
                 # draft. An explicit new chat (also /new) remains reachable.
                 drafts.append({'address':detail['address'], 'project':project, 'title':'New conversation'})
         rows_by_id = {row['id']: row for row in rows}
+        managed_threads = assistant.threads()
         for chat in result['chats']:
-            chat['assistant'] = assistant.owns(rows_by_id.get(chat['id'], {}))
+            chat['assistant'] = assistant.owns(rows_by_id.get(chat['id'], {})) and (managed_threads is None or chat['id'] in managed_threads)
             terminal = by_thread.get(chat['id'])
             if terminal:
                 chat['paneId'] = terminal['address']

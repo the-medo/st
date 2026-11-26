@@ -43,6 +43,11 @@ impl Store {
             device == "owner",
             "Assistant management requires the local owner"
         );
+        if op == "assistant_threads" {
+            let ids = self.db.prepare("SELECT DISTINCT thread FROM jobs WHERE project='assistant' AND thread IS NOT NULL")?
+                .query_map([], |r| r.get::<_,String>(0))?.collect::<rusqlite::Result<Vec<_>>>()?;
+            return Ok(json!(ids));
+        }
         if op == "assistant_status" {
             let devices=self.db.prepare("SELECT device,report,seen,settings,revision FROM voice_devices ORDER BY device")?
                 .query_map([],|r|Ok(json!({"device":r.get::<_,String>(0)?,"report":serde_json::from_str::<Value>(&r.get::<_,String>(1)?).unwrap_or(json!({})),"seen":r.get::<_,i64>(2)?,"settings":serde_json::from_str::<Value>(&r.get::<_,String>(3)?).unwrap_or(json!({})),"revision":r.get::<_,i64>(4)?})))?.collect::<rusqlite::Result<Vec<_>>>()?;

@@ -1,7 +1,7 @@
 # Voice routing and agent context contract
 
-This is a design contract backed by a classifier-only experiment. It is not yet
-wired into `runtime/worker.py`. See [the plan](../IMPLEMENTATION.md) and
+This contract is implemented by `runtime/worker.py` and backed by the retained
+classifier experiment. See [the plan](../IMPLEMENTATION.md) and
 [five-model comparison](../experiments/laya/COMPARISON.md). The owner selected
 hosted **Cloudflare Clef Flash**; the active catalog now records that selection.
 Local decision models and their service have been removed. Frozen experiment
@@ -165,7 +165,7 @@ missing credentials, 401/403, quota/rate limit, network failure or invalid outpu
 Expose router health without speaking repeated errors; stop retrying bad
 credentials until replaced, honor Retry-After, and reload a replacement token.
 Cloudflare routing failure must not discard the transcript or block the action
-agent. These are acceptance requirements; the live worker has not changed yet.
+agent. These behaviors are implemented in the live worker and covered by isolated checks.
 
 ## Input to the agent
 

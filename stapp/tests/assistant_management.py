@@ -21,6 +21,8 @@ class Management(integration.Daemon):
 
     def test_herdr_followup_preserves_origin_and_deduplicates_after_restart(self):
         previous, thread = self.conversation()
+        self.assertEqual(rpc({'op':'assistant_threads'}, 'owner'), [thread])
+        with self.assertRaises(ValueError): rpc({'op':'assistant_threads'}, 'pc')
         send = {'op': 'assistant_send', 'thread': thread, 'id': str(uuid.uuid4()), 'text': 'Change that note'}
         with self.assertRaises(ValueError): rpc(send, 'pc')
         first = rpc(send, 'owner')
