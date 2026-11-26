@@ -29,6 +29,14 @@ impl Speaker {
             serde_json::from_str(&std::fs::read_to_string(model.with_extension("onnx.json"))?)?;
         let language = CString::new(metadata["espeak"]["voice"].as_str().unwrap_or("en-us"))?;
         let mut c = OfflineTtsConfig::default();
+        c.model.vits.noise_scale = std::env::var("STAPP_TTS_NOISE_SCALE")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.667);
+        c.model.vits.noise_scale_w = std::env::var("STAPP_TTS_NOISE_SCALE_W")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.8);
         c.model.num_threads = 2;
         c.model.provider = Some("cpu".into());
         c.max_num_sentences = 1;
@@ -86,6 +94,18 @@ impl Speaker {
         self.tts
             .generate_with_config::<fn(&[f32], f32) -> bool>("", &config, None)
             .context("Synthesize speech")
+    }
+}
+impl Drop for Speaker {
+    fn drop(&mut self) {
+        unsafe {
+            if let Ok(terminate) = self
+                .espeak
+                .get::<unsafe extern "C" fn() -> i32>(b"espeak_Terminate\0")
+            {
+                terminate();
+            }
+        }
     }
 }
 fn output<T: cpal::SizedSample + cpal::FromSample<f32>>(

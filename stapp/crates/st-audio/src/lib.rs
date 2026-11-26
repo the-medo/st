@@ -222,6 +222,9 @@ impl Transcriber {
         }
     }
     pub fn transcribe(&mut self, audio: &[f32]) -> Result<String> {
+        Ok(strip_wake(&self.transcribe_raw(audio)?))
+    }
+    pub fn transcribe_raw(&mut self, audio: &[f32]) -> Result<String> {
         if self.recognizer.is_none() {
             let root = self.root.join("sherpa-onnx-whisper-base");
             let mut c = OfflineRecognizerConfig::default();
@@ -263,44 +266,52 @@ impl Transcriber {
             }
             start = end - RATE;
         }
-        Ok(strip_wake(&words.join(" ")))
+        Ok(words.join(" "))
     }
 }
-pub fn strip_wake(text: &str) -> String {
-    let lower = text.to_lowercase();
-    for phrase in [
-        "hey s.t.",
-        "hey s. t.",
-        "hey, s t",
-        "hey, st",
-        "hey, s. t.",
-        "hey, ess tee",
-        "hey s t",
-        "hey st",
-        "hey ess tee",
-        "okay s.t.",
-        "okay s. t.",
-        "okay, s t",
-        "okay, st",
-        "okay, s. t.",
-        "okay, ess tee",
-        "okay s t",
-        "okay st",
-        "okay ess tee",
-        "ok st",
-    ] {
-        if lower.starts_with(phrase)
-            && lower[phrase.len()..]
-                .chars()
-                .next()
-                .is_none_or(|c| !c.is_alphanumeric())
-        {
-            return text[phrase.len()..]
-                .trim_start_matches(|c: char| c.is_whitespace() || ",.!?:".contains(c))
-                .to_string();
+/// Confirm the wake phrase with full ASR before dispatch. A provisional KWS hit
+/// such as "Hey Steve" may open capture, but must never execute that transcript.
+pub fn confirmed_wake(text: &str) -> Option<String> {
+    let mut words: Vec<(String, usize)> = Vec::new();
+    let mut word = String::new();
+    for (i, c) in text.char_indices() {
+        if c.is_alphanumeric() {
+            word.extend(c.to_lowercase());
+        } else if !word.is_empty() {
+            words.push((std::mem::take(&mut word), i));
+        }
+        if words.len() >= 4 {
+            break;
         }
     }
-    text.trim().into()
+    if !word.is_empty() {
+        words.push((word, text.len()));
+    }
+    if !words
+        .first()
+        .is_some_and(|(w, _)| matches!(w.as_str(), "hey" | "okay" | "ok"))
+    {
+        return None;
+    }
+    let n = if words.get(1).is_some_and(|(w, _)| w == "st") {
+        2
+    } else if words
+        .get(1)
+        .zip(words.get(2))
+        .is_some_and(|((a, _), (b, _))| (a == "s" && b == "t") || (a == "ess" && b == "tee"))
+    {
+        3
+    } else {
+        return None;
+    };
+    Some(
+        text[words[n - 1].1..]
+            .trim_start_matches(|c: char| c.is_whitespace() || ",.!?:;".contains(c))
+            .to_string(),
+    )
+}
+pub fn strip_wake(text: &str) -> String {
+    confirmed_wake(text).unwrap_or_else(|| text.trim().to_string())
 }
 #[cfg(test)]
 mod tests {
@@ -323,5 +334,10 @@ mod tests {
             "Explain why I say hey ST"
         );
         assert_eq!(strip_wake("hey strange"), "hey strange");
+        assert_eq!(confirmed_wake("Hey Steve, delete my notes"), None);
+        assert_eq!(
+            confirmed_wake("Okay, S.T., list tasks"),
+            Some("list tasks".into())
+        );
     }
 }

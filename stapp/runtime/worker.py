@@ -8,9 +8,18 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+import tempfile
 from agent import execute, reap_idle
 from routing import ROUTER, load_catalog
 from transport import rpc
+
+
+def save_health(value):
+    data=Path(os.getenv('STAPP_DATA',Path.home()/'.local/share/stapp'))
+    data.mkdir(parents=True,exist_ok=True,mode=0o700)
+    with tempfile.NamedTemporaryFile(mode='w',dir=data,prefix='.router-health-',delete=False) as stream:
+        json.dump(value,stream);temp=Path(stream.name)
+    temp.replace(data/'router-health.json')
 
 
 def run(job):
@@ -26,6 +35,7 @@ def run(job):
         catalog={'catalog_version':'unavailable','instructions':'','routes':[{'id':'other','description':'General assistant','status':'fallback','manuals':[],'tools':[]} ]}
         decision={'effective_route':'other','reason':'catalog_unavailable','role':'advisory'}
     else:decision=ROUTER.decide(job,catalog)
+    save_health({'status':decision['reason'],'checked_at':time.time(),'provider':'cloudflare','model':'clef-flash'})
     emit('routing','',decision)
     emit('acknowledged','I’ll take a look.',{'speech_text':'I’ll take a look.'})
     return execute(job,decision,catalog,emit)
@@ -38,6 +48,9 @@ def main():
     if args.check_router:
         result=ROUTER.decide({'project':'assistant','text':'Check the system memory usage.'},load_catalog())
         print(json.dumps(result));return 0 if result['reason']=='classified' else 1
+    try:ROUTER.credentials();credential_status='configured_not_yet_called'
+    except (OSError,KeyError,ValueError,TypeError):credential_status='missing_or_invalid_credentials'
+    save_health({'status':credential_status,'checked_at':time.time(),'provider':'cloudflare','model':'clef-flash'})
     def work(job):
         try:run(job)
         except Exception as exc:

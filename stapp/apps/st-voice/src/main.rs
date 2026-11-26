@@ -98,6 +98,7 @@ fn deliver(args: Args, state: PathBuf, suspended: Arc<AtomicU8>, stage: Arc<Atom
         .and_then(|s| s.parse::<i64>().ok())
         .unwrap_or(0);
     let mut voice = None;
+    let mut acknowledgement: Option<(Vec<f32>, u32)> = None;
     let mut used = Instant::now();
     loop {
         if state.join("quit").exists() {
@@ -105,6 +106,7 @@ fn deliver(args: Args, state: PathBuf, suspended: Arc<AtomicU8>, stage: Arc<Atom
         }
         if used.elapsed() > Duration::from_secs(300) {
             voice = None;
+            acknowledgement = None;
         }
         match client.exchange(&json!({"op":"inbox","after":after})) {
             Ok(events) => {
@@ -152,10 +154,21 @@ fn deliver(args: Args, state: PathBuf, suspended: Arc<AtomicU8>, stage: Arc<Atom
                                 } else {
                                     text
                                 };
-                                let audio = voice.as_ref().unwrap().synthesize(speech)?;
+                                let (samples, rate) =
+                                    if kind == "acknowledged" && acknowledgement.is_some() {
+                                        acknowledgement.as_ref().unwrap().clone()
+                                    } else {
+                                        let audio = voice.as_ref().unwrap().synthesize(speech)?;
+                                        let value =
+                                            (audio.samples().to_vec(), audio.sample_rate() as u32);
+                                        if kind == "acknowledged" {
+                                            acknowledgement = Some(value.clone());
+                                        }
+                                        value
+                                    };
                                 output::play(
-                                    audio.samples().to_vec(),
-                                    audio.sample_rate() as u32,
+                                    samples,
+                                    rate,
                                     args.speaker.as_deref(),
                                     &state.join("stop-speech"),
                                 )
@@ -200,8 +213,32 @@ fn submit_outbox(args: Args, state: PathBuf) {
                 .ok()
                 .and_then(|v| serde_json::from_str::<Value>(&v).ok());
             if let Some(req) = request {
+                let marker = state
+                    .join("cancelled")
+                    .join(req["id"].as_str().unwrap_or("invalid"));
+                if marker.exists() {
+                    match client.exchange(&json!({"op":"cancel","id":req["id"]})) {
+                        Ok(_) => {
+                            let _ = std::fs::rename(&path, path.with_extension("cancelled"));
+                        }
+                        Err(e) if e.to_string().contains("No cancellable request") => {
+                            let _ = std::fs::rename(&path, path.with_extension("cancelled"));
+                        }
+                        Err(_) => break,
+                    }
+                    continue;
+                }
+                let _ = atomic_write(
+                    &state.join("last-request.json"),
+                    &json!({"id":req["id"]}).to_string(),
+                );
                 match client.exchange(&req) {
                     Ok(result) => {
+                        if marker.exists() {
+                            // A stop can arrive while submission is in flight. Keep the
+                            // durable outbox until the next pass confirms cancellation.
+                            continue;
+                        }
                         let _ = atomic_write(&state.join("last-request.json"), &result.to_string());
                         let _ = std::fs::remove_file(state.join("submission-error.txt"));
                         let _ = std::fs::remove_file(path);
@@ -354,13 +391,29 @@ fn listen(
                     output::earcon(args.speaker.as_deref(), true, &state.join("stop-speech"));
                     stage.store(2, Ordering::Relaxed);
                     suspended.fetch_or(2, Ordering::Relaxed);
-                    let text = asr.transcribe(&audio);
+                    let text = asr.transcribe_raw(&audio);
                     suspended.fetch_and(!2, Ordering::Relaxed);
                     while rx.try_recv().is_ok() {}
-                    let text = text?;
+                    let raw = text?;
+                    let text = if args.record_once {
+                        raw
+                    } else {
+                        match st_audio::confirmed_wake(&raw) {
+                            Some(text) => text,
+                            None => {
+                                let _ = client.exchange(&json!({"op":"release_wake","id":id}));
+                                atomic_write(
+                                    &state.join("capture-error.txt"),
+                                    "Wake phrase was not confirmed; nothing submitted",
+                                )?;
+                                stage.store(0, Ordering::Relaxed);
+                                continue;
+                            }
+                        }
+                    };
                     if !text.trim().is_empty() {
                         let mut req = json!({"op":"ask","id":id,"text":text,"voice":true});
-                        if let Some(rest) = text
+                        if let Some(_rest) = text
                             .strip_prefix("Follow up:")
                             .or_else(|| text.strip_prefix("follow up "))
                             .or_else(|| text.strip_prefix("Follow up "))
@@ -374,7 +427,6 @@ fn listen(
                                         Some("completed" | "failed" | "interrupted")
                                     ) {
                                         req["parent"] = value["id"].clone();
-                                        req["text"] = json!(rest.trim());
                                     }
                                 }
                             }
@@ -476,13 +528,38 @@ fn main() -> Result<()> {
                     std::fs::write(state.join("stop-speech"), "")?;
                 }
                 if command == "stop" {
+                    let markers = state.join("cancelled");
+                    std::fs::create_dir_all(&markers)?;
+                    let mut ids = Vec::new();
                     if let Ok(previous) = std::fs::read_to_string(state.join("last-request.json")) {
-                        let value: Value = serde_json::from_str(&previous)?;
-                        exchange(
-                            &json!({"op":"cancel","id":value["id"]}),
+                        if let Ok(value) = serde_json::from_str::<Value>(&previous) {
+                            if let Some(id) = value["id"].as_str() {
+                                ids.push(id.to_string());
+                            }
+                        }
+                    }
+                    if let Ok(files) = std::fs::read_dir(state.join("outbox")) {
+                        for file in files
+                            .flatten()
+                            .filter(|f| f.path().extension().is_some_and(|e| e == "json"))
+                        {
+                            if let Ok(value) = serde_json::from_str::<Value>(
+                                &std::fs::read_to_string(file.path())?,
+                            ) {
+                                if let Some(id) = value["id"].as_str() {
+                                    ids.push(id.to_string());
+                                }
+                            }
+                        }
+                    }
+                    for id in ids {
+                        uuid::Uuid::parse_str(&id)?;
+                        std::fs::write(markers.join(&id), "")?;
+                        let _ = exchange(
+                            &json!({"op":"cancel","id":id}),
                             args.ssh.as_deref(),
                             &args.device,
-                        )?;
+                        );
                     }
                 }
             }
@@ -502,6 +579,7 @@ fn main() -> Result<()> {
         let mut engine = Engine::new(&models)?;
         let mut asr = Transcriber::new(&models, &args.language);
         let mut wakes = 0;
+        let mut confirmed = 0;
         for chunk in audio.chunks(512) {
             match engine.push(chunk) {
                 Some(Event::Wake) => {
@@ -509,13 +587,22 @@ fn main() -> Result<()> {
                     println!("wake");
                 }
                 Some(Event::Dictation(samples)) | Some(Event::Limit(samples)) => {
-                    println!("transcript: {}", asr.transcribe(&samples)?)
+                    let raw = asr.transcribe_raw(&samples)?;
+                    if let Some(text) = st_audio::confirmed_wake(&raw) {
+                        if !text.is_empty() {
+                            confirmed += 1;
+                            println!("transcript: {text}");
+                        }
+                    } else {
+                        println!("rejected wake phrase");
+                    }
                 }
                 Some(Event::Empty) => println!("empty"),
                 None => {}
             }
         }
         println!("wake_count: {wakes}");
+        println!("confirmed_count: {confirmed}");
         return Ok(());
     }
     if let Some(path) = args.transcribe {

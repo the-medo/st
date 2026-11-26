@@ -21,10 +21,12 @@ jobs:
           if ($LASTEXITCODE) { throw 'Speech asset setup failed' }
           $env:STAPP_MODELS=(Resolve-Path .cache/speech-models).Path
           $env:STAPP_ESPEAK_LIBRARY=(Resolve-Path package/bin/libespeak-ng.dll).Path
-          $run=Start-Process target/release/st-voice.exe -ArgumentList '--synthesize "Okay ST. Please list my tasks." --output .cache/speech-smoke.wav' -Wait -PassThru
+          $env:STAPP_TTS_NOISE_SCALE='0.0001'
+          $env:STAPP_TTS_NOISE_SCALE_W='0.0001'
+          $run=Start-Process target/release/st-voice.exe -ArgumentList '--synthesize "Okay, ess tee. Please list my tasks." --output .cache/speech-smoke.wav' -Wait -PassThru
           if ($run.ExitCode -ne 0 -or -not (Test-Path .cache/speech-smoke.wav)) { throw 'Native speech generation failed' }
           $run=Start-Process target/release/st-voice.exe -ArgumentList '--check-audio .cache/speech-smoke.wav' -RedirectStandardOutput .cache/speech-smoke.txt -Wait -PassThru
-          if ($run.ExitCode -ne 0 -or -not (Select-String .cache/speech-smoke.txt 'wake_count: 1')) { throw 'Native keyword/transcription smoke failed' }
+          if ($run.ExitCode -ne 0 -or -not (Select-String -Path .cache/speech-smoke.txt -Pattern 'confirmed_count: 1')) { throw 'Native keyword/transcription smoke failed' }
       - uses: actions/upload-artifact@v4
         with:
           name: stapp-windows-x64

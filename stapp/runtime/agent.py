@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import queue
+import signal
 import subprocess
 import threading
 import time
@@ -60,7 +61,7 @@ class Connection:
         env=os.environ.copy()
         for name in ('STAPP_CF_TOKEN','STAPP_PANEL_KEY','STAPP_CF_ACCOUNT','STAPP_CF_CONFIG'):
             env.pop(name,None)
-        self.proc=subprocess.Popen(cmd,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=None,text=True,encoding='utf-8',bufsize=1,env=env)
+        self.proc=subprocess.Popen(cmd,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=None,text=True,encoding='utf-8',bufsize=1,env=env,start_new_session=os.name=='posix')
         self.queue=queue.Queue();self.next_id=0;self.projects={};self.models=None
         self.busy=True; self.used=time.monotonic(); CONNECTIONS.append(self)
         def read():
@@ -104,7 +105,8 @@ class Connection:
 
     def close(self):
         if self.proc.poll() is None:
-            self.proc.terminate()
+            if os.name=='posix':os.killpg(self.proc.pid,signal.SIGTERM)
+            else:self.proc.terminate()
             try:self.proc.wait(timeout=3)
             except subprocess.TimeoutExpired:self.proc.kill();self.proc.wait()
         atexit.unregister(self.close)
