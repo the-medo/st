@@ -11,7 +11,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering},
-        mpsc::{sync_channel, SyncSender},
+        mpsc::{sync_channel, Receiver, SyncSender},
         Arc,
     },
     thread,
@@ -200,7 +200,7 @@ fn deliver(args: Args, state: PathBuf, suspended: Arc<AtomicU8>, stage: Arc<Atom
         thread::sleep(Duration::from_millis(700));
     }
 }
-fn submit_outbox(args: Args, state: PathBuf) {
+fn submit_outbox(args: Args, state: PathBuf, wake: Receiver<()>) {
     let mut client = Client::new(args.ssh.as_deref(), &args.device);
     loop {
         if state.join("quit").exists() {
@@ -259,7 +259,7 @@ fn submit_outbox(args: Args, state: PathBuf) {
                 }
             }
         }
-        thread::sleep(Duration::from_secs(2));
+        let _ = wake.recv_timeout(Duration::from_secs(2));
     }
 }
 fn release(claim: &mut Option<String>, client: &mut Client) {
@@ -274,6 +274,7 @@ fn listen(
     suspended: Arc<AtomicU8>,
     engine: &mut Engine,
     asr: &mut Transcriber,
+    wake_submit: &SyncSender<()>,
 ) -> Result<()> {
     let mut client = Client::new(args.ssh.as_deref(), &args.device);
     let host = cpal::default_host();
@@ -472,6 +473,7 @@ fn listen(
                             .as_millis();
                         let path = outbox.join(format!("{stamp}-{id}.json"));
                         atomic_write(&path, &req.to_string())?;
+                        let _ = wake_submit.try_send(());
                         if args.record_once {
                             // Submission thread is disabled in one-shot mode; retain on failure.
                             let result = exchange(&req, args.ssh.as_deref(), &args.device)?;
@@ -691,10 +693,11 @@ fn main() -> Result<()> {
             delivery_stage,
         )
     });
+    let (wake_submit, wake_retry) = sync_channel(1);
     let send_args = args.clone();
     let send_state = state.clone();
     if !args.record_once {
-        thread::spawn(move || submit_outbox(send_args, send_state));
+        thread::spawn(move || submit_outbox(send_args, send_state, wake_retry));
     }
     let status_state = state.clone();
     let status_stage = stage.clone();
@@ -722,6 +725,7 @@ fn main() -> Result<()> {
             suspended.clone(),
             &mut engine,
             &mut asr,
+            &wake_submit,
         ) {
             Ok(()) => break,
             Err(e) => {
