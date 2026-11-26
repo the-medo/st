@@ -266,3 +266,28 @@ outgrowing the option-text budget by using discovery or hierarchical routing.
 - [Custom keyword spotting](https://k2-fsa.github.io/sherpa/onnx/kws/index.html)
 - [Luna model](https://developers.openai.com/api/docs/models/gpt-6-luna)
 - [Android microphone services](https://developer.android.com/develop/background-work/services/fgs/service-types)
+
+## Implementation journal (in progress)
+
+2026-11-26: implementation authorized. A checkpoint preserves the coordinator,
+structured result events/cancellation migration, dynamic ST tools over a reusable
+app-server connection, and a shared Rust audio crate before rebasing onto main.
+These changes are not deployed or complete yet. The installed Codex 0.172.0
+catalog advertises `gpt-6-luna` with low reasoning. Actual inference still needs
+verification. The Rust speech crate (`sherpa-onnx` 2.0.3) and daemon compiled;
+integration tests initially could not start because this checkout's kiosk assets
+had not been built. This host uses Docker for Cargo and Node builds.
+
+Decisions to report at completion:
+
+- Use dynamic app-server tools scoped to each job instead of changing a shared
+  MCP process's job credentials. Reuse the process, preserve separate threads.
+- Keep original transcripts intact; conservatively bypass the classifier when
+  the complete UTF-8 request exceeds 20,000 bytes, leaving framing headroom.
+- Use a two-second routing deadline, one outstanding classifier HTTP task, auth
+  failure suppression and rate-limit backoff. Missing routing never blocks agents.
+- Use the official Rust sherpa-onnx bindings; keep ASR lazy and unload after five
+  idle minutes. Long dictation requires overlapping chunks within Whisper's window.
+- Retain the original worker behind an explicit legacy profile for rollback.
+- Physical microphone, simultaneous room/PC wake and Windows acceptance require
+  suitable hardware; synthetic audio tests cannot establish those results.

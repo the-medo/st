@@ -58,6 +58,9 @@ impl Store {
         if tx.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))? < 4 {
             tx.execute_batch(include_str!("../migrations/004.sql"))?;
         }
+        if tx.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))? < 5 {
+            tx.execute_batch(include_str!("../migrations/005.sql"))?;
+        }
         tx.commit()?;
         db.execute(
             "INSERT OR IGNORE INTO projects VALUES('assistant',?,'local')",
@@ -89,6 +92,13 @@ impl Store {
                 Ok(json!({"name":name,"path":path,"host":host}))
             }
             "ask"=>self.ask(device,v),
+            "cancel"=>{
+                let id=field(v,"id")?;
+                let tx=self.db.transaction()?;
+                ensure!(tx.execute("UPDATE jobs SET status='cancelled',claim=NULL,updated=unixepoch() WHERE id=? AND device=? AND status IN ('queued','running','waiting')",params![id,device])?==1,"No cancellable request for this device");
+                event(&tx,id,"cancelled","Stopped. Any already confirmed actions remain in effect.")?;
+                tx.commit()?;Ok(json!(true))
+            },
             "status"=>{
                 let id=field(v,"id")?;
                 let (status,thread,project):(String,Option<String>,String)=self.db.query_row("SELECT status,thread,project FROM jobs WHERE id=? AND device=?",params![id,device],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).context("Unknown request for this device")?;
@@ -131,7 +141,15 @@ impl Store {
                     "thread"=>{tx.execute("UPDATE jobs SET thread=? WHERE id=?",params![body,id])?;}
                     "question"=>{tx.execute("UPDATE jobs SET status='waiting' WHERE id=?",[id])?;event(&tx,id,kind,body)?;}
                     "poll"=>{reply=tx.query_row("SELECT answer FROM answers WHERE job=?",[id],|r|r.get::<_,String>(0)).optional()?.map(Value::String).unwrap_or(Value::Null);tx.execute("DELETE FROM answers WHERE job=?",[id])?;}
-                    "completed"|"failed"=>{tx.execute("UPDATE jobs SET status=?,claim=NULL WHERE id=?",params![kind,id])?;event(&tx,id,kind,body)?;}
+                    "routing"|"acknowledged"=>{
+                        ensure!(body.len()<=32000,"Event too large");
+                        tx.execute("INSERT OR IGNORE INTO events(job,kind,body,payload) VALUES(?,?,?,?)",params![id,kind,body,v.get("payload").map(Value::to_string)])?;
+                    }
+                    "completed"|"failed"=>{
+                        ensure!(body.len()<=64000,"Result too large");
+                        tx.execute("UPDATE jobs SET status=?,claim=NULL WHERE id=?",params![kind,id])?;
+                        tx.execute("INSERT INTO events(job,kind,body,payload) VALUES(?,?,?,?)",params![id,kind,body,v.get("payload").map(Value::to_string)])?;
+                    }
                     _=>bail!("Unknown worker event")
                 }tx.commit()?;Ok(reply)
             }
@@ -140,7 +158,7 @@ impl Store {
         }
     }
     fn events(&self, device: &str, id: Option<&str>, after: i64) -> Result<Vec<Value>> {
-        rows(&self.db,"SELECT seq,job,kind,body FROM events JOIN jobs ON jobs.id=events.job WHERE device=? AND (? IS NULL OR job=?) AND seq>? ORDER BY seq LIMIT 100",params![device,id,id,after],|r|Ok(json!({"seq":r.get::<_,i64>(0)?,"id":r.get::<_,String>(1)?,"kind":r.get::<_,String>(2)?,"text":r.get::<_,String>(3)?})))
+        rows(&self.db,"SELECT seq,job,kind,body,payload FROM events JOIN jobs ON jobs.id=events.job WHERE device=? AND (? IS NULL OR job=?) AND seq>? ORDER BY seq LIMIT 100",params![device,id,id,after],|r|Ok(json!({"seq":r.get::<_,i64>(0)?,"id":r.get::<_,String>(1)?,"kind":r.get::<_,String>(2)?,"text":r.get::<_,String>(3)?,"payload":r.get::<_,Option<String>>(4)?.and_then(|s|serde_json::from_str::<Value>(&s).ok())})))
     }
     fn ask(&mut self, device: &str, v: &Value) -> Result<Value> {
         let id = field(v, "id")?;
