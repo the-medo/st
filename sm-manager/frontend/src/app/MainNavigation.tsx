@@ -301,7 +301,7 @@ export function MainNavigation({
             aria-label="Home"
             title="ST · Home"
           >
-            <img src="/st-logo.svg" alt="" width="86" height="48" />
+            <img src="/st-logo-dark.svg?v=st-seam-1" alt="" width="48" height="48" />
             <img
               className="workmode-logo"
               src="/ydistri.svg"

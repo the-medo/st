@@ -31,8 +31,8 @@
     gap: 8px;
     padding: 2px 5px;
   }
-  .st-sidebar .st-brand img {
-    width: 86px;
+  .st-sidebar .st-brand > img:not(.workmode-logo) {
+    width: 48px;
   }
   .st-sidebar .nav-link {
     justify-content: flex-start;
@@ -126,8 +126,8 @@
   .st-sidebar[data-collapsed="true"] .st-brand {
     padding: 2px 0;
   }
-  .st-sidebar[data-collapsed="true"] .st-brand img {
-    width: 40px;
+  .st-sidebar[data-collapsed="true"] .st-brand > img:not(.workmode-logo) {
+    width: 32px;
   }
   .st-sidebar[data-collapsed="true"]
     :is(

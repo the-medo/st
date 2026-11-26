@@ -1,5 +1,12 @@
 # S.T.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="brand/st-logo-dark.svg" />
+  <img src="brand/st-logo-light.svg" alt="S.T. Seam logo" width="80" height="80" />
+</picture>
+
+[Logo assets and usage](brand/README.md)
+
   S.T. provides a voice assistant, touchscreen and system dashboard for a Linux host.
 
   | Component | Documentation |

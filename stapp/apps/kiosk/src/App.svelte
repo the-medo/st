@@ -6,6 +6,8 @@
   import ProjectManager from './ProjectManager.svelte';
   import type { Panel, TaskProject } from './calendar';
   import { themes, findTheme, type Theme } from './themes';
+  import seamLight from './assets/brand/st-logo-light.svg';
+  import seamDark from './assets/brand/st-logo-dark.svg';
   import './faceplate.css';
 
   type Menu = 'themes' | 'views' | 'reply';
@@ -15,6 +17,7 @@
   const storageKey = 'stapp-panel';
   let panel: Panel = $state({ view:'home', revision:0, spec:{kind:'dashboard',widgets:['calendar','tasks','notes']}, records:[], views:['home','clock'] });
   let theme = $derived(findTheme(panel.theme));
+  let seam = $derived(theme.id === 'dune' ? seamLight : seamDark);
   let now = $state(new Date());
   let timeParts = $derived(hm.formatToParts(now));
   let online = $state(false), connected = $state(false), busy = $state(false);
@@ -95,7 +98,7 @@
     {/snippet}
     {#if panel.spec.kind !== 'dashboard'}
       <header class="masthead">
-        <div class="identity"><span class="wordmark">S.T.</span><span class="divider"></span><span>Faceplate</span></div>
+        <div class="identity"><img class="brand-mark" src={seam} width="36" height="36" alt="S.T."/><span class="divider"></span><span>Faceplate</span></div>
         {@render connection()}
       </header>
     {/if}
@@ -123,7 +126,7 @@
 
     <footer class="toolbar">
       <nav aria-label="Faceplate navigation">
-        <button class="nav-button" class:active={panel.view === 'home'} aria-current={panel.view === 'home' ? 'page' : undefined} disabled={busy} onclick={() => change({name:'home'})}><Icon name="home"/>Home</button>
+        <button class="nav-button" class:active={panel.view === 'home'} aria-current={panel.view === 'home' ? 'page' : undefined} disabled={busy} onclick={() => change({name:'home'})}><img class="home-mark" src={seam} width="22" height="22" alt=""/>Home</button>
         <button class="nav-button" class:active={panel.view !== 'home'} aria-haspopup="dialog" onclick={() => openMenu('views')}><Icon name="views"/>Views</button>
         {#if panel.task_projects}<button class="nav-button" aria-haspopup="dialog" onclick={() => projectManager.open()}><Icon name="projects"/>Projects</button>{/if}
       </nav>

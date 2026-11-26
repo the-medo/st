@@ -369,6 +369,10 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
                 return self.respond(404, {"error": "Not found"})
             name = {"/": "index.html", "/app.js": "app.js", "/style.css": "style.css",
                     "/favicon.svg": "favicon.svg", "/st-logo.svg": "st-logo.svg",
+                    "/st-logo-light.svg": "st-logo-light.svg", "/st-logo-dark.svg": "st-logo-dark.svg",
+                    "/favicon-light.svg": "favicon-light.svg", "/favicon-dark.svg": "favicon-dark.svg",
+                    "/favicon.png": "favicon.png", "/favicon.ico": "favicon.ico",
+                    "/apple-touch-icon.png": "apple-touch-icon.png",
                     "/st-theme.css": "st-theme.css",
                     "/st-planner.css": "st-planner.css", "/st-planner.js": "st-planner.js",
                     "/home.css": "home.css", "/home.js": "home.js", "/home-icons.svg": "home-icons.svg",

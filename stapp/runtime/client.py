@@ -84,10 +84,10 @@ def main():
     global icon
     if os.name == "nt":
         import pystray
-        from PIL import Image, ImageDraw
+        from PIL import Image
 
-        image = Image.new("RGB", (64, 64), "#18392a")
-        ImageDraw.Draw(image).text((12, 18), "S.T.", fill="white", font_size=22)
+        with Image.open(Path(__file__).with_name("st-icon.png")) as source:
+            image = source.convert("RGBA")
 
         def toggle(*_):
             if muted.exists():

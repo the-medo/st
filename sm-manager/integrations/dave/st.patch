@@ -243,7 +243,7 @@ index e9d145c..3181feb 100644
      )}
 diff --git a/packages/frontend/src/components/StHome.tsx b/packages/frontend/src/components/StHome.tsx
 new file mode 100644
-index 0000000..d59f60d
+index 0000000..4d54b2f
 --- /dev/null
 +++ b/packages/frontend/src/components/StHome.tsx
 @@ -0,0 +1,10 @@
@@ -252,7 +252,7 @@ index 0000000..d59f60d
 +export default function StHome({ compact = false }: { compact?: boolean }) {
 +  return (
 +    <a href="/" target="_top" onClick={goHome} aria-label="ST home" title="Return to ST" className="inline-flex items-center gap-3 rounded-md bg-[#10151c] px-3 py-2 text-[#e6edf3] hover:bg-[#192330] transition-colors">
-+      <img src="/st-logo.svg" alt="" width={compact ? 32 : 52} height={compact ? 20 : 30} />
++      <img src="/st-logo-dark.svg?v=st-seam-1" alt="" width={compact ? 28 : 40} height={compact ? 28 : 40} />
 +      {!compact && <span className="text-[10px] tracking-[0.16em] uppercase leading-4">Tasks<br />& Calendar</span>}
 +    </a>
 +  );
@@ -477,7 +477,7 @@ index 4dd1682..012ccae 100644
    }, []);
  
 diff --git a/packages/frontend/vite.config.ts b/packages/frontend/vite.config.ts
-index 315ad47..c020f09 100644
+index 315ad47..5a8b1f9 100644
 --- a/packages/frontend/vite.config.ts
 +++ b/packages/frontend/vite.config.ts
 @@ -3,7 +3,17 @@ import react from '@vitejs/plugin-react';
@@ -491,7 +491,7 @@ index 315ad47..c020f09 100644
 +      order: 'post',
 +      handler: (html) => process.env.VITE_ST_INTEGRATION === '1'
 +        ? html.replace('<title>DAVe</title>', '<title>ST · Planner</title>')
-+          .replace(/href="[^"]*favicon.svg"/, 'href="/favicon.svg"')
++          .replace(/href="[^"]*favicon.svg"/, 'href="/favicon.svg?v=st-seam-1"')
 +        : html,
 +    },
 +  }],
