@@ -38,6 +38,14 @@ try {
   let holdPoll = false;
   await page.route('**/api/medo/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/defaults')) {
+      const params = new URL(route.request().url()).searchParams;
+      const claude = params.get('provider') === 'claude';
+      const alternate = params.get('cwd') === '/fixture/alternate';
+      const model = params.get('model') || (claude ? alternate ? 'claude-opus-4-6' : 'claude-opus-5-5' : 'test-codex');
+      const effort = alternate ? 'low' : model === 'claude-opus-4-6' ? 'high' : 'medium';
+      await route.fulfill({ json: { model, effort, efforts: ['low', 'medium', 'high'] } }); return;
+    }
     if (path.endsWith('/providers')) {
       await route.fulfill({ json: { providers: [
         { id: 'codex', label: 'Codex', installed: true, usageKey: 'codex:current', error: null, models: [
@@ -148,6 +156,9 @@ try {
   await composer.getByRole('textbox', { name: 'Message', exact: true }).fill('Help me plan the next release.');
   if (evidence) await page.screenshot({ path: join(evidence, 'new-conversation-codex-desktop.png') });
   await composer.getByRole('radio', { name: 'Claude', exact: true }).click();
+  await composer.getByRole('combobox', { name: 'Model', exact: true }).locator('option[value=""]').filter({ hasText: 'Default · Opus 5.5' }).waitFor({ state: 'attached' });
+  await composer.getByRole('combobox', { name: 'Reasoning', exact: true }).locator('option[value=""]').filter({ hasText: 'Default · Medium' }).waitFor({ state: 'attached' });
+  if (evidence) await page.screenshot({ path: join(evidence, 'new-conversation-defaults.png') });
   await composer.getByRole('combobox', { name: 'Model', exact: true }).selectOption('opus');
   await composer.getByRole('combobox', { name: 'Reasoning', exact: true }).selectOption('high');
   assert.equal(await composer.getByRole('textbox', { name: 'Message', exact: true }).inputValue(), 'Help me plan the next release.');
@@ -194,12 +205,33 @@ try {
   await composer.getByRole('textbox', { name: 'Model ID', exact: true }).fill('--help');
   assert.equal(await composer.getByRole('button', { name: 'Start conversation', exact: true }).isDisabled(), true);
   await composer.getByRole('textbox', { name: 'Model ID', exact: true }).fill('claude-opus-4-6');
+  const reasoningDefault = composer.getByRole('combobox', { name: 'Reasoning', exact: true }).locator('option[value=""]');
+  await reasoningDefault.filter({ hasText: 'Default · High' }).waitFor({ state: 'attached' });
+  await composer.getByRole('combobox', { name: 'Project', exact: true }).selectOption('');
+  await composer.getByRole('textbox', { name: 'Folder', exact: true }).fill('/fixture/alternate');
+  await reasoningDefault.filter({ hasText: 'Default · Low' }).waitFor({ state: 'attached' });
+  await composer.getByRole('combobox', { name: 'Project', exact: true }).selectOption('garden');
+  await reasoningDefault.filter({ hasText: 'Default · High' }).waitFor({ state: 'attached' });
   await composer.getByRole('button', { name: 'Start conversation', exact: true }).click();
   await waitCount(creates, 1);
   assert.deepEqual(creates[0]!.request().postDataJSON(), { projectId: 'garden', provider: 'claude', model: 'claude-opus-4-6', effort: '' });
   await creates.shift()!.fulfill({ status: 400, json: { error: { message: 'Model unavailable for this account' } } });
   await composer.getByRole('alert').filter({ hasText: 'Model unavailable' }).waitFor();
   assert.equal(await composer.getByRole('textbox', { name: 'Model ID', exact: true }).inputValue(), 'claude-opus-4-6');
+  await composer.getByRole('button', { name: 'Back to conversation', exact: true }).click();
+  await composer.waitFor({ state: 'hidden' });
+
+  // An early global + adopts the catalogue's destination once it arrives.
+  holdPoll = true;
+  await page.reload();
+  await waitCount(polls, 1);
+  await page.locator('.medo-sidebar-head').getByRole('button', { name: 'New conversation', exact: true }).click();
+  await composer.waitFor();
+  assert.equal(await composer.getByRole('combobox', { name: 'Project', exact: true }).inputValue(), '');
+  holdPoll = false;
+  await polls.shift()!.fulfill({ json: catalog });
+  await page.waitForFunction(() => document.querySelector<HTMLSelectElement>('.medo-new-page select[aria-label="Project"]')?.value === 'garden');
+  await composer.getByRole('combobox', { name: 'Model', exact: true }).locator('option[value=""]').filter({ hasText: 'Default · Codex model' }).waitFor({ state: 'attached' });
   await composer.getByRole('button', { name: 'Back to conversation', exact: true }).click();
   await composer.waitFor({ state: 'hidden' });
 

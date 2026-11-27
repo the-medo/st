@@ -395,6 +395,63 @@ class ClaudeModelTests(unittest.TestCase):
                 bridge.launch_choices('claude', model, '')
 
 
+class ProviderDefaultTests(unittest.TestCase):
+    def test_claude_uses_native_applied_values_and_never_exposes_settings(self):
+        reply = {'model-options': {'models': ClaudeModelTests.models}, 'defaults': {
+            'effective': {'env': {'ANTHROPIC_API_KEY': 'fixture-secret'}, 'effortLevel': 'low'},
+            'applied': {'model': 'claude-opus-5-5', 'effort': 'medium'}}}
+        with patch.object(bridge, 'claude_configuration', return_value=reply) as read:
+            result = bridge.provider_defaults('claude', '/fixture/project', 'opus')
+        read.assert_called_once_with('/fixture/project', 'opus', with_settings=True)
+        self.assertEqual(result, {'model': 'claude-opus-5-5', 'effort': 'medium', 'efforts': ['low', 'high', 'max']})
+        self.assertNotIn('fixture-secret', json.dumps(result))
+        reply['defaults']['applied'] = {'model': 'claude-haiku-4-5-20251001', 'effort': None}
+        with patch.object(bridge, 'claude_configuration', return_value=reply):
+            self.assertEqual(bridge.provider_defaults('claude', '/fixture/project')['efforts'], [])
+
+    def test_defaults_probe_passes_the_launch_directory_and_model_without_a_prompt(self):
+        responses = [
+            {'type': 'control_response', 'response': {'request_id': 'model-options', 'subtype': 'success', 'response': {'models': []}}},
+            {'type': 'control_response', 'response': {'request_id': 'defaults', 'subtype': 'success', 'response': {'applied': {'model': 'claude-opus-4-6', 'effort': 'high'}}}},
+        ]
+        with tempfile.TemporaryDirectory() as root, patch.dict(os.environ, {'TMPDIR': root}), \
+             patch.object(bridge.subprocess, 'run', return_value=Mock(stdout='\n'.join(json.dumps(r) for r in responses))) as run:
+            reply = bridge.claude_configuration(root, 'claude-opus-4-6', with_settings=True)
+            self.assertEqual(run.call_args.kwargs['cwd'], root)
+            self.assertEqual(run.call_args.args[0][-2:], ['--model', 'claude-opus-4-6'])
+            requests = [json.loads(line) for line in run.call_args.kwargs['input'].splitlines()]
+            self.assertEqual([r['request']['subtype'] for r in requests], ['initialize', 'get_settings'])
+            self.assertEqual(reply['defaults']['applied']['effort'], 'high')
+            self.assertTrue(Path(root).is_dir())
+
+    def test_codex_project_configuration_and_profile_override_catalogue_defaults(self):
+        models = [{'model': 'fixture-base', 'isDefault': True, 'defaultReasoningEffort': 'medium', 'supportedReasoningEfforts': [{'reasoningEffort': 'high'}]},
+                  {'model': 'fixture-fast', 'defaultReasoningEffort': 'low', 'supportedReasoningEfforts': [{'reasoningEffort': 'low'}]}]
+        config = {'model': 'fixture-base', 'model_reasoning_effort': 'high', 'profiles': {}}
+        client = Mock()
+        client.rpc.side_effect = lambda method, params: {'config': config} if method == 'config/read' else {'data': models}
+        with patch.object(bridge, 'Bridge', return_value=client):
+            self.assertEqual(bridge.provider_defaults('codex', '/fixture/project'), {'model': 'fixture-base', 'effort': 'high', 'efforts': ['high']})
+            client.rpc.assert_any_call('config/read', {'cwd': '/fixture/project', 'includeLayers': False})
+            config.update(profile='quick', profiles={'quick': {'model': 'fixture-fast', 'model_reasoning_effort': 'low'}})
+            self.assertEqual(bridge.provider_defaults('codex', '/fixture/project')['model'], 'fixture-fast')
+            self.assertEqual(bridge.provider_defaults('codex', '/fixture/project', 'fixture-base')['effort'], 'low')
+            config.clear()
+            self.assertEqual(bridge.provider_defaults('codex', '/fixture/project', 'fixture-fast')['effort'], 'low')
+        self.assertEqual(client.process.terminate.call_count, 4)
+
+    def test_codex_default_model_accepts_a_supported_explicit_effort_without_pinning_the_model(self):
+        with patch.object(bridge, 'provider_defaults', return_value={'model': 'fixture', 'effort': 'medium', 'efforts': ['medium', 'high']}) as read:
+            self.assertEqual(bridge.launch_choices('codex', '', 'high', '/fixture/project'), ['-c', 'model_reasoning_effort=high'])
+            read.assert_called_once_with('codex', '/fixture/project')
+            with self.assertRaises(ValueError):
+                bridge.launch_choices('codex', '', 'ultra', '/fixture/project')
+
+    def test_unknown_claude_defaults_do_not_fall_back_to_a_guessed_effort(self):
+        with patch.object(bridge, 'claude_configuration', return_value={}), self.assertRaisesRegex(ValueError, 'Could not read'):
+            bridge.provider_defaults('claude', '/fixture/project')
+
+
 class ClaudeProviderTests(unittest.TestCase):
     session = '00000000-0000-4000-8000-000000000001'
 

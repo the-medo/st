@@ -118,6 +118,12 @@ export async function handleMedoRequest(request: Request, url: URL, readOnly: bo
       return output !== null ? new Response(output, { headers: { ...headers, 'content-type': 'text/plain; charset=utf-8' } })
         : jsonResponse({ error: { code: 'output_not_found', message: 'This tool output is unavailable.' } }, 404);
     }
+    if (request.method === 'GET' && url.pathname === '/api/medo/defaults') {
+      const result = await call({ operation: 'defaults', provider: url.searchParams.get('provider'),
+        projectId: url.searchParams.get('projectId') ?? undefined, cwd: url.searchParams.get('cwd') ?? undefined,
+        model: url.searchParams.get('model') ?? '' });
+      return jsonResponse(result, 200, { 'cache-control': 'no-store' });
+    }
     if (request.method === 'GET' && url.pathname === '/api/medo/providers') {
       const ctx = systemUsageContext();
       const [result, codex, claude] = await Promise.all([

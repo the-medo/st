@@ -15,3 +15,6 @@ export interface MedoProviderOption { id: MedoProvider; label: string; installed
 export interface MedoProviders { providers: MedoProviderOption[] }
 /** POST /api/medo/new: the selected CLI and its first message, queued once through this page's connection. */
 export interface MedoNewRequest { projectId?: string; folderId?: string; cwd?: string; provider: MedoProvider; model: string; effort: string; prompt?: string; first_message_connection?: string }
+
+/** Effective launch settings, with no private configuration or credentials. */
+export interface MedoDefaults { model: string | null; effort: string | null; efforts: string[] | null }

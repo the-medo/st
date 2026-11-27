@@ -1,5 +1,6 @@
 """Private adapter: the existing sidebar store and explicitly owned Ovis terminals."""
 import base64
+from contextlib import nullcontext
 import fcntl
 import json
 import os
@@ -30,24 +31,65 @@ def model_catalog():
         client.process.terminate()
 
 
-def claude_model_catalog():
-    """Read the CLI's initialize inventory, without a prompt, tools or saved session."""
+def claude_configuration(cwd=None, model='', with_settings=False):
+    """Ask the native CLI for metadata only, with the launch directory's settings."""
     cache = Path(os.environ.get('TMPDIR') or Path.home()/'.cache/st-claude-models')
     cache.mkdir(parents=True, exist_ok=True, mode=0o700)
-    with tempfile.TemporaryDirectory(prefix='st-claude-models-', dir=cache) as cwd:
+    requests = [{'type': 'control_request', 'request_id': 'model-options', 'request': {'subtype': 'initialize'}}]
+    if with_settings:
+        requests.append({'type': 'control_request', 'request_id': 'defaults', 'request': {'subtype': 'get_settings'}})
+    with (nullcontext(cwd) if cwd else tempfile.TemporaryDirectory(prefix='st-claude-models-', dir=cache)) as directory:
         reply = subprocess.run([claude_binary(), '--safe-mode', '--print',
             '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose',
             '--no-session-persistence', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}',
-            '--tools', ''], cwd=cwd, input=json.dumps({'type': 'control_request',
-                'request_id': 'model-options', 'request': {'subtype': 'initialize'}})+'\n',
+            '--tools', '', *(['--model', model] if model else [])], cwd=directory,
+            input=''.join(json.dumps(request)+'\n' for request in requests),
             text=True, capture_output=True, timeout=15, check=True)
+    responses = {}
     for line in reply.stdout.splitlines():
+        if not line.strip(): continue
         value = json.loads(line)
         if value.get('type') != 'control_response': continue
         response = value.get('response', {})
-        if response.get('request_id') == 'model-options' and response.get('subtype') == 'success':
-            return response['response']['models']
-    raise ValueError('Claude did not return its model choices.')
+        if response.get('subtype') == 'success':
+            responses[response.get('request_id')] = response['response']
+    return responses
+
+
+def claude_model_catalog():
+    return claude_configuration()['model-options']['models']
+
+
+def provider_defaults(provider, cwd, model=''):
+    if provider not in ('codex', 'claude') or not isinstance(model, str) or len(model) > 120:
+        raise ValueError('Choose a provider and model.')
+    if provider == 'claude':
+        launch_choices(provider, model, '')
+        try:
+            reply = claude_configuration(cwd, model, with_settings=True)
+            applied = reply['defaults']['applied']
+            resolved = applied['model']
+            row = next((row for row in reply['model-options']['models']
+                        if row['value'] != 'default' and (row.get('resolvedModel') == resolved or row['value'] == resolved)), None)
+            # Only these fields leave the process; settings can contain credentials.
+            return {'model': resolved, 'effort': applied['effort'],
+                    'efforts': row.get('supportedEffortLevels', []) if row else None}
+        except Exception:
+            raise ValueError('Could not read Claude defaults for this folder.') from None
+    client = Bridge()
+    try:
+        config = client.rpc('config/read', {'cwd': cwd, 'includeLayers': False})['config']
+        profile = config.get('profiles', {}).get(config.get('profile'), {})
+        config = {**config, **profile}
+        models = client.rpc('model/list', {'limit': 100, 'includeHidden': False})['data']
+        resolved = model or config.get('model') or next((row['model'] for row in models if row.get('isDefault')), None)
+        row = next((row for row in models if row['model'] == resolved), None)
+        return {'model': resolved, 'effort': config.get('model_reasoning_effort') or (row or {}).get('defaultReasoningEffort'),
+                'efforts': [e['reasoningEffort'] for e in row['supportedReasoningEfforts']] if row else None}
+    except Exception:
+        raise ValueError('Could not read Codex defaults for this folder.') from None
+    finally:
+        client.process.terminate()
 
 
 def claude_model_options(rows):
@@ -90,7 +132,7 @@ def provider_options():
     return {'providers': [codex, claude]}
 
 
-def launch_choices(provider, model, effort):
+def launch_choices(provider, model, effort, cwd=None):
     if provider not in ('codex', 'claude'):
         raise ValueError('Choose Codex or Claude.')
     if not isinstance(model, str) or not isinstance(effort, str):
@@ -100,7 +142,11 @@ def launch_choices(provider, model, effort):
     if provider == 'claude':
         if (model and (len(model) > 120 or not re.fullmatch(r'(?:opus|sonnet|haiku|fable|claude-[a-z0-9][a-z0-9-]*)(?:\[1m\])?', model))) or effort not in ('', 'low', 'medium', 'high', 'xhigh', 'max'):
             raise ValueError('Choose a Claude model and reasoning level.')
-    elif model or effort:
+    elif not model and effort:
+        defaults = provider_defaults('codex', cwd)
+        if effort not in (defaults['efforts'] or []):
+            raise ValueError('Choose a reasoning level offered by the default Codex model.')
+    elif model:
         selected = next((m for m in model_catalog() if m['model'] == model), None)
         if not selected or (effort and effort not in [e['reasoningEffort'] for e in selected['supportedReasoningEfforts']]):
             raise ValueError('Choose a model and reasoning level offered by Codex.')
@@ -186,7 +232,7 @@ def launch(project, thread=None, title="New conversation", folder=None, provider
     if not Path(project['path']).is_dir():
         raise ValueError('This project folder is no longer available.')
     preferences = Path(os.environ.get('OVIS_STATE_DIR', str(Path.home()/'.local/state/medo-ovis')))
-    choices = launch_choices(provider, model, effort) if thread is None else []
+    choices = launch_choices(provider, model, effort, project['path']) if thread is None else []
     permissions = (claude_permission_args(preferences) if provider == 'claude' else codex_permission_args(preferences)) if thread is None else []
     # All web instances using this catalog share launch ownership, even when
     # their device preferences and cookies live in separate OVIS_STATE_DIRs.
@@ -344,6 +390,14 @@ def handle(p):
         return assistant.action({**p, 'operation': op if op == 'assistant_state' else op.removeprefix('assistant_')})
     if op == 'providers':
         return provider_options()
+    if op == 'defaults':
+        project = next((item for item in sidebar.config()['projects'] if item['id'] == p.get('projectId')), None)
+        cwd = project.get('path') if project else p.get('cwd')
+        if not isinstance(cwd, str) or not cwd.strip():
+            raise ValueError('Choose a folder to see its defaults.')
+        cwd = str(Path(cwd).expanduser().resolve())
+        if not Path(cwd).is_dir(): raise ValueError('Choose an existing folder to see its defaults.')
+        return provider_defaults(p.get('provider'), cwd, p.get('model', ''))
     if op == 'claude-history':
         session = p.get('threadId', '').removeprefix('claude:')
         entry = claude_sessions.load(sidebar.ROOT).get(session)

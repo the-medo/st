@@ -226,3 +226,20 @@ test('invalid provider and first message requests fail before starting a termina
     else process.env.MEDO_PROJECTS = previous;
   }
 });
+
+
+test('default resolution carries project and model context and is never cached by HTTP', async () => {
+  const previous = process.env.MEDO_PROJECTS;
+  process.env.MEDO_PROJECTS = '1';
+  try {
+    const url = new URL('http://fixture/api/medo/defaults?provider=claude&projectId=garden&model=claude-opus-4-6');
+    const call = mock(async () => ({ model: 'claude-opus-4-6', effort: 'high', efforts: ['low', 'medium', 'high'] }));
+    const result = (await handleMedoRequest(new Request(url), url, false, { call }))!;
+    expect(call).toHaveBeenCalledWith({ operation: 'defaults', provider: 'claude', projectId: 'garden', cwd: undefined, model: 'claude-opus-4-6' });
+    expect(result.headers.get('cache-control')).toBe('no-store');
+    expect((await result.json()).effort).toBe('high');
+  } finally {
+    if (previous === undefined) delete process.env.MEDO_PROJECTS;
+    else process.env.MEDO_PROJECTS = previous;
+  }
+});

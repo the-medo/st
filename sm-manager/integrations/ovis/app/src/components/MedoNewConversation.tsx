@@ -5,6 +5,7 @@ import { MAX_FIRST_MESSAGE_CHARS } from '../../shared/launch-rules.ts';
 import { apiFetch } from '../lib/api-request-id.ts';
 import { useMachineSessions } from '../lib/machineSessionContext.tsx';
 import { weeklyRemaining } from '../lib/medoProviders.ts';
+import { useMedoDefaults } from '../lib/useMedoDefaults.ts';
 import { useUsage } from '../lib/usage.ts';
 import { AgentMark } from './AgentMark.tsx';
 import { DirectoryBrowser } from './DirectoryBrowser.tsx';
@@ -29,6 +30,7 @@ export function MedoNewConversation({ projects, initialProject, initialFolder, o
   const [loading, setLoading] = useState(true);
   const [choices, setChoices] = useState<Record<MedoProvider, Choice>>({ codex: { model: '', effort: '' }, claude: { model: '', effort: '' } });
   const [project, setProject] = useState(initialProject ?? projects.find((item) => item.path)?.id ?? '');
+  const destinationChosen = useRef(Boolean(initialProject || projects.some((item) => item.path)));
   const [folder, setFolder] = useState(initialFolder ?? '');
   const folders = projects.find((item) => item.id === project)?.folders ?? [];
   const [cwd, setCwd] = useState('');
@@ -43,12 +45,27 @@ export function MedoNewConversation({ projects, initialProject, initialFolder, o
   const selected = options?.providers.find((item) => item.id === provider);
   const choice = choices[provider];
   const model = selected?.models.find((item) => item.id === choice.model);
-  const efforts = model?.efforts ?? (provider === 'claude' ? ['low', 'medium', 'high', 'xhigh', 'max'] : []);
   const custom = choice.model === '__custom__';
   const selectedModel = custom ? choice.customModel?.trim() ?? '' : choice.model;
   const modelValid = !custom || /^(?:claude-[a-z0-9][a-z0-9-]*)(?:\[1m\])?$/.test(selectedModel);
+  const defaults = useMedoDefaults(provider, project, cwd, selectedModel, !!selected?.installed && modelValid);
+  const efforts = model?.efforts ?? defaults.selected?.efforts ?? (provider === 'claude' ? ['low', 'medium', 'high', 'xhigh', 'max'] : []);
+  const defaultModel = defaults.baseline?.model;
+  const defaultModelName = defaultModel ? selected?.models.find((item) => item.id === defaultModel)?.label
+    ?? selected?.models.find((item) => !item.alias && item.resolvedModel === defaultModel)?.label ?? defaultModel : undefined;
+  const unavailableDefault = !project && !cwd.trim() ? 'Choose a folder' : 'Unavailable';
+  const defaultModelLabel = defaultModelName ?? (defaults.baseline === undefined && (project || cwd.trim()) ? 'Checking…' : unavailableDefault);
+  const defaultEffortLabel = defaults.selected === undefined ? (project || cwd.trim() ? 'Checking…' : unavailableDefault)
+    : defaults.selected === null || !defaults.selected.model ? 'Unavailable'
+    : defaults.selected.effort ? EFFORT_LABELS[defaults.selected.effort] ?? defaults.selected.effort
+    : defaults.selected.efforts?.length === 0 ? 'Not supported' : 'Automatic';
 
   useEffect(() => { message.current?.focus(); }, []);
+  useEffect(() => {
+    if (destinationChosen.current) return;
+    const first = projects.find((item) => item.path);
+    if (first) { destinationChosen.current = true; setProject(first.id); }
+  }, [projects]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -82,10 +99,10 @@ export function MedoNewConversation({ projects, initialProject, initialFolder, o
   return <section className="medo-new-page" aria-label="New conversation"><div className="medo-new-content">
     <header className="medo-new-header"><button type="button" className="btn medo-new-back" onClick={close} disabled={pending} aria-label="Back to conversation"><ArrowLeft size={17} /> Back</button><h1>New conversation</h1></header>
     <form className="medo-new-form" onSubmit={(event) => { event.preventDefault(); void start(); }}>
-      <div className="medo-new-destination"><div className="medo-new-project-fields"><label>Project<select aria-label="Project" value={project} disabled={pending} onChange={(event) => { setProject(event.target.value); setFolder(''); }}>
+      <div className="medo-new-destination"><div className="medo-new-project-fields"><label>Project<select aria-label="Project" value={project} disabled={pending} onChange={(event) => { destinationChosen.current = true; setProject(event.target.value); setFolder(''); }}>
         {projects.filter((item) => item.path).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
         <option value="">Other folder…</option>
-      </select></label>{folders.length > 0 && <label>Conversation folder<select aria-label="Conversation folder" value={folder} disabled={pending} onChange={(event) => setFolder(event.target.value)}><option value="">Unfiled</option>{folders.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}</div>{!project && <label>Folder<div className="medo-new-folder"><input aria-label="Folder" value={cwd} placeholder="Choose a folder" disabled={pending} onChange={(event) => setCwd(event.target.value)} /><button type="button" className="btn" aria-label="Browse folders" disabled={pending} onClick={() => setBrowsing(true)}><FolderOpen size={18} /></button></div></label>}</div>
+      </select></label>{folders.length > 0 && <label>Conversation folder<select aria-label="Conversation folder" value={folder} disabled={pending} onChange={(event) => setFolder(event.target.value)}><option value="">Unfiled</option>{folders.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}</div>{!project && <label>Folder<div className="medo-new-folder"><input aria-label="Folder" value={cwd} placeholder="Choose a folder" disabled={pending} onChange={(event) => { destinationChosen.current = true; setCwd(event.target.value); }} /><button type="button" className="btn" aria-label="Browse folders" disabled={pending} onClick={() => setBrowsing(true)}><FolderOpen size={18} /></button></div></label>}</div>
       <div className="medo-provider-choices" role="radiogroup" aria-label="Conversation provider" onKeyDown={(event) => {
         if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key) || pending) return;
         event.preventDefault();
@@ -114,9 +131,9 @@ export function MedoNewConversation({ projects, initialProject, initialFolder, o
       <div className="medo-new-models"><label>Model<select aria-label="Model" value={choice.model} disabled={pending || loading} onChange={(event) => {
         const next = selected?.models.find((item) => item.id === event.target.value);
         change({ model: event.target.value, effort: next?.defaultEffort ?? '' });
-      }}><option value="">{selected?.defaultModelLabel ?? 'Agent default'}</option>{selected?.models.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}{provider === 'claude' && <option value="__custom__">Other model version…</option>}</select></label>
+      }}><option value="">Default · {defaultModelLabel}</option>{selected?.models.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}{provider === 'claude' && <option value="__custom__">Other model version…</option>}</select></label>
         <label>Reasoning<select aria-label="Reasoning" value={choice.effort} disabled={pending || loading || !efforts.length} onChange={(event) => change({ effort: event.target.value })}>
-          <option value="">Default</option>{efforts.map((effort) => <option key={effort} value={effort}>{EFFORT_LABELS[effort] ?? effort}</option>)}
+          <option value="">Default · {defaultEffortLabel}</option>{efforts.map((effort) => <option key={effort} value={effort}>{EFFORT_LABELS[effort] ?? effort}</option>)}
         </select></label></div>
       {custom && <label>Model ID<input aria-label="Model ID" value={choice.customModel ?? ''} maxLength={120} placeholder="claude-opus-5-5" disabled={pending} onChange={(event) => change({ customModel: event.target.value })} /><span className="medo-new-note">Enter a full Claude model ID. Availability depends on your account.</span></label>}
       {provider === 'claude' && model?.resolvedModel && <p className="medo-new-note">{model.alias ? 'Currently ' : 'Pinned to '}<code>{model.resolvedModel}</code>{model.alias ? ' · follows future updates' : ''}</p>}
@@ -130,6 +147,6 @@ export function MedoNewConversation({ projects, initialProject, initialFolder, o
           {pending ? <LoaderCircle className="medo-spinner" size={17} /> : <ArrowUp size={17} />}{pending ? 'Starting…' : 'Start conversation'}
         </button></div>
     </form>
-    {browsing && <MedoDialog title="Choose folder" onClose={() => setBrowsing(false)}><DirectoryBrowser start={cwd} onPick={(path) => { setCwd(path); setBrowsing(false); }} /></MedoDialog>}
+    {browsing && <MedoDialog title="Choose folder" onClose={() => setBrowsing(false)}><DirectoryBrowser start={cwd} onPick={(path) => { destinationChosen.current = true; setCwd(path); setBrowsing(false); }} /></MedoDialog>}
   </div></section>;
 }

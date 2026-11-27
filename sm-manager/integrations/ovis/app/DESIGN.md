@@ -6753,3 +6753,12 @@ A full model ID can also be entered; account access still controls availability.
 An expired usage access token is labelled “Usage needs refresh”, with guidance to
 let Claude Code refresh it. This does not imply that the stored login expired;
 Ovis never rotates the native CLI's refresh token.
+
+
+Default model and reasoning options include their resolved values, following the
+existing T3 Code-inspired composer selectors. Reads use the selected launch
+folder and model: Codex's configuration/model APIs and Claude's native
+`get_settings.applied` response. They create no conversation or model turn and
+return only model/effort metadata. Changing project or model cannot display a
+late response from a different selection. Unavailable defaults stay explicitly
+unavailable; unsupported effort and provider-managed effort have distinct labels.
