@@ -64,10 +64,12 @@ export async function verifyAgentsShortcuts(page: Page) {
   await armShortcuts(page);
   await page.keyboard.press("a");
   await page.keyboard.press("q");
-  await page
-    .getByRole("dialog", { name: "New conversation", exact: true })
-    .waitFor();
-  await page.keyboard.press("Escape");
+  const composer = page.getByRole("region", { name: "New conversation", exact: true });
+  await composer.waitFor();
+  assert.equal(await page.getByRole("dialog", { name: "New conversation", exact: true }).count(), 0);
+  assert.deepEqual(await page.evaluate(() => Reflect.get(window, "__stCreatedProjects")), []);
+  await composer.getByRole("button", { name: "Back to conversation", exact: true }).click();
+  await composer.waitFor({ state: "hidden" });
 
   // A collapsed project expands, opens its first conversation, then gets its own keys.
   await page.locator('[data-st-project="garden"] .medo-project-toggle').click();
@@ -125,6 +127,11 @@ export async function verifyAgentsShortcuts(page: Page) {
     .locator('[data-st-project="project-1"] [data-st-shortcut="Q"]')
     .waitFor();
   await page.keyboard.press("q");
+  await composer.waitFor();
+  assert.equal(await composer.getByRole("combobox", { name: "Project", exact: true }).inputValue(), "project-1");
+  assert.deepEqual(await page.evaluate(() => Reflect.get(window, "__stCreatedProjects")), []);
+  await composer.getByRole("button", { name: "Start conversation", exact: true }).click();
+  await composer.waitFor({ state: "hidden" });
   assert.deepEqual(
     await page.evaluate(() => Reflect.get(window, "__stCreatedProjects")),
     ["project-1"],
