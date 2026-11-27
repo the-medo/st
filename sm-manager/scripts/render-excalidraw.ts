@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(
   dirname(fileURLToPath(import.meta.url)),
-  "../sm_manager/artifact_renderer",
+  "../sm_manager/web/diagram-renderer",
 );
 const cache = join(homedir(), ".cache/ms-playwright");
 const candidates = existsSync(cache)

@@ -4,7 +4,9 @@ export default defineConfig({
   root: "renderer",
   plugins: [excalidrawAssets()],
   build: {
-    outDir: "../../sm_manager/artifact_renderer",
+    // Keep this in the updater's atomically exchanged build directory. The
+    // main web manifest does not expose these standalone renderer files.
+    outDir: "../../sm_manager/web/diagram-renderer",
     emptyOutDir: true,
     manifest: true,
   },
