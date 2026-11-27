@@ -11,7 +11,7 @@ export function consoleStylePlugin(): Plugin {
       const root = postcss.parse(code);
       const scope = postcss.atRule({
         name: "scope",
-        params: "(.st-app) to (.st-ovis-root)",
+        params: "(.st-app) to (.st-ovis-root, .st-artifact-editor-canvas)",
       });
       for (const node of [...root.nodes]) scope.append(node);
       scope.walkRules((rule) => {

@@ -29,10 +29,17 @@ replaces an existing draft. Copy instructions also works with other agents.
 
 ## Install
 
-From `sm-manager`, run `python3 scripts/install-artifacts.py --publish-url
+From `sm-manager`, run `bun install --frozen-lockfile` and `bun run build`, then
+`bun node_modules/playwright-core/cli.js install chromium` if Chromium is not
+already installed. Run `python3 scripts/install-artifacts.py --publish-url
 https://your-publishing-domain.example`. This installs the CLI and a discoverable
 Codex skill independently of the checkout, along with private configuration and
 a generated publisher credential. Re-run after changes to update the runtime.
+The installer copies the compiled Excalidraw renderer and Playwright runtime
+outside the checkout. It records the Bun executable; pass `--bun /path/to/bun`
+if it is not on PATH. Chromium is discovered in the user's Playwright cache or
+through `BROWSER_EXECUTABLE`. Rendering launches a browser only for that command;
+no additional service or MCP configuration is needed.
 The console reads that configuration by default; set `artifacts_config_path` in
 its private profile to choose another library. For automated tests and synthetic preview screenshots, always use an isolated
 data directory and credential. An owner preview may point to the installed
@@ -49,6 +56,23 @@ follow the account's R2 and Workers plans. This implementation permits 256 files
 and 32 MiB per revision. It uploads files separately to avoid base64 overhead
 in the Worker. Imported local bundles must include their dependencies; remote
 scripts, fonts and network requests are blocked in HTML previews and shares.
+
+## Excalidraw drawings
+
+`herdr-artifacts diagram scene.json --title 'System diagram'` accepts native
+Excalidraw JSON or compact SDK element skeletons. The revision contains a private
+`source/diagram.excalidraw` and public-ready `diagram.svg` / `diagram.png`.
+Check out the artifact, edit the native source, and use `save` to regenerate both
+outputs under the same ID. Native IDs and bindings are preserved. Source content
+is not embedded in exports. Publishing still requires an explicit action.
+
+The browser's New diagram / Edit diagram uses the same normalization and export
+code. Saving a stale browser revision leaves the drawing open with an original
+download for recovery. Extra attached files are retained. Restore preserves the
+editor type of the chosen revision. Imported images must be embedded data URLs;
+webpage embeds are not supported. Each complete revision retains the 32 MiB
+limit. Excalidraw 0.18.1 is pinned; its local font fallback transformation in
+`frontend/excalidraw-assets.ts` must be reviewed when upgrading the SDK.
 
 ## Verify
 

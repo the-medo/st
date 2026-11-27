@@ -11,6 +11,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fixtureApi } from "./v2-fixtures";
 import { createGateway } from "../services/web-gateway/gateway";
+import { excalidrawFlow } from "./excalidraw-flow";
 
 const cache = join(homedir(), ".cache/ovis-tmp/artifacts");
 mkdirSync(cache, { recursive: true });
@@ -336,6 +337,7 @@ try {
       ),
     ),
   );
+  await excalidrawFlow(page, base, config, temporary);
   assert.deepEqual(errors, []);
   console.log(
     "Artifact browser flow passed: import, isolated preview, revise, publish, restore, revoke, improve, organize, responsive gallery.",

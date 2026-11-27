@@ -13,3 +13,4 @@ node_modules/
 frontend/dist/
 sm_manager/web/
 *.tsbuildinfo
+sm_manager/artifact_renderer/

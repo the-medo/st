@@ -28,6 +28,38 @@ class ArtifactsTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.library = Library({"data_dir": self.tmp.name, "publish_url": "https://artifacts.example.test"})
 
+    def test_diagram_editor_survives_revisions_checkout_and_restore_with_private_source(self):
+        editor = {"type": "excalidraw", "source": "source/diagram.excalidraw"}
+        data = {"title": "Flow", "entrypoint": "diagram.svg", "editor": editor, "files": [
+            {"path": "diagram.svg", "base64": base64.b64encode(b'<svg xmlns="http://www.w3.org/2000/svg"/>').decode()},
+            {"path": editor["source"], "role": "source", "base64": base64.b64encode(b'{"type":"excalidraw","elements":[]}').decode()},
+        ]}
+        one = self.library.save(data)
+        self.assertEqual(self.library.list()[0]["editor"], editor)
+        work = self.library.checkout(one["id"])
+        self.assertEqual(work["editor"], editor)
+        self.assertEqual(json.loads(Path(work["directory"], ".artifact.json").read_text())["editor"], editor)
+        update = {key: value for key, value in data.items() if key != "editor"}
+        two = self.library.save({**update, "base_revision": 1}, one["id"])
+        self.assertEqual(two["manifest"]["editor"], editor)
+        with self.assertRaises(Conflict):
+            self.library.save({**data, "base_revision": 1}, one["id"])
+        self.library._remote = Mock(return_value={})
+        self.library.publish(one["id"], 2)
+        self.assertEqual([f["path"] for f in self.library._remote.call_args.args[2]["files"]], ["diagram.svg"])
+        generic = self.library.save(payload(base_revision=2, editor=None), one["id"])
+        self.assertNotIn("editor", generic["manifest"])
+        restored = self.library.restore(one["id"], 1, 3)
+        self.assertEqual(restored["manifest"]["editor"], editor)
+        generic_restored = self.library.restore(one["id"], 3, 4)
+        self.assertNotIn("editor", generic_restored["manifest"])
+        for invalid in ({"type":"unknown", "source":editor["source"]}, {"type":"excalidraw", "source":"diagram.svg"}):
+            with self.subTest(editor=invalid), self.assertRaises(ArtifactError):
+                self.library.save({**data, "editor": invalid})
+        data["files"][1]["role"] = "output"
+        with self.assertRaises(ArtifactError):
+            self.library.save(data)
+
     def test_revisions_survive_checkout_removal_and_stale_edits_conflict(self):
         one = self.library.save(payload())
         work = self.library.checkout(one["id"])

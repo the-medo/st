@@ -6,9 +6,30 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import shutil
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sm_manager.artifacts import ArtifactError, Library, MAX_BYTES, MAX_FILES, read_settings, safe_path
+
+
+def render_diagram(path, settings):
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_BYTES:
+        raise ArtifactError("Choose a regular Excalidraw/JSON file up to 32 MiB.")
+    command = settings.get("diagram_renderer") or [shutil.which("bun") or "bun", str(Path(__file__).resolve().with_name("render-excalidraw.ts"))]
+    if not isinstance(command, list) or not command or not all(isinstance(arg, str) for arg in command):
+        raise ArtifactError("The diagram renderer is not configured correctly.")
+    try:
+        result = subprocess.run(command, input=path.read_bytes(), capture_output=True, timeout=90)
+    except subprocess.TimeoutExpired:
+        raise ArtifactError("Diagram rendering timed out. The saved artifact is unchanged.") from None
+    if result.returncode:
+        message = result.stderr.decode(errors="replace")[-2000:]
+        try:
+            message = json.loads(message)["error"]
+        except (ValueError, KeyError, TypeError):
+            pass
+        raise ArtifactError("Could not render the diagram: " + message)
+    return json.loads(result.stdout)
 
 
 def file_entry(path, name, role="output"):
@@ -61,6 +82,11 @@ def main(argv=None):
     create.add_argument("--folder", default="")
     create.add_argument("--bundle", type=Path, help="Explicit output directory containing the entrypoint and assets")
     create.add_argument("--source", type=Path, action="append", default=[], help="Editable source kept private when sharing")
+    diagram = commands.add_parser("diagram", help="Create an editable diagram from native .excalidraw or compact JSON; render SVG/PNG locally")
+    diagram.add_argument("file", type=Path)
+    diagram.add_argument("--title", required=True)
+    diagram.add_argument("--project")
+    diagram.add_argument("--folder", default="")
     save = commands.add_parser("save", help="Save a checked-out directory as the next revision of the same artifact")
     save.add_argument("directory", type=Path)
     save.add_argument("--note", default="")
@@ -78,6 +104,9 @@ def main(argv=None):
             result = library.get(args.id)
         elif args.command == "checkout":
             result = library.checkout(args.id)
+        elif args.command == "diagram":
+            bundle = render_diagram(args.file.expanduser(), library.settings)
+            result = library.save({**bundle, "title": args.title, "project": project_name() if args.project is None else args.project, "folder": args.folder})
         elif args.command == "create":
             path = args.file.expanduser().absolute()
             if args.bundle:
@@ -103,10 +132,26 @@ def main(argv=None):
             directory = args.directory.expanduser().resolve()
             metadata = json.loads((directory / ".artifact.json").read_text())
             roles = {f["path"]: f["role"] for f in metadata["files"]}
+            rendered = None
+            if (metadata.get("editor") or {}).get("type") == "excalidraw":
+                # Render before changing any stored revision or working exports. A
+                # failed render and a stale base revision both leave history intact.
+                source = directory / safe_path(metadata["editor"]["source"])
+                rendered = render_diagram(source, library.settings)
             files = collect(directory)
             for file in files:
                 file["role"] = roles.get(file["path"], "source" if file["path"].startswith("source/") else "output")
-            result = library.save({"base_revision": metadata["base_revision"], "entrypoint": metadata["entrypoint"], "files": files, "note": args.note}, metadata["id"])
+            if rendered:
+                paths = {f["path"] for f in rendered["files"]}
+                paths.add(metadata["editor"]["source"])
+                files = [f for f in files if f["path"] not in paths] + rendered["files"]
+            result = library.save({"base_revision": metadata["base_revision"], "entrypoint": rendered["entrypoint"] if rendered else metadata["entrypoint"], "editor": rendered["editor"] if rendered else metadata.get("editor"), "files": files, "note": args.note}, metadata["id"])
+            if rendered:
+                for file in rendered["files"]:
+                    target = directory / file["path"]
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(base64.b64decode(file["base64"]))
+                metadata.update(entrypoint=rendered["entrypoint"], editor=rendered["editor"])
             metadata["base_revision"] = result["revision"]
             metadata["files"] = [{"path": f["path"], "role": f["role"]} for f in files]
             (directory / ".artifact.json").write_text(json.dumps(metadata, indent=2))

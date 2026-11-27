@@ -1,4 +1,10 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import {
   ArrowLeft,
@@ -31,6 +37,11 @@ import {
   type Checkout,
 } from "./model";
 import "./artifacts.css";
+const ExcalidrawEditor = lazy(() =>
+  import("./ExcalidrawEditor").then((module) => ({
+    default: module.ExcalidrawEditor,
+  })),
+);
 
 function Preview({ item, large = false }: { item: Artifact; large?: boolean }) {
   const url = item.preview_base
@@ -74,7 +85,7 @@ function Preview({ item, large = false }: { item: Artifact; large?: boolean }) {
   );
 }
 
-function encode(file: globalThis.File): Promise<string> {
+function encode(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result).split(",")[1]!);
@@ -103,6 +114,11 @@ export function Artifacts() {
   const [improving, setImproving] = useState(false);
   const [notice, setNotice] = useState("");
   const [history, setHistory] = useState(false);
+  // Freeze the base revision while editing; a background refresh must never
+  // replace the drawing or silently advance its optimistic concurrency check.
+  const [diagram, setDiagram] = useState<ArtifactDetail | null | undefined>(
+    undefined,
+  );
   useEffect(() => {
     let active = true;
     setDetail(null);
@@ -225,10 +241,16 @@ export function Artifacts() {
               : "Diagrams, documents and ideas. Save them once, keep making them better."}
           </p>
         </div>
-        <button className="artifact-primary" onClick={() => setUpload(true)}>
-          <Plus size={16} />
-          Save a file
-        </button>
+        <div className="artifact-heading-actions">
+          <button className="artifact-primary" onClick={() => setDiagram(null)}>
+            <Plus size={16} />
+            New diagram
+          </button>
+          <button onClick={() => setUpload(true)}>
+            <Plus size={16} />
+            Save a file
+          </button>
+        </div>
       </header>
       {(error || library.error) && (
         <Notice retry={() => library.refresh()}>
@@ -252,6 +274,20 @@ export function Artifacts() {
           {detail && preview ? (
             <>
               <div className="artifact-actions">
+                {detail.manifest.editor?.type === "excalidraw" && (
+                  <button
+                    disabled={detail.selected_revision !== detail.revision}
+                    title={
+                      detail.selected_revision !== detail.revision
+                        ? "Restore this revision before editing it"
+                        : undefined
+                    }
+                    onClick={() => setDiagram(detail)}
+                  >
+                    <Pencil size={16} />
+                    Edit diagram
+                  </button>
+                )}
                 <button onClick={() => setImproving(true)}>
                   <Pencil size={16} />
                   Improve with agent
@@ -477,9 +513,11 @@ export function Artifacts() {
                 <div className="artifact-card-preview">
                   <Preview item={item} />
                   <span className="artifact-format">
-                    {item.mime === "text/html"
-                      ? "HTML"
-                      : item.entrypoint.split(".").pop()?.toUpperCase()}
+                    {item.editor?.type === "excalidraw"
+                      ? "EXCALIDRAW"
+                      : item.mime === "text/html"
+                        ? "HTML"
+                        : item.entrypoint.split(".").pop()?.toUpperCase()}
                   </span>
                 </div>
                 <div className="artifact-card-body">
@@ -522,7 +560,7 @@ export function Artifacts() {
               <p>
                 {items.length
                   ? "Try another search or project."
-                  : "Save an HTML page, PDF or image. Revisit it here, improve it with an agent, and share it when it’s ready."}
+                  : "Draw a diagram or save an HTML page, PDF or image. Revisit it here, improve it with an agent, and share it when it’s ready."}
               </p>
               {!items.length && (
                 <button onClick={() => setUpload(true)}>
@@ -532,6 +570,50 @@ export function Artifacts() {
             </div>
           )}
         </>
+      )}
+      {diagram !== undefined && (
+        <Suspense fallback={<p role="status">Loading drawing tools…</p>}>
+          <ExcalidrawEditor
+            item={diagram}
+            close={() => setDiagram(undefined)}
+            save={async (bundle) => {
+              const replaced = new Set(bundle.files.map((file) => file.path));
+              if (diagram?.manifest.editor)
+                replaced.add(diagram.manifest.editor.source);
+              const extras = await Promise.all(
+                (diagram?.manifest.files ?? [])
+                  .filter((file) => !replaced.has(file.path))
+                  .map(async (file) => {
+                    const response = await fetch(
+                      fileUrl(
+                        diagram!.id,
+                        diagram!.selected_revision,
+                        file.path,
+                      ),
+                    );
+                    if (!response.ok)
+                      throw new Error(
+                        "Could not preserve an attached file. Please retry.",
+                      );
+                    return {
+                      path: file.path,
+                      role: file.role,
+                      base64: await encode(await response.blob()),
+                    };
+                  }),
+              );
+              const next = await action<ArtifactDetail>(
+                diagram ? `/${diagram.id}/save` : "",
+                { ...bundle, files: [...bundle.files, ...extras] },
+              );
+              setDetail(next);
+              library.refresh();
+              select(next.id);
+              setDiagram(undefined);
+              setNotice("Diagram saved. SVG and PNG previews are ready.");
+            }}
+          />
+        </Suspense>
       )}
       {upload && (
         <SaveDialog
@@ -600,6 +682,24 @@ function SaveDialog({
               32 * 1024 * 1024
             )
               throw new Error("Choose files totaling up to 32 MiB.");
+            if (
+              files.some((file) =>
+                file.name.toLowerCase().endsWith(".excalidraw"),
+              )
+            ) {
+              if (files.length !== 1 || source.length)
+                throw new Error(
+                  "Import one .excalidraw file at a time, with its images embedded.",
+                );
+              const { renderDiagram } = await import("./excalidraw");
+              await save({
+                title,
+                project,
+                folder,
+                ...(await renderDiagram(JSON.parse(await files[0]!.text()))),
+              });
+              return;
+            }
             const encoded = await Promise.all(
               [
                 ...files.map((file) => ({
@@ -644,6 +744,10 @@ function SaveDialog({
             }}
           />
         </label>
+        <small>
+          Import .excalidraw files to keep them editable and generate previews
+          automatically.
+        </small>
         {files.length > 1 && (
           <label>
             Open this file
