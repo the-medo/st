@@ -48,6 +48,8 @@ test("vanity domain requires a nonce-bound Tailscale owner handoff and keeps bac
         })
       ).status,
     ).toBe(401);
+    expect((await request(config.publicOrigin + "/api/recent-conversations")).status).toBe(401);
+    expect((await request(config.publicOrigin + "/api/recent-conversations", {}, "POST")).status).toBe(401);
     const first = await request(config.publicOrigin + "/agents?view=chat", {
       accept: "text/html",
     });
@@ -85,6 +87,7 @@ test("vanity domain requires a nonce-bound Tailscale owner handoff and keeps bac
     expect(session).not.toContain(config.ovisToken);
     expect((await request(callback, { cookie: nonce })).status).toBe(403);
     const cookie = session.split(";")[0]!;
+    expect((await request(config.publicOrigin + "/api/recent-conversations", { cookie })).status).toBe(200);
     const response = await request(config.publicOrigin + "/agents/api/health", {
       cookie,
       origin: config.publicOrigin,

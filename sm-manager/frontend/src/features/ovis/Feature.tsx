@@ -1,5 +1,5 @@
 import { setApplicationName } from "../../../../integrations/ovis/app/src/lib/i18n";
-import { agentsShortcuts } from "./shortcuts";
+import { agentsShortcuts, refreshRecentConversations } from "./shortcuts";
 import { ovisTheme } from "@st/theme/ovis";
 import { themeName } from "@st/theme";
 import "@st/theme/ovis.css";
@@ -29,6 +29,12 @@ const hostThemes = {
 };
 export default function Feature({ workmode }: { workmode: boolean }) {
   useEffect(() => watchSheetExits(), []);
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === "visible") void refreshRecentConversations(); };
+    refresh();
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, []);
   return (
     <RenderBoundary
       resetKey={null}

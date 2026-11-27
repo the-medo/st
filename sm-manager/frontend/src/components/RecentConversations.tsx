@@ -62,8 +62,9 @@ export function RecentConversations({
           </button>
         </header>
         <p className="st-recent-description">
-          Recent conversations & terminals
+          Recent conversations & terminals across all windows
         </p>
+        {picker.error && <p className="st-recent-description" role="status">Couldn’t sync recent items. Showing this window’s last known list.</p>}
         <div
           className="st-recent-list"
           ref={list}
@@ -112,7 +113,8 @@ export function RecentConversations({
               </button>
             );
           })}
-          {!picker.items.length && (
+          {picker.loading && <p className="st-recent-empty" role="status">Loading recent items…</p>}
+          {!picker.loading && !picker.items.length && (
             <p className="st-recent-empty">
               Your conversations and terminals will appear here as you open
               them.
