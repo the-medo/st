@@ -134,6 +134,10 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
             if host not in allowed:
                 return "Host not allowed"
             url = urlsplit(self.path)
+            # This narrow GET route validates an expiring capability before reading
+            # output. Sandboxed previews cannot use the owner's cookie/origin.
+            if artifact_http.preview_request(self.command, url.path):
+                return None
             # A link from chat/mail may open the React shell. This does not
             # permit cross-site API calls, frames, assets, or state changes.
             shell = (url.path in web.PAGES or url.path.startswith(("/agents/chat/", "/agents/session/")) or

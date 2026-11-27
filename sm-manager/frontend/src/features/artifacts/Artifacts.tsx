@@ -33,7 +33,10 @@ import {
 import "./artifacts.css";
 
 function Preview({ item, large = false }: { item: Artifact; large?: boolean }) {
-  const url = fileUrl(item.id, item.revision, item.entrypoint);
+  const url = item.preview_base
+    ? item.preview_base +
+      item.entrypoint.split("/").map(encodeURIComponent).join("/")
+    : fileUrl(item.id, item.revision, item.entrypoint);
   if (item.mime === "text/html")
     return (
       <div className={large ? "artifact-page" : "artifact-thumbnail"}>
@@ -119,7 +122,7 @@ export function Artifacts() {
     };
   }, [
     selected,
-    library.data?.artifacts.find((a) => a.id === selected)?.revision,
+    JSON.stringify(library.data?.artifacts.find((a) => a.id === selected)),
   ]);
   const select = (id: string | null) =>
     setParams((current) => {
@@ -138,7 +141,7 @@ export function Artifacts() {
         "X-ST-Artifacts-Token": library.data.token,
       },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(60000),
+      signal: AbortSignal.timeout(300000),
     });
   };
   const change = async (path: string, payload: unknown, message: string) => {
@@ -155,6 +158,7 @@ export function Artifacts() {
           ? cause.message
           : "The change could not be saved.",
       );
+      library.refresh();
     } finally {
       setBusy(false);
     }
@@ -301,10 +305,9 @@ export function Artifacts() {
               {detail.share_url && (
                 <div className="artifact-share">
                   <span>
-                    Shared revision {detail.published_revision}
-                    {detail.published_revision !== detail.revision
-                      ? " · You have unpublished changes"
-                      : ""}
+                    {detail.publication_pending
+                      ? "Sharing status unconfirmed. Retry publishing or stop sharing."
+                      : `Shared revision ${detail.published_revision}${detail.published_revision !== detail.revision ? " · You have unpublished changes" : ""}`}
                   </span>
                   <a
                     href={detail.share_url}
@@ -757,7 +760,8 @@ function ImproveDialog({
     .map(recentDetails)
     .filter(
       (c) =>
-        c.machineId === "local" && c.view === "chat" &&
+        c.machineId === "local" &&
+        c.view === "chat" &&
         c.agent &&
         !c.saved &&
         !["ended", "archived", "disconnected"].includes(c.status),
@@ -779,21 +783,19 @@ function ImproveDialog({
       if (sendToChat) {
         const target = choices.find((c) => c.paneId === choice);
         if (!target) throw new Error("Choose an open conversation.");
-        const [{ composerDrafts, composerDraftKey }, { paneStorageId }] =
-          await Promise.all([
-            import("../../../../integrations/ovis/app/src/lib/composerDraft"),
-            import("../../../../integrations/ovis/app/shared/machines"),
-          ]);
+        const [
+          { composerDraftKey },
+          { paneStorageId },
+          { appendArtifactDraft },
+        ] = await Promise.all([
+          import("../../../../integrations/ovis/app/src/lib/composerDraft"),
+          import("../../../../integrations/ovis/app/shared/machines"),
+          import("./handoff"),
+        ]);
         const key = composerDraftKey(
           paneStorageId(target.machineId, target.paneId),
         );
-        if (composerDrafts.read(key).sending)
-          throw new Error(
-            "This conversation is sending a message. Wait and retry.",
-          );
-        composerDrafts.set(key, (previous) =>
-          previous ? previous + "\n\n" + text : text,
-        );
+        await appendArtifactDraft(key, text);
         navigate(
           "/agents" +
             (location.search.includes("workmode=1") ? "?workmode=1" : ""),

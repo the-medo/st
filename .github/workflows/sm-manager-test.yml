@@ -22,6 +22,7 @@ jobs:
       - run: bun run test:ovis-chat
       - run: bun run build
       - run: bun node_modules/playwright-core/cli.js install --with-deps chromium
+      - run: bun run test:artifacts-browser
       - run: bun run test:browser
       - run: bun run test:ovis-browser
       - run: python -m unittest discover -s integrations/ovis/bridge -p 'test_*.py' -v

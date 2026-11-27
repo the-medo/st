@@ -58,7 +58,7 @@ export async function verifyShortcuts(page: Page, base: string) {
       .evaluate((el) => getComputedStyle(el).strokeDashoffset),
     "0px",
   );
-  assert.equal(await page.locator(".st-shortcut-key:visible").count(), 13);
+  assert.equal(await page.locator(".st-shortcut-key:visible").count(), 14);
   if (process.env.ST_SHORTCUT_EVIDENCE)
     await page.screenshot({
       path: `${process.env.ST_SHORTCUT_EVIDENCE}-ready.png`,
@@ -69,6 +69,7 @@ export async function verifyShortcuts(page: Page, base: string) {
 
   for (const [key, path] of Object.entries({
     o: "/overview",
+    l: "/artifacts",
     n: "/containers",
     g: "/github",
     s: "/storage",
@@ -282,7 +283,7 @@ export async function verifyShortcuts(page: Page, base: string) {
         [...document.querySelectorAll<HTMLElement>(".st-shortcut-key")].filter(
           (el) => el.getClientRects().length > 0,
         ).length === expected,
-      width === 900 ? 12 : 3,
+      width === 900 ? 13 : 3,
     );
     assert(
       await page

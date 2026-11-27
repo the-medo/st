@@ -84,7 +84,7 @@ export async function handle(request: Request, env: Env): Promise<Response> {
       return json({ error: "Upload too large" }, 413);
     let input: Share & { files: (Output & { role?: string })[] };
     try {
-      input = await request.json();
+      input = (await request.json()) as typeof input;
     } catch {
       return json({ error: "Invalid JSON" }, 400);
     }
@@ -176,6 +176,7 @@ export async function handle(request: Request, env: Env): Promise<Response> {
   if (!object) return json({ error: "Not found" }, 404);
   const headers: Record<string, string> = {
     "Content-Type": file.mime,
+    "Access-Control-Allow-Origin": "*",
     "Content-Length": String(file.size),
     // Every request rechecks the share pointer, including assets. Revoking access
     // cannot be bypassed through an unauthenticated object URL or an edge cache.

@@ -19,6 +19,7 @@ def file_entry(path, name, role="output"):
 
 def collect(folder):
     files = []
+    total = 0
     for path in sorted(folder.rglob("*")):
         if path.is_symlink():
             raise ArtifactError("Remove symlinks before importing an artifact bundle.")
@@ -28,6 +29,9 @@ def collect(folder):
         if path.is_file():
             if len(files) >= MAX_FILES:
                 raise ArtifactError("The bundle contains too many files. Use a dedicated output folder.")
+            total += path.stat().st_size
+            if total > MAX_BYTES:
+                raise ArtifactError("An artifact revision can contain up to 32 MiB.")
             files.append(file_entry(path, relative.as_posix()))
     return files
 
@@ -85,7 +89,15 @@ def main(argv=None):
             else:
                 entrypoint = path.name
                 files = [file_entry(path, entrypoint)]
-            files.extend(file_entry(p.expanduser(), "source/" + p.name, "source") for p in args.source)
+            total = sum(len(f["base64"]) * 3 // 4 - f["base64"].count("=") for f in files)
+            if len(files) + len(args.source) > MAX_FILES:
+                raise ArtifactError("Choose up to 256 files including editable source.")
+            for source in args.source:
+                source = source.expanduser()
+                total += source.stat().st_size
+                if total > MAX_BYTES:
+                    raise ArtifactError("An artifact revision can contain up to 32 MiB.")
+                files.append(file_entry(source, "source/" + source.name, "source"))
             result = library.save({"title": args.title, "project": project_name() if args.project is None else args.project, "folder": args.folder, "entrypoint": entrypoint, "files": files})
         elif args.command == "save":
             directory = args.directory.expanduser().resolve()

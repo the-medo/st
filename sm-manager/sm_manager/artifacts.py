@@ -1,11 +1,12 @@
 """Durable, project-independent artifacts. Published output is a separate snapshot."""
 import base64
-from contextlib import closing
+from contextlib import closing, contextmanager
+import fcntl
 import hashlib
 import json
 import mimetypes
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 import re
 import secrets
 import shutil
@@ -20,7 +21,6 @@ import uuid
 MAX_BYTES = 32 * 1024 * 1024
 MAX_FILES = 256
 ID = re.compile(r"^[a-f0-9]{32}$")
-MIME = re.compile(r"^[a-z0-9.+-]+/[a-z0-9.+-]+$")
 PREVIEW_POLICY = ("sandbox allow-scripts; default-src 'none'; script-src 'self' 'unsafe-inline'; "
                   "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
                   "font-src 'self' data:; media-src 'self' data: blob:; "
@@ -42,7 +42,7 @@ class NotFound(ArtifactError):
 def safe_path(value):
     if (not isinstance(value, str) or not value or len(value) > 512 or
             any(ord(c) < 32 for c in value) or any(c in value for c in "\\?#%") or
-            value.startswith("/") or any(p in ("", ".", "..") for p in value.split("/"))):
+            value == ".artifact.json" or value.startswith("/") or any(p in ("", ".", "..") for p in value.split("/"))):
         raise ArtifactError("Use a relative file path inside the artifact.")
     return value
 
@@ -75,7 +75,7 @@ class Library:
                     id TEXT PRIMARY KEY, title TEXT NOT NULL, project TEXT NOT NULL,
                     folder TEXT NOT NULL, created REAL NOT NULL, updated REAL NOT NULL,
                     revision INTEGER NOT NULL, published_revision INTEGER,
-                    share_token TEXT UNIQUE, source_chat TEXT NOT NULL DEFAULT ''
+                    share_token TEXT UNIQUE, publication_pending INTEGER NOT NULL DEFAULT 0, source_chat TEXT NOT NULL DEFAULT ''
                 );
                 CREATE TABLE IF NOT EXISTS revisions (
                     artifact_id TEXT NOT NULL REFERENCES artifacts(id),
@@ -83,6 +83,9 @@ class Library:
                     manifest TEXT NOT NULL, PRIMARY KEY(artifact_id, number)
                 );
             """)
+            if "publication_pending" not in {row[1] for row in db.execute("PRAGMA table_info(artifacts)")}:
+                db.execute("ALTER TABLE artifacts ADD COLUMN publication_pending INTEGER NOT NULL DEFAULT 0")
+                db.commit()
 
     def connect(self):
         db = sqlite3.connect(self.root / "library.sqlite", timeout=15)
@@ -102,7 +105,8 @@ class Library:
         result = dict(row)
         token = result.pop("share_token", None)
         origin = self.settings.get("publish_url", "").rstrip("/")
-        result["share_url"] = f"{origin}/a/{token}/" if token and result["published_revision"] and origin else None
+        result["publication_pending"] = bool(result["publication_pending"])
+        result["share_url"] = f"{origin}/a/{token}/" if token and (result["published_revision"] or result["publication_pending"]) and origin else None
         library_url = self.settings.get("library_url", "")
         result["library_url"] = f"{library_url}?id={row['id']}" if library_url else None
         return result
@@ -247,39 +251,54 @@ class Library:
         try:
             with urlopen(request, timeout=45) as response:
                 return json.loads(response.read(65536))
-        except (HTTPError, URLError, TimeoutError):
-            raise ArtifactError("The publishing service could not complete this change. Your saved revision is safe; retry sharing.") from None
+        except (HTTPError, URLError, TimeoutError) as error:
+            if isinstance(error, HTTPError):
+                error.close()
+            raise ArtifactError("Could not confirm the sharing change. The link may be active; retry publishing or stop sharing. Your saved revision is safe.") from None
+
+    @contextmanager
+    def _publication_lock(self, artifact_id):
+        # A per-artifact process lock orders publish/revoke without holding SQLite
+        # across network calls. Other artifacts and draft saves stay available.
+        with closing(self.connect()) as db:
+            self._row(db, artifact_id)
+        locks = self.root / "publication-locks"
+        locks.mkdir(exist_ok=True, mode=0o700)
+        with (locks / artifact_id).open("a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)
 
     def publish(self, artifact_id, revision):
-        # Serialize publication/revocation, including the remote acknowledgement. A failed
-        # upload leaves the old published snapshot intact. Repeating it is idempotent.
-        with closing(self.connect()) as db, db:
-            db.execute("BEGIN IMMEDIATE")
-            item = self._row(db, artifact_id)
-            if type(revision) is not int or revision != item["revision"]:
-                raise Conflict("The artifact changed. Review the current revision before sharing.")
-            token = item["share_token"] or secrets.token_urlsafe(24)
-            # Persist the identity before remote publication so a lost response never creates
-            # an untracked public URL. A token alone does not make an artifact public.
-            db.execute("UPDATE artifacts SET share_token=? WHERE id=?", (token, artifact_id))
-            db.commit()
-            db.execute("BEGIN IMMEDIATE")
-            current = self._row(db, artifact_id)
-            if current["revision"] != revision or current["share_token"] != token:
-                raise Conflict("The artifact changed. Review it before sharing.")
-            manifest = json.loads(db.execute("SELECT manifest FROM revisions WHERE artifact_id=? AND number=?", (artifact_id, revision)).fetchone()[0])
+        with self._publication_lock(artifact_id):
+            with closing(self.connect()) as db, db:
+                db.execute("BEGIN IMMEDIATE")
+                item = self._row(db, artifact_id)
+                if type(revision) is not int or revision != item["revision"]:
+                    raise Conflict("The artifact changed. Review the current revision before sharing.")
+                token = item["share_token"] or secrets.token_urlsafe(24)
+                # Commit identity and uncertainty first. Even a lost acknowledgement
+                # leaves the same visible link available to retry or revoke.
+                db.execute("UPDATE artifacts SET share_token=?,publication_pending=1 WHERE id=?", (token, artifact_id))
+                manifest = json.loads(db.execute("SELECT manifest FROM revisions WHERE artifact_id=? AND number=?", (artifact_id, revision)).fetchone()[0])
             outputs = [f for f in manifest["files"] if f["role"] == "output"]
             for file in outputs:
                 self._remote("PUT", f"/admin/objects/{file['sha256']}", blob=(self.root / "objects" / file["sha256"]).read_bytes())
             self._remote("PUT", f"/admin/shares/{token}", {"artifact_id": artifact_id, "revision": revision, "entrypoint": manifest["entrypoint"], "files": outputs})
-            db.execute("UPDATE artifacts SET published_revision=? WHERE id=?", (revision, artifact_id))
+            with closing(self.connect()) as db, db:
+                db.execute("UPDATE artifacts SET published_revision=?,publication_pending=0 WHERE id=?", (revision, artifact_id))
         return self.get(artifact_id)
 
     def unpublish(self, artifact_id):
-        with closing(self.connect()) as db, db:
-            db.execute("BEGIN IMMEDIATE")
-            item = self._row(db, artifact_id)
+        with self._publication_lock(artifact_id):
+            with closing(self.connect()) as db, db:
+                item = self._row(db, artifact_id)
+                if item["share_token"]:
+                    db.execute("UPDATE artifacts SET publication_pending=1 WHERE id=?", (artifact_id,))
             if item["share_token"]:
                 self._remote("DELETE", f"/admin/shares/{item['share_token']}")
-                db.execute("UPDATE artifacts SET published_revision=NULL WHERE id=?", (artifact_id,))
+                with closing(self.connect()) as db, db:
+                    db.execute("UPDATE artifacts SET published_revision=NULL,publication_pending=0 WHERE id=?", (artifact_id,))
         return self.get(artifact_id)

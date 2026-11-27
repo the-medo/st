@@ -14,6 +14,9 @@ config = {'frontend': 'react', 'port': 0, 'allowed_hosts': ['127.0.0.1']}
 if os.environ.get('ST_ARTIFACTS_FIXTURE_CONFIG'):
     from sm_manager.artifacts import Library
     config['artifacts_config_path'] = os.environ['ST_ARTIFACTS_FIXTURE_CONFIG']
+    config['allowed_hosts'].append('st.example.test')
+    if os.environ.get('ST_ARTIFACTS_FIXTURE_GATEWAY_PORT'):
+        config['allowed_hosts'].append('127.0.0.1:' + os.environ['ST_ARTIFACTS_FIXTURE_GATEWAY_PORT'])
     # Only this synthetic test process skips the external publishing transport.
     Library._remote = lambda self, *args, **kwargs: {}
 Base = handler_for(None, config)

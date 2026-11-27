@@ -37,8 +37,8 @@ import { isWorkmode, withWorkmode } from "../lib/workmode";
 import type { UiConfig } from "../lib/types";
 
 export const navigation = [
-  ["artifacts", "Artifacts", "artifacts", "F"],
   ["overview", "Overview", "overview", "O"],
+  ["artifacts", "Artifacts", "artifacts", "L"],
   ["projects", "Projects", "projects", "P"],
   ["containers", "Containers", "containers", "N"],
   ["github", "GitHub", "github", "G"],

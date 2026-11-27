@@ -1,13 +1,13 @@
 import base64
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import closing
 from http.server import ThreadingHTTPServer
 import json
 from pathlib import Path
 import tempfile
+import shutil
 import threading
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -32,6 +32,8 @@ class ArtifactsTests(unittest.TestCase):
         one = self.library.save(payload())
         work = self.library.checkout(one["id"])
         self.assertEqual(Path(work["directory"], "index.html").read_bytes(), b"<h1>Diagram</h1>")
+        shutil.rmtree(work["directory"])
+        self.assertEqual(self.library.file(one["id"], 1, "index.html")[1], b"<h1>Diagram</h1>")
         two = self.library.save(payload(b"<h1>Improved</h1>", base_revision=1), one["id"])
         self.assertEqual(two["id"], one["id"])
         self.assertEqual(two["revision"], 2)
@@ -80,10 +82,41 @@ class ArtifactsTests(unittest.TestCase):
         with self.assertRaises(ArtifactError):
             self.library.publish(item["id"], 1)
         attempted = self.library._remote.call_args.args[1]
+        uncertain = self.library.get(item["id"])
+        self.assertTrue(uncertain["publication_pending"])
+        self.assertIsNotNone(uncertain["share_url"])
         self.library._remote = Mock(return_value={})
         shared = self.library.publish(item["id"], 1)
         self.assertEqual(self.library._remote.call_args.args[1], attempted)
+        self.assertFalse(shared["publication_pending"])
         self.assertTrue(shared["share_url"].endswith(attempted.rsplit("/", 1)[-1] + "/"))
+
+    def test_slow_publication_allows_saves_and_revocation_is_ordered_after_it(self):
+        item = self.library.save(payload())
+        entered, release = threading.Event(), threading.Event()
+        calls = []
+        def remote(method, path, *args, **kwargs):
+            calls.append((method, path))
+            if path.startswith("/admin/objects/"):
+                entered.set()
+                if not release.wait(5):
+                    raise RuntimeError("Test upload timed out")
+            return {}
+        self.library._remote = remote
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            publishing = pool.submit(self.library.publish, item["id"], 1)
+            self.assertTrue(entered.wait(2))
+            try:
+                edited = pool.submit(self.library.save, payload(base_revision=1), item["id"]).result(timeout=2)
+                self.assertEqual(edited["revision"], 2)
+                revoking = pool.submit(self.library.unpublish, item["id"])
+            finally:
+                release.set()
+            publishing.result(timeout=3)
+            revoked = revoking.result(timeout=3)
+        self.assertIsNone(revoked["published_revision"])
+        self.assertFalse(revoked["publication_pending"])
+        self.assertEqual([call[0] for call in calls], ["PUT", "PUT", "DELETE"])
 
     def test_invalid_paths_duplicate_files_and_missing_entrypoint_are_rejected(self):
         for path in ("../secret", "/etc/passwd", "source/../../secret", "x\\y", "a//b", "a/%2e%2e/b"):
@@ -131,6 +164,7 @@ class ArtifactHttpTests(unittest.TestCase):
         with self.assertRaises(HTTPError) as refused:
             urlopen(request)
         self.assertEqual(refused.exception.code, 403)
+        refused.exception.close()
         request.add_header("X-ST-Artifacts-Token", token)
         with urlopen(request) as response:
             item = json.load(response)
@@ -142,10 +176,25 @@ class ArtifactHttpTests(unittest.TestCase):
             self.assertEqual(response.headers["Cache-Control"], "no-store")
         with urlopen(self.base + path + "source/notes.md") as response:
             self.assertEqual(response.headers["Content-Disposition"], "attachment")
+        preview = item["preview_base"]
+        headers = {"Sec-Fetch-Site": "cross-site", "Origin": "null"}
+        with urlopen(Request(self.base + preview + "index.html", headers=headers)) as response:
+            self.assertEqual(response.headers["Access-Control-Allow-Origin"], "*")
+        for invalid in (preview + "source/notes.md", preview.replace(item["id"], "a" * 32) + "index.html"):
+            with self.assertRaises(HTTPError) as denied:
+                urlopen(Request(self.base + invalid, headers=headers))
+            self.assertIn(denied.exception.code, (403, 404))
+            denied.exception.close()
+        with patch("sm_manager.artifact_http.time.time", return_value=9999999999):
+            with self.assertRaises(HTTPError) as denied:
+                urlopen(Request(self.base + preview + "index.html", headers=headers))
+            self.assertEqual(denied.exception.code, 403)
+            denied.exception.close()
         request = Request(self.base + "/api/artifacts", headers={"Sec-Fetch-Site": "cross-site"})
         with self.assertRaises(HTTPError) as refused:
             urlopen(request)
         self.assertEqual(refused.exception.code, 403)
+        refused.exception.close()
 
 
 if __name__ == "__main__":

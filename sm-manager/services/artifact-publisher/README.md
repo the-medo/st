@@ -6,12 +6,21 @@ Its SQLite catalog and immutable content files live outside checkouts. The
 checks the base revision on save so two agents cannot overwrite one another.
 Moving an artifact or removing a project checkout does not change its identity.
 
+Private previews use signed URLs scoped to one revision’s output, valid for at
+most one hour and invalidated by a monitor restart. This lets sandboxed frames
+load relative assets without owner cookies. Source files and library actions
+remain owner-only; preview capabilities cannot access them.
+
 The public Worker binds the private `artifacts` R2 bucket. It receives only
 explicitly published output, never the editable source files. Uploads write
 content-addressed objects before changing the share manifest. Every public
 request checks the share manifest, including nested assets. The bucket must
 have neither r2.dev public access nor a direct bucket custom domain enabled.
 The custom domain belongs to the Worker.
+
+If a network response is lost, the library marks the sharing status unconfirmed
+and keeps the same link available to retry or revoke. Publication is serialized
+per artifact; draft saves and other artifacts remain available during uploads.
 
 The gallery follows the document-card pattern used by artifact libraries:
 preview first, then title, project and sharing state. The agent handoff adds a
@@ -25,8 +34,9 @@ https://your-publishing-domain.example`. This installs the CLI and a discoverabl
 Codex skill independently of the checkout, along with private configuration and
 a generated publisher credential. Re-run after changes to update the runtime.
 The console reads that configuration by default; set `artifacts_config_path` in
-its private profile to choose another library. For previews and tests, always
-use an isolated data directory and credential.
+its private profile to choose another library. For automated tests and synthetic preview screenshots, always use an isolated
+data directory and credential. An owner preview may point to the installed
+library when manually reviewing the actual integration.
 
 Deploy `services/artifact-publisher/worker.ts` with its R2 binding and the
 `PUBLISH_KEY` secret from the generated `publish_key_file`. Assign a dedicated

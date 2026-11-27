@@ -7,9 +7,11 @@ export type Artifact = {
   updated: number;
   revision: number;
   published_revision: number | null;
+  publication_pending: boolean;
   share_url: string | null;
   entrypoint: string;
   mime: string;
+  preview_base?: string;
 };
 export type ArtifactFile = {
   path: string;

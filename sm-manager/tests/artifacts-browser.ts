@@ -10,6 +10,7 @@ import {
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fixtureApi } from "./v2-fixtures";
+import { createGateway } from "../services/web-gateway/gateway";
 
 const cache = join(homedir(), ".cache/ovis-tmp/artifacts");
 mkdirSync(cache, { recursive: true });
@@ -23,11 +24,22 @@ await Bun.write(
     cli: resolve("scripts/artifacts.py"),
   }),
 );
+const probe = Bun.serve({
+  hostname: "127.0.0.1",
+  port: 0,
+  fetch: () => new Response(),
+});
+const gatewayPort = probe.port;
+probe.stop(true);
 const fixture = Bun.spawn(["python3", "-u", "tests/serve_v2_fixture.py"], {
   stdin: "pipe",
   stdout: "pipe",
   stderr: "pipe",
-  env: { ...process.env, ST_ARTIFACTS_FIXTURE_CONFIG: config },
+  env: {
+    ...process.env,
+    ST_ARTIFACTS_FIXTURE_CONFIG: config,
+    ST_ARTIFACTS_FIXTURE_GATEWAY_PORT: String(gatewayPort),
+  },
 });
 const routes = [
   "/api/ui-config",
@@ -51,7 +63,19 @@ fixture.stdin.end();
 const reader = fixture.stdout.getReader();
 const port = new TextDecoder().decode((await reader.read()).value).trim();
 assert.match(port, /^\d+$/);
-const base = `http://127.0.0.1:${port}`;
+const upstream = `http://127.0.0.1:${port}`;
+const gateway = createGateway({
+  port: gatewayPort!,
+  publicOrigin: "https://st.example.test",
+  ownerLogin: "fixture@example.test",
+  ownerAuth: {
+    origin: "https://node.example.ts.net",
+    sessionSecret: "synthetic-preview-signing-secret-32-characters",
+  },
+  monitorOrigin: upstream,
+  ovisOrigin: upstream,
+});
+const base = `http://127.0.0.1:${gateway.port}`;
 const browsers = join(homedir(), ".cache/ms-playwright");
 const version = readdirSync(browsers)
   .filter((name) => name.startsWith("chromium-"))
@@ -67,7 +91,7 @@ const browser = await chromium.launch({
   args: ["--no-sandbox"],
 });
 const errors: string[] = [];
-const html = `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;padding:56px;background:#f2f3ef;color:#223530;font:18px system-ui}small{color:#608071;letter-spacing:3px}h1{font-size:44px;letter-spacing:-2px;margin:20px 0 12px}.flow{display:flex;align-items:center;gap:20px;margin-top:64px}.box{background:white;border:1px solid #c8d7cb;border-radius:14px;padding:28px;font-size:19px}.arrow{color:#6f8e7b}.legend{margin-top:40px;color:#6a7972}</style></head><body><small>EXAMPLE PROJECT / ARCHITECTURE</small><h1>From idea to artifact</h1><p>A little work, with a lasting place.</p><div class="flow"><div class="box">Create</div><span class="arrow">→</span><div class="box">Keep & improve</div><span class="arrow">→</span><div class="box">Share</div></div><p class="legend">Private by default. Published when ready.</p><script>document.body.dataset.ready='yes';try{parent.document.body.dataset.escape='bad'}catch{document.body.dataset.isolated='yes'}</script></body></html>`;
+const html = `<!doctype html><html><head><meta charset="utf-8"><script src="helper.js"></script><style>body{margin:0;padding:56px;background:#f2f3ef;color:#223530;font:18px system-ui}small{color:#608071;letter-spacing:3px}h1{font-size:44px;letter-spacing:-2px;margin:20px 0 12px}.flow{display:flex;align-items:center;gap:20px;margin-top:64px}.box{background:white;border:1px solid #c8d7cb;border-radius:14px;padding:28px;font-size:19px}.arrow{color:#6f8e7b}.legend{margin-top:40px;color:#6a7972}</style></head><body><small>EXAMPLE PROJECT / ARCHITECTURE</small><h1>From idea to artifact</h1><p>A little work, with a lasting place.</p><div class="flow"><div class="box">Create</div><span class="arrow">→</span><div class="box">Keep & improve</div><span class="arrow">→</span><div class="box">Share</div></div><p class="legend">Private by default. Published when ready.</p><script>document.body.dataset.ready='yes';try{parent.document.body.dataset.escape='bad'}catch{document.body.dataset.isolated='yes'}</script></body></html>`;
 try {
   const page = await browser.newPage({
     viewport: { width: 1440, height: 1000 },
@@ -82,26 +106,27 @@ try {
       path: join(process.env.ST_ARTIFACTS_EVIDENCE, "artifacts-empty.png"),
     });
   await page.getByRole("button", { name: "Save a file", exact: true }).click();
-  await page
-    .getByLabel("Output files")
-    .setInputFiles({
-      name: "index.html",
-      mimeType: "text/html",
-      buffer: Buffer.from(html),
-    });
+  await page.getByLabel("Output files").setInputFiles([
+    { name: "index.html", mimeType: "text/html", buffer: Buffer.from(html) },
+    {
+      name: "helper.js",
+      mimeType: "text/javascript",
+      buffer: Buffer.from(
+        "document.documentElement.dataset.bundleReady = 'yes';",
+      ),
+    },
+  ]);
   await page.getByLabel("Title", { exact: true }).fill("Architecture diagram");
   await page
     .getByLabel("Project", { exact: true })
     .last()
     .fill("Example project");
   await page.getByLabel("Folder", { exact: true }).last().fill("Diagrams");
-  await page
-    .getByLabel("Editable source")
-    .setInputFiles({
-      name: "notes.md",
-      mimeType: "text/markdown",
-      buffer: Buffer.from("Private editable notes"),
-    });
+  await page.getByLabel("Editable source").setInputFiles({
+    name: "notes.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from("Private editable notes"),
+  });
   await page
     .getByRole("button", { name: "Save artifact", exact: true })
     .click();
@@ -113,6 +138,48 @@ try {
   const frame = page.frameLocator(".artifact-preview iframe");
   await frame.locator('body[data-ready="yes"][data-isolated="yes"]').waitFor();
   assert.equal(await page.locator("body").getAttribute("data-escape"), null);
+  await frame
+    .locator('html[data-bundle-ready="yes"]')
+    .waitFor({ timeout: 3000 });
+  const privatePreview = await page
+    .locator(".artifact-preview iframe")
+    .getAttribute("src");
+  const publicHeaders = {
+    host: "st.example.test",
+    origin: "null",
+    "sec-fetch-site": "cross-site",
+  };
+  assert.equal(
+    (await fetch(base + privatePreview, { headers: publicHeaders })).status,
+    200,
+  );
+  assert.equal(
+    (
+      await fetch(
+        base + privatePreview!.replace("index.html", "source/notes.md"),
+        { headers: publicHeaders },
+      )
+    ).status,
+    404,
+  );
+  assert.equal(
+    (
+      await fetch(base + privatePreview!.replace(artifactId, "b".repeat(32)), {
+        headers: publicHeaders,
+      })
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await fetch(base + "/api/artifacts", {
+        headers: publicHeaders,
+        redirect: "manual",
+      })
+    ).status,
+    403,
+  );
+
   await page
     .getByRole("button", { name: "Share artifact", exact: true })
     .click();
@@ -216,6 +283,10 @@ try {
     .getByRole("combobox", { name: "Project", exact: true })
     .selectOption("Another project");
   assert.equal(await page.locator(".artifact-card").count(), 1);
+  await page
+    .frameLocator(".artifact-thumbnail iframe")
+    .getByRole("heading", { name: "From idea to artifact" })
+    .waitFor();
   if (process.env.ST_ARTIFACTS_EVIDENCE)
     await page.screenshot({
       path: join(process.env.ST_ARTIFACTS_EVIDENCE, "artifacts-gallery.png"),
@@ -234,6 +305,10 @@ try {
     .getByRole("button", { name: "All artifacts", exact: true })
     .click();
   await page.getByRole("button", { name: /Architecture diagram/ }).waitFor();
+  await page
+    .frameLocator(".artifact-thumbnail iframe")
+    .getByRole("heading", { name: "From idea to artifact" })
+    .waitFor();
   if (process.env.ST_ARTIFACTS_EVIDENCE)
     await page.screenshot({
       path: join(process.env.ST_ARTIFACTS_EVIDENCE, "artifacts-mobile.png"),
@@ -264,6 +339,7 @@ try {
   );
 } finally {
   await browser.close();
+  gateway.stop(true);
   fixture.kill();
   await fixture.exited;
   rmSync(temporary, { recursive: true, force: true });

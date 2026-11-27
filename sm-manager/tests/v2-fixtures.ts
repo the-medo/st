@@ -147,6 +147,8 @@ export function fixtureApi(url: URL, method: string) {
   const p = url.pathname;
   const now = Date.now() / 1000;
   if (p === "/api/ui-config") return ui;
+  if (p === "/api/artifacts")
+    return { artifacts: [], token: "synthetic-artifacts-token" };
   if (p === "/api/github") return githubFixture;
   if (p === "/api/health") return { status: "ok" };
   if (p === "/api/snapshot") return snapshot;
