@@ -29,6 +29,7 @@
 .medo-indicator{width:19px;flex:0 0 19px;display:flex;align-items:center;justify-content:center;color:var(--text-dim)}
 .medo-indicator.is-working{color:var(--medo-activity)}
 .medo-chat-text{display:flex;flex-direction:column;min-width:0}
+.medo-chat-provider{display:inline-flex;vertical-align:middle;margin-inline-start:6px;color:var(--text-dim)}.medo-chat-provider .agent-mark{display:flex}
 .medo-chat-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .medo-indicator.needs-attention,.medo-chat-attention{color:var(--status-blocked)}
 .medo-chat-attention{font-size:11px;line-height:16px}

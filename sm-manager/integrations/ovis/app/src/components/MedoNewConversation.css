@@ -1,0 +1,23 @@
+.medo-new-page{flex:1;min-height:0;overflow:auto;padding:32px 24px 48px;background:var(--bg)}
+.medo-new-content{width:min(100%,760px);margin:auto}.medo-new-header{display:flex;align-items:center;gap:16px;margin-bottom:28px}.medo-new-header h1{font-size:24px;line-height:1.3;margin:0;color:var(--text-strong)}.medo-new-back{display:flex;align-items:center;gap:5px;flex:none}
+.medo-new-form{display:flex;flex-direction:column;gap:18px}.medo-new-form label{display:flex;flex-direction:column;gap:7px;margin:0;font-weight:500;color:var(--text-dim)}
+.medo-new-form input,.medo-new-form select,.medo-new-form textarea{width:100%;min-width:0;font:inherit;color:var(--text);background:var(--bg-input);border:1px solid var(--border);border-radius:9px;padding:10px 12px}
+.medo-new-form select{height:40px;font-size:13px}.medo-new-form input:focus-visible,.medo-new-form select:focus-visible,.medo-new-form textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.medo-new-destination{display:flex;flex-direction:column;gap:12px}.medo-new-folder{display:flex;gap:8px}.medo-new-folder input{flex:1}
+.medo-new-project-fields{display:flex;gap:12px}.medo-new-project-fields>label{flex:1;min-width:0}
+.medo-provider-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding-top:8px}
+.medo-new-page .medo-provider-card{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:26px 12px 14px;border:1px solid var(--border);border-radius:16px;background:var(--bg);transition:border-color .15s,background .15s;min-height:172px}
+.medo-new-page .medo-provider-card:hover{background:var(--bg-hover);border-color:var(--border-strong)}
+.medo-new-page .medo-provider-card.is-selected{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 6%,var(--bg));box-shadow:0 0 0 1px var(--accent)}
+.medo-provider-logo{display:flex;align-items:center;justify-content:center;height:68px;color:var(--text-strong)}.medo-provider-logo .agent-mark{display:flex}
+.medo-provider-name{font-size:16px;font-weight:650;color:var(--text-strong)}
+.medo-provider-selection{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-dim);min-height:16px}.is-selected .medo-provider-selection{color:var(--accent)}
+.medo-weekly-badge{position:absolute;top:-10px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;padding:4px 10px;border-radius:20px;border:1px solid var(--border-strong);background:var(--bg-panel);font-size:11px;line-height:16px;color:var(--text-dim)}
+.medo-weekly-badge strong{color:var(--text-strong);font-weight:650}.medo-weekly-badge.is-low,.medo-weekly-badge.is-low strong{color:var(--status-blocked)}
+.medo-new-models{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:12px}
+.medo-new-form textarea{resize:vertical;min-height:180px;max-height:50dvh;font-size:14px;line-height:1.6;padding:13px 14px}
+.medo-new-form textarea::placeholder{color:var(--text-dim)}.medo-new-note{font-size:12px;line-height:1.5;color:var(--text-dim);margin:0}
+.medo-new-actions{display:flex;justify-content:space-between;align-items:center;gap:12px}.medo-new-page .medo-usage-refresh{font-size:11px;color:var(--text-dim);border:0;background:none;padding:6px 0}
+.medo-new-page .medo-new-submit{display:flex;align-items:center;justify-content:center;gap:7px;padding:10px 14px;border-radius:9px;font-weight:600;color:var(--primary-text)}.medo-new-form .medo-error{margin:0}
+@media(max-width:480px){.medo-new-page{padding:22px 16px 32px}.medo-new-header{margin-bottom:24px;gap:12px}.medo-new-header h1{font-size:20px}.medo-provider-choices{gap:12px}.medo-new-page .medo-provider-card{min-height:158px;padding-inline:8px}.medo-weekly-badge{padding-inline:7px;font-size:10px}.medo-new-models{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}.medo-new-form{gap:16px}}
+@media(prefers-reduced-motion:reduce){.medo-provider-card{transition:none}}

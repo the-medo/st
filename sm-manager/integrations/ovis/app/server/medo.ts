@@ -4,6 +4,12 @@ import type { ConversationPart, ConversationTurn } from '../shared/protocol.ts';
 import { codexReadSkills, skillInvocationPrompt } from './skill-activity.ts';
 import { formatCodexQuestionReply } from '../shared/codex-question-reply.ts';
 import { badRequest, jsonResponse, readJsonObject, setRequestRoute } from './http.ts';
+import type { MedoProviders } from '../shared/medo.ts';
+import { firstMessageFault } from '../shared/launch-rules.ts';
+import type { FirstMessages } from './workspace-routes.ts';
+import { homeSignIn, systemUsageContext } from './usage.ts';
+import { authorizedTranscript } from './transcript-store.ts';
+import { readBound } from './conversation-shared.ts';
 
 import { HistoryChanged, type ConversationPage, type RecognizedConversation } from './conversation-shared.ts';
 
@@ -75,20 +81,66 @@ export function medoConversation(data: any): RecognizedConversation {
     activity: data.active ? 'working' : 'idle' };
 }
 
-export async function handleMedoRequest(request: Request, url: URL, readOnly: boolean, call = medoCall): Promise<Response | null> {
+interface MedoServices {
+  firstMessages?: FirstMessages;
+  changed?: () => void;
+  timeout?: () => void;
+  call?: typeof medoCall;
+}
+
+export async function handleMedoRequest(request: Request, url: URL, readOnly: boolean, services: MedoServices = {}): Promise<Response | null> {
   if (process.env['MEDO_PROJECTS'] !== '1') return null;
   const own = url.pathname.startsWith('/api/medo/');
   const conversation = url.pathname === '/api/pane/conversation' && request.method === 'GET';
-  if (!own && !conversation) return null;
-  if (readOnly && own) return jsonResponse({ error: { code: 'read_only', message: 'This device can only watch.' } }, 403);
+  const savedClaudeMedia = ['/api/pane/conversation/image', '/api/pane/conversation/tool-output'].includes(url.pathname)
+    && /^medo:claude:[0-9a-f-]{36}$/.test(url.searchParams.get('pane_id') ?? '');
+  if (!own && !conversation && !savedClaudeMedia) return null;
+  if (readOnly && (own || savedClaudeMedia)) return jsonResponse({ error: { code: 'read_only', message: 'This device can only watch.' } }, 403);
   try {
+    const call = services.call ?? medoCall;
     if (conversation) return null;
     setRequestRoute('/api/medo');
+    if (savedClaudeMedia) {
+      if (request.method !== 'GET') return badRequest('method_not_allowed', 'Use GET to read saved conversation content.');
+      const ref = url.searchParams.get('ref');
+      if (!ref) return badRequest('missing_parameter', 'Choose an image or tool output.');
+      const authorized = await savedClaudeTranscript(url.searchParams.get('pane_id')!.slice(5), call);
+      if (!authorized) return jsonResponse({ error: { code: 'not_found', message: 'Saved content is unavailable.' } }, 404);
+      const { transcriptImage, transcriptToolOutput } = await import('./conversation.ts');
+      const [dev, ino] = authorized.identity.split(':').map(BigInt);
+      const headers = { 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff' };
+      if (url.pathname.endsWith('/image')) {
+        const image = readBound([[authorized.path, { dev: dev!, ino: ino! }]], () => transcriptImage(authorized.path, ref));
+        return image ? new Response(image.bytes, { headers: { ...headers, 'content-type': image.mediaType, 'content-security-policy': "default-src 'none'; sandbox" } })
+          : jsonResponse({ error: { code: 'image_not_found', message: 'This image is unavailable.' } }, 404);
+      }
+      const output = readBound([[authorized.path, { dev: dev!, ino: ino! }]], () => transcriptToolOutput('claude-transcript', authorized.path, ref));
+      return output !== null ? new Response(output, { headers: { ...headers, 'content-type': 'text/plain; charset=utf-8' } })
+        : jsonResponse({ error: { code: 'output_not_found', message: 'This tool output is unavailable.' } }, 404);
+    }
+    if (request.method === 'GET' && url.pathname === '/api/medo/defaults') {
+      const result = await call({ operation: 'defaults', provider: url.searchParams.get('provider'),
+        projectId: url.searchParams.get('projectId') ?? undefined, cwd: url.searchParams.get('cwd') ?? undefined,
+        model: url.searchParams.get('model') ?? '' });
+      return jsonResponse(result, 200, { 'cache-control': 'no-store' });
+    }
+    if (request.method === 'GET' && url.pathname === '/api/medo/providers') {
+      const ctx = systemUsageContext();
+      const [result, codex, claude] = await Promise.all([
+        call({ operation: 'providers' }) as Promise<MedoProviders>,
+        homeSignIn(ctx, 'codex', ctx.env['CODEX_HOME'] ? { kind: 'dir', dir: ctx.env['CODEX_HOME'] } : { kind: 'default' }).catch(() => null),
+        homeSignIn(ctx, 'claude', ctx.env['CLAUDE_CONFIG_DIR'] ? { kind: 'dir', dir: ctx.env['CLAUDE_CONFIG_DIR'] } : { kind: 'default' }).catch(() => null),
+      ]);
+      return jsonResponse({ providers: result.providers.map((provider) => {
+        const signIn = provider.id === 'codex' ? codex : claude;
+        return { ...provider, usageKey: signIn && signIn !== 'unknown' ? signIn.key : null };
+      }) }, 200, { 'cache-control': 'no-store' });
+    }
     if (request.method === 'GET' && url.pathname === '/api/medo/conversation') {
       const result = await readMedoConversation(url.searchParams.get('pane_id') ?? '', {
         before: url.searchParams.get('before') ?? undefined, from: url.searchParams.get('from') ?? undefined,
         history_id: url.searchParams.get('history_id') ?? undefined,
-      }, true);
+      }, true, call);
       return result ? jsonResponse({ ...result, server_time: new Date().toISOString() }, 200, { 'cache-control': 'no-store' }) : badRequest('invalid_conversation', 'Choose a saved conversation.');
     }
 
@@ -121,21 +173,69 @@ export async function handleMedoRequest(request: Request, url: URL, readOnly: bo
       if (!['send', 'answer', 'stop'].includes(String(payload.action))) return badRequest('unknown_action', 'Choose an assistant action.');
       return jsonResponse(await call({ ...payload, operation: `assistant_${payload.action}` }));
     }
+    if (url.pathname === '/api/medo/new') {
+      const provider = payload['provider'] ?? 'codex';
+      if (provider !== 'codex' && provider !== 'claude') return badRequest('invalid_provider', 'Choose Codex or Claude.');
+      if ((payload['model'] !== undefined && typeof payload['model'] !== 'string') || (payload['effort'] !== undefined && typeof payload['effort'] !== 'string')) return badRequest('invalid_model', 'Choose a model and reasoning level.');
+      const prompt = payload['prompt'];
+      const fault = firstMessageFault(prompt, provider);
+      if (fault) return badRequest('invalid_first_message', fault);
+      const connection = payload['first_message_connection'] ?? null;
+      if (connection !== null && (typeof connection !== 'string' || !connection || connection.length > 128)) return badRequest('invalid_first_message', 'Choose a connected conversation window.');
+      if (typeof prompt === 'string' && !services.firstMessages) return badRequest('message_queue_unavailable', 'The message queue is unavailable. Try again shortly.');
+      const asked = typeof prompt === 'string' ? services.firstMessages!.ask(connection as string | null) : null;
+      services.timeout?.();
+      try {
+        const { pid, ...result } = await call({ ...payload, provider, operation: 'new' });
+        asked?.at(result.address);
+        services.changed?.();
+        if (asked && typeof prompt === 'string') {
+          try {
+            const message = await services.firstMessages!.queue(result.address, prompt, provider, asked, typeof pid === 'number' ? pid : null);
+            result.first_message = { id: message.id, ...(message.state === 'held' && message.error ? { held: message.error.code } : {}) };
+          } catch {
+            // Creation succeeded: return its pane so a retry cannot create another conversation.
+            result.first_message = { error: { message: 'Conversation created. Your message was saved as a draft; send it from the conversation.' } };
+          }
+        }
+        services.changed?.();
+        return jsonResponse(result);
+      } finally { asked?.end(); }
+    }
     const operations: Record<string, string> = { '/api/medo/models': 'models', '/api/medo/settings': 'settings', '/api/medo/open': 'open', '/api/medo/new': 'new', '/api/medo/rename': 'rename', '/api/medo/organize': 'organize', '/api/medo/style': 'style', '/api/medo/icon': 'icon-put' };
     const operation = operations[url.pathname];
     if (!operation) return badRequest('unknown_action', 'Unknown project action.');
-    return jsonResponse(await call({ ...payload, operation }));
+    const { pid: _pid, ...result } = await call({ ...payload, operation });
+    return jsonResponse(result);
   } catch (error) {
     if (error instanceof HistoryChanged) return jsonResponse({ error: { code: 'history_changed', message: error.message } }, 409);
     return jsonResponse({ error: { code: 'project_action_failed', message: error instanceof Error ? error.message : 'The project action failed.' } }, 400);
   }
 }
 
-/** All Ovis readers (HTTP, watches and search) use the same managed-daemon history. */
-export async function readMedoConversation(paneId: string, page: ConversationPage, saved = false): Promise<RecognizedConversation | null> {
-  if (process.env['MEDO_PROJECTS'] !== '1' || !/^(t[\da-z]+|medo:[0-9a-f-]{36})$/.test(paneId)) return null;
+/** Resolve only registered native Claude history, then bind reads to that file. */
+async function savedClaudeTranscript(threadId: string, call = medoCall) {
+  const data = await call({ operation: 'claude-history', threadId });
+  if (!data) return null;
+  const authorized = authorizedTranscript(data.path, data.root);
+  if (!authorized) throw new Error('The saved Claude conversation is unavailable.');
+  return authorized;
+}
+
+export async function readMedoConversation(paneId: string, page: ConversationPage, saved = false, call = medoCall): Promise<RecognizedConversation | null> {
+  if (process.env['MEDO_PROJECTS'] !== '1' || !/^(t[\da-z]+|medo:(?:claude:)?[0-9a-f-]{36})$/.test(paneId)) return null;
   if (paneId.startsWith('medo:') && !saved) return null;
-  const data = await medoCall({ operation: 'conversation', ...(paneId.startsWith('medo:') ? { threadId: paneId.slice(5) } : { paneId }), before: page.before, from: page.from });
+  if (paneId.startsWith('medo:claude:')) {
+    const authorized = await savedClaudeTranscript(paneId.slice(5), call);
+    if (!authorized) return { source: 'claude-transcript', history_id: paneId, turns: [], version: 'empty', cursor: null, metadata: { model: null, reasoning_effort: null }, activity: 'idle' };
+    // The native reader provides paging, tools, thinking, branches and metadata for saved history too.
+    const { transcriptPage } = await import('./conversation.ts');
+    const [dev, ino] = authorized.identity.split(':').map(BigInt);
+    const result = readBound([[authorized.path, { dev: dev!, ino: ino! }]], () => transcriptPage('claude-transcript', authorized.path, page));
+    if (page.history_id && page.history_id !== result.history_id) throw new HistoryChanged();
+    return result;
+  }
+  const data = await call({ operation: 'conversation', ...(paneId.startsWith('medo:') ? { threadId: paneId.slice(5) } : { paneId }), before: page.before, from: page.from });
   if (!data) return null;
   if (data.historyChanged) throw new HistoryChanged();
   const result = medoConversation(data);
