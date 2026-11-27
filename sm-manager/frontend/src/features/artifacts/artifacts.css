@@ -27,7 +27,7 @@
   letter-spacing: 0.16em;
   font-weight: 650;
 }
-.artifact-library button:not(.st-artifact-editor-canvas *),
+.artifact-library button:not(.st-artifact-editor-canvas *, .st-ovis-root *),
 .artifact-form button,
 .artifact-library .artifact-actions a {
   display: inline-flex;
@@ -415,7 +415,7 @@
 }
 .artifact-editor-fields {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr;
   gap: 12px;
   padding: 0 20px 16px;
 }
@@ -473,5 +473,158 @@
     margin: 0;
     border: 0;
     border-radius: 0;
+  }
+}
+
+.artifact-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.artifact-project-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--artifact-project-title);
+  min-width: 0;
+}
+.artifact-project-icon {
+  color: var(--artifact-project-icon);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 24px;
+  height: 24px;
+  font-size: 13px;
+  font-weight: 650;
+}
+.artifact-project-icon img {
+  width: 24px;
+  height: 24px;
+  object-fit: cover;
+  border-radius: 5px;
+}
+.artifact-project-badge > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.artifact-card-body > .artifact-project-badge {
+  display: flex;
+}
+.st-app button.artifact-card {
+  border-color: color-mix(
+    in srgb,
+    var(--artifact-project-border) 60%,
+    var(--line)
+  );
+}
+.artifact-project-picker {
+  position: relative;
+  min-width: 190px;
+}
+.artifact-project-picker > button {
+  width: 100%;
+  justify-content: space-between !important;
+  gap: 20px;
+}
+.artifact-project-options {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  z-index: 20;
+  width: max(100%, 260px);
+  max-width: calc(100vw - 48px);
+  max-height: 330px;
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel, #151b24);
+  box-shadow: 0 12px 35px #0006;
+}
+.st-app .artifact-project-options > button {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  border-color: transparent;
+  border-left: 3px solid var(--artifact-project-border);
+  border-radius: 4px;
+  padding: 9px 10px;
+  margin-bottom: 3px;
+  background: var(--artifact-project-background);
+  text-align: left;
+}
+.st-app .artifact-project-options > button:hover,
+.st-app .artifact-project-options > button:focus-visible,
+.st-app .artifact-project-options > button[aria-selected="true"] {
+  background: color-mix(
+    in srgb,
+    var(--artifact-project-border) 17%,
+    var(--panel)
+  );
+}
+.artifact-project-field {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+.st-app .artifact-conversation-dialog {
+  width: min(1100px, 94vw);
+  max-width: 94vw;
+  height: 90dvh;
+  max-height: 94dvh;
+  padding: 0;
+  overflow: hidden;
+}
+.artifact-conversation-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.artifact-conversation-dialog > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 22px;
+}
+.artifact-conversation-dialog h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.artifact-conversation-dialog header p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.artifact-conversation-dialog .artifact-actions {
+  margin: 0;
+}
+.artifact-conversation-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 24px;
+  position: relative;
+}
+.artifact-conversation-body .chat-turn {
+  margin: 0 0 24px;
+}
+@media (max-width: 600px) {
+  .artifact-conversation-dialog > header {
+    flex-wrap: wrap;
+    padding: 14px;
+  }
+  .artifact-conversation-body {
+    padding: 16px;
+  }
+  .artifact-project-picker {
+    min-width: 0;
+  }
+  .artifact-toolbar .artifact-project-picker {
+    flex: 1;
   }
 }

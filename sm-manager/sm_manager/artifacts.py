@@ -17,6 +17,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 import uuid
+from .artifact_context import Projects, conversation_id
 
 MAX_BYTES = 32 * 1024 * 1024
 MAX_FILES = 256
@@ -66,6 +67,7 @@ def read_settings(path=None):
 class Library:
     def __init__(self, settings):
         self.settings = settings
+        self.projects = Projects(settings)
         self.root = Path(settings["data_dir"]).expanduser().resolve()
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         (self.root / "objects").mkdir(exist_ok=True, mode=0o700)
@@ -83,9 +85,17 @@ class Library:
                     manifest TEXT NOT NULL, PRIMARY KEY(artifact_id, number)
                 );
             """)
+            db.execute("BEGIN IMMEDIATE")
             if "publication_pending" not in {row[1] for row in db.execute("PRAGMA table_info(artifacts)")}:
                 db.execute("ALTER TABLE artifacts ADD COLUMN publication_pending INTEGER NOT NULL DEFAULT 0")
-                db.commit()
+            if "project_id" not in {row[1] for row in db.execute("PRAGMA table_info(artifacts)")}:
+                db.execute("ALTER TABLE artifacts ADD COLUMN project_id TEXT")
+            if not self.projects.error:
+                # Preserve the old labels for rollback, but stop using them as
+                # project identities. Unknown/ambiguous labels become unassigned.
+                for row in db.execute("SELECT id,project FROM artifacts WHERE project_id IS NULL").fetchall():
+                    db.execute("UPDATE artifacts SET project_id=? WHERE id=?", (self.projects.resolve(row["project"], strict=False), row["id"]))
+            db.commit()
 
     def connect(self):
         db = sqlite3.connect(self.root / "library.sqlite", timeout=15)
@@ -103,6 +113,11 @@ class Library:
 
     def _view(self, row):
         result = dict(row)
+        result.pop("folder", None)
+        stored_project = result.pop("project_id", None)
+        result["project"] = stored_project or ""
+        if not self.projects.error:
+            result["project"] = self.projects.resolve(result["project"], strict=False)
         token = result.pop("share_token", None)
         origin = self.settings.get("publish_url", "").rstrip("/")
         result["publication_pending"] = bool(result["publication_pending"])
@@ -114,7 +129,8 @@ class Library:
     def list(self, query=""):
         with closing(self.connect()) as db:
             rows = db.execute("SELECT * FROM artifacts ORDER BY updated DESC").fetchall()
-            found = [dict(row) for row in rows if query.casefold() in " ".join((row["title"], row["project"], row["folder"])).casefold()]
+            names = {p["id"]: p["name"] for p in self.projects.items}
+            found = [dict(row) for row in rows if query.casefold() in " ".join((row["title"], names.get(row["project_id"], ""))).casefold()]
             for row in found:
                 manifest = json.loads(db.execute("SELECT manifest FROM revisions WHERE artifact_id=? AND number=?", (row["id"], row["revision"])).fetchone()[0])
                 row["entrypoint"] = manifest["entrypoint"]
@@ -211,17 +227,26 @@ class Library:
                 old_manifest = json.loads(db.execute("SELECT manifest FROM revisions WHERE artifact_id=? AND number=?", (artifact_id, previous["revision"])).fetchone()[0])
             else:
                 artifact_id = uuid.uuid4().hex
-                previous = {"title": "Untitled artifact", "project": "", "folder": "", "source_chat": ""}
+                previous = {"title": "Untitled artifact", "project": "", "project_id": "", "source_chat": ""}
                 number = 1
                 old_manifest = {}
             self._editor(payload.get("editor", old_manifest.get("editor")), manifest)
-            values = {key: short_text(payload.get(key, previous[key]), key, 500 if key == "source_chat" else 200) for key in ("title", "project", "folder", "source_chat")}
+            if "project" in payload:
+                project = self.projects.resolve(payload["project"])
+            elif self.projects.error:
+                project = previous["project_id"] or ""
+            else:
+                project = self.projects.resolve(previous["project_id"] or "", strict=False)
+            source_chat = conversation_id(payload.get("source_chat", previous["source_chat"]))
+            if number > 1 and source_chat != previous["source_chat"]:
+                raise ArtifactError("Revising an artifact cannot change its original conversation.")
+            values = {"title": short_text(payload.get("title", previous["title"]), "title"), "project": project, "source_chat": source_chat}
             if not values["title"]:
                 raise ArtifactError("Give the artifact a title.")
             if number == 1:
-                db.execute("INSERT INTO artifacts(id,title,project,folder,created,updated,revision,source_chat) VALUES(?,?,?,?,?,?,?,?)", (artifact_id, values["title"], values["project"], values["folder"], now, now, number, values["source_chat"]))
+                db.execute("INSERT INTO artifacts(id,title,project,project_id,folder,created,updated,revision,source_chat) VALUES(?,?,?,?,?,?,?,?,?)", (artifact_id, values["title"], project, project, "", now, now, number, source_chat))
             else:
-                db.execute("UPDATE artifacts SET title=?,project=?,folder=?,source_chat=?,updated=?,revision=? WHERE id=?", (values["title"], values["project"], values["folder"], values["source_chat"], now, number, artifact_id))
+                db.execute("UPDATE artifacts SET title=?,project=?,project_id=?,updated=?,revision=? WHERE id=?", (values["title"], project, project, now, number, artifact_id))
             db.execute("INSERT INTO revisions VALUES(?,?,?,?,?)", (artifact_id, number, now, note, json.dumps(manifest)))
         return self.get(artifact_id)
 
@@ -239,13 +264,25 @@ class Library:
         return self.save({"base_revision": base_revision, "entrypoint": old["manifest"]["entrypoint"], "editor": old["manifest"].get("editor"), "files": files, "note": f"Restored revision {number}"}, artifact_id)
 
     def metadata(self, artifact_id, payload):
-        values = {key: short_text(payload.get(key, ""), key) for key in ("title", "project", "folder")}
+        values = {"title": short_text(payload.get("title", ""), "title"), "project": self.projects.resolve(payload.get("project", ""))}
         if not values["title"]:
             raise ArtifactError("Give the artifact a title.")
         with closing(self.connect()) as db, db:
             db.execute("BEGIN IMMEDIATE")
             self._row(db, artifact_id)
-            db.execute("UPDATE artifacts SET title=?,project=?,folder=?,updated=? WHERE id=?", (values["title"], values["project"], values["folder"], time.time(), artifact_id))
+            db.execute("UPDATE artifacts SET title=?,project=?,project_id=?,updated=? WHERE id=?", (values["title"], values["project"], values["project"], time.time(), artifact_id))
+        return self.get(artifact_id)
+
+    def link_origin(self, artifact_id, thread):
+        thread = conversation_id(thread)
+        if not thread:
+            raise ArtifactError("Choose the conversation that created this artifact.")
+        with closing(self.connect()) as db, db:
+            db.execute("BEGIN IMMEDIATE")
+            item = self._row(db, artifact_id)
+            if item["source_chat"] and item["source_chat"] != thread:
+                raise Conflict("This artifact already has its original conversation.")
+            db.execute("UPDATE artifacts SET source_chat=? WHERE id=?", (thread, artifact_id))
         return self.get(artifact_id)
 
     def checkout(self, artifact_id):

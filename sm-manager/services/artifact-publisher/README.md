@@ -23,9 +23,26 @@ and keeps the same link available to retry or revoke. Publication is serialized
 per artifact; draft saves and other artifacts remain available during uploads.
 
 The gallery follows the document-card pattern used by artifact libraries:
-preview first, then title, project and sharing state. The agent handoff adds a
+preview first, then title, the Agents project icon/color and sharing state. The agent handoff adds a
 draft to a chosen open conversation and never sends it automatically or
 replaces an existing draft. Copy instructions also works with other agents.
+
+Projects are read from the same Agents sidebar directory (`projects.json`,
+`appearance.json`, and `organization.json`), never from artifact-created names.
+The catalog's IDs are stored on artifacts; the current name and appearance are
+read afresh. A nullable `project_id` migration maps old names/repository names to
+unique registered projects, preserving the old text columns for rollback.
+Unmatched or ambiguous labels become No project. Folders are hidden and no
+longer assigned. If the catalog is unavailable, migration waits and existing IDs
+remain intact; a new explicit project assignment fails with a useful error.
+
+Creation records `CODEX_THREAD_ID`, or the CLI's explicit `--conversation` UUID,
+in `source_chat`. Saves, restores and project changes preserve it. The owner-only
+Original conversation dialog reads the existing Agents saved-history API with
+pagination and no terminal resume, prompt submission or read-receipt mutation.
+Direct browser creations may have no origin. For an older artifact with verified
+creation evidence, `link-origin ID --conversation UUID` fills an empty origin;
+it cannot replace a different existing one.
 
 ## Install
 
@@ -35,6 +52,10 @@ already installed. Run `python3 scripts/install-artifacts.py --publish-url
 https://your-publishing-domain.example`. This installs the CLI and a discoverable
 Codex skill independently of the checkout, along with private configuration and
 a generated publisher credential. Re-run after changes to update the runtime.
+For a custom Agents catalog location, pass `--agents-data-dir /path/to/sidebar`,
+using the same value as the Agents service's `ST_OVIS_SIDEBAR_DATA` (or its older
+`MEDO_SIDEBAR_ROOT` setting). The installer records it in private artifact settings
+so browser and CLI project validation use the same catalog from every project.
 The installer copies the compiled Excalidraw renderer and Playwright runtime
 outside the checkout. It records the Bun executable; pass `--bun /path/to/bun`
 if it is not on PATH. Chromium is discovered in the user's Playwright cache or

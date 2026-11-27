@@ -1,9 +1,21 @@
 export type ArtifactEditor = { type: "excalidraw"; source: string };
+export type ArtifactProject = {
+  id: string;
+  name: string;
+  appearance?: {
+    iconText?: string;
+    image?: string;
+    titleColor?: string;
+    iconColor?: string;
+    sectionColor?: string;
+    borderColor?: string;
+  };
+};
 export type Artifact = {
   id: string;
   title: string;
   project: string;
-  folder: string;
+  source_chat: string;
   created: number;
   updated: number;
   revision: number;

@@ -17,6 +17,7 @@ def main():
     parser.add_argument("--publish-url", required=True)
     parser.add_argument("--library-url", help="Owner-only console artifacts page")
     parser.add_argument("--bun", default=shutil.which("bun"), help="Stable Bun executable for on-demand diagram rendering")
+    parser.add_argument("--agents-data-dir", help="Agents sidebar directory containing projects.json (same ST_OVIS_SIDEBAR_DATA as Agents)")
     args = parser.parse_args()
     url = urlsplit(args.publish_url)
     if url.scheme != "https" or not url.hostname or url.path not in ("", "/") or url.username or url.query or url.fragment:
@@ -38,6 +39,10 @@ def main():
         folder.mkdir(parents=True, exist_ok=True, mode=0o700)
     config_path = config_root / "config.json"
     settings = json.loads(config_path.read_text()) if config_path.exists() else {}
+    agents_root = Path(args.agents_data_dir or settings.get("agents_data_dir") or os.environ.get("ST_OVIS_SIDEBAR_DATA") or os.environ.get("MEDO_SIDEBAR_ROOT") or Path.home() / ".local/share/st-ovis/sidebar").expanduser().resolve()
+    if not (agents_root / "projects.json").is_file():
+        parser.error("Pass --agents-data-dir pointing to the existing Agents sidebar directory (projects.json).")
+    settings["agents_data_dir"] = str(agents_root)
     settings.setdefault("data_dir", str(data_root / "library"))
     settings.setdefault("publish_key_file", str(config_root / "publish.key"))
     settings.update(publish_url=args.publish_url.rstrip("/"), cli=str(cli))
@@ -50,7 +55,7 @@ def main():
     if not key.exists():
         key.write_text(secrets.token_urlsafe(48) + "\n")
         key.chmod(0o600)
-    for name in ("sm_manager/__init__.py", "sm_manager/artifacts.py", "scripts/artifacts.py", "scripts/render-excalidraw.ts"):
+    for name in ("sm_manager/__init__.py", "sm_manager/artifacts.py", "sm_manager/artifact_context.py", "scripts/artifacts.py", "scripts/render-excalidraw.ts"):
         shutil.copyfile(ROOT / name, runtime / name)
     shutil.copytree(renderer, runtime / "sm_manager/web/diagram-renderer", dirs_exist_ok=True)
     shutil.copytree(playwright.resolve(), runtime / "node_modules/playwright-core", dirs_exist_ok=True)

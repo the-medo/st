@@ -3,7 +3,8 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import "@excalidraw/excalidraw/index.css";
 import { api } from "../../lib/api";
 import { Notice } from "../../components/Ui";
-import { fileUrl, type ArtifactDetail } from "./model";
+import { fileUrl, type ArtifactProject, type ArtifactDetail } from "./model";
+import { ProjectPicker } from "./ProjectPicker";
 import { loadExcalidraw } from "./excalidraw-loader";
 import {
   normalizeDiagram,
@@ -13,17 +14,20 @@ import {
 } from "./excalidraw";
 
 export function ExcalidrawEditor({
+  projects,
+  initialProject,
   item,
   close,
   save,
 }: {
   item: ArtifactDetail | null;
+  projects: ArtifactProject[];
+  initialProject: string;
   close: () => void;
   save: (
     bundle: DiagramBundle & {
       title?: string;
       project?: string;
-      folder?: string;
       base_revision?: number;
       note: string;
     },
@@ -37,8 +41,7 @@ export function ExcalidrawEditor({
   > | null>(null);
   const [scene, setScene] = useState<DiagramScene | null>(null);
   const [title, setTitle] = useState(item?.title ?? "Untitled diagram");
-  const [project, setProject] = useState("");
-  const [folder, setFolder] = useState("");
+  const [project, setProject] = useState(initialProject);
   const [dirty, setDirty] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -157,7 +160,7 @@ export function ExcalidrawEditor({
                   ...bundle,
                   ...(item
                     ? { base_revision: item.revision }
-                    : { title, project, folder }),
+                    : { title, project }),
                   note: item ? "Edited diagram" : "Created diagram",
                 });
               } catch (error) {
@@ -192,24 +195,14 @@ export function ExcalidrawEditor({
               onChange={(event) => setTitle(event.target.value)}
             />
           </label>
-          <label>
-            Project
-            <input
+          <div className="artifact-project-field">
+            <span>Project</span>
+            <ProjectPicker
+              projects={projects}
               value={project}
-              maxLength={200}
-              placeholder="Personal"
-              onChange={(event) => setProject(event.target.value)}
+              onChange={setProject}
             />
-          </label>
-          <label>
-            Folder
-            <input
-              value={folder}
-              maxLength={200}
-              placeholder="Optional"
-              onChange={(event) => setFolder(event.target.value)}
-            />
-          </label>
+          </div>
         </div>
       )}
       {error && (

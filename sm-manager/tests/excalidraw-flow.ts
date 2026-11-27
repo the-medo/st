@@ -67,8 +67,11 @@ export async function excalidrawFlow(
     "Editable flow",
     "--project",
     "Example project",
+    "--conversation",
+    "00000000-0000-4000-8000-000000000001",
   );
   assert.equal(created.manifest.editor.type, "excalidraw");
+  assert.equal(created.project, "example-project");
   assert.equal(created.manifest.entrypoint, "diagram.svg");
   const id = created.id;
   const work = await cli("checkout", id);
@@ -141,6 +144,110 @@ export async function excalidrawFlow(
   page.on("request", watch);
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(base + "/artifacts?id=" + id);
+  const conversationMutations: string[] = [];
+  const watchConversation = (request: any) => {
+    if (
+      request.url().includes("/agents/api/") &&
+      !["GET", "HEAD"].includes(request.method())
+    )
+      conversationMutations.push(request.method() + " " + request.url());
+  };
+  page.on("request", watchConversation);
+  let unavailable = true;
+  await page.route("**/agents/api/medo/conversation?*", async (route) => {
+    assert.equal(route.request().method(), "GET");
+    const query = new URL(route.request().url()).searchParams;
+    assert.equal(
+      query.get("pane_id"),
+      "medo:00000000-0000-4000-8000-000000000001",
+    );
+    if (unavailable) {
+      unavailable = false;
+      await route.fulfill({ json: { unavailable: true } });
+      return;
+    }
+    const older = query.has("before");
+    if (older) {
+      assert.equal(query.get("before"), "older");
+      assert.equal(query.get("history_id"), "medo:fixture");
+    }
+    await route.fulfill({
+      json: {
+        source: "codex-transcript",
+        history_id: "medo:fixture",
+        cursor: older ? null : "older",
+        turns: [
+          {
+            role: older ? "user" : "assistant",
+            ts: "2026-01-01T12:00:00Z",
+            turn_id: older ? "first" : "second",
+            parts: [
+              {
+                kind: "text",
+                text: older
+                  ? "Please create a diagram of the input flow."
+                  : "I created the editable flow diagram.",
+              },
+            ],
+          },
+        ],
+      },
+    });
+  });
+  await page
+    .getByRole("button", { name: "Original conversation", exact: true })
+    .click();
+  const origin = page.getByRole("dialog", {
+    name: "Original conversation",
+    exact: true,
+  });
+  await origin
+    .getByText(
+      "The original conversation is unavailable. The artifact is still saved here.",
+    )
+    .waitFor();
+  await origin.getByRole("button", { name: "Retry", exact: true }).click();
+  await origin
+    .getByText("I created the editable flow diagram.", { exact: true })
+    .waitFor();
+  await origin
+    .getByRole("button", { name: "Load earlier messages", exact: true })
+    .click();
+  await origin
+    .getByText("Please create a diagram of the input flow.", { exact: true })
+    .waitFor();
+  assert.equal(
+    await origin.locator("textarea").count(),
+    0,
+    "Original conversation has no message composer",
+  );
+  if (process.env.ST_ARTIFACTS_EVIDENCE)
+    await page.screenshot({
+      path: join(
+        process.env.ST_ARTIFACTS_EVIDENCE,
+        "original-conversation.png",
+      ),
+    });
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert(await origin.evaluate((el) => el.scrollWidth <= innerWidth));
+  if (process.env.ST_ARTIFACTS_EVIDENCE)
+    await page.screenshot({
+      path: join(
+        process.env.ST_ARTIFACTS_EVIDENCE,
+        "original-conversation-mobile.png",
+      ),
+    });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await origin
+    .getByRole("button", { name: "Close original conversation" })
+    .click();
+  assert.deepEqual(
+    conversationMutations,
+    [],
+    "Reading the original conversation must not change or resume it",
+  );
+  page.off("request", watchConversation);
+  assert.equal(new URL(page.url()).searchParams.get("id"), id);
   await page.getByRole("button", { name: "Edit diagram", exact: true }).click();
   const editor = page.getByRole("dialog", {
     name: "Edit diagram",
@@ -174,6 +281,7 @@ export async function excalidrawFlow(
   await editor.waitFor({ state: "hidden" });
   const edited = await cli("get", id);
   assert.equal(edited.revision, 3);
+  assert.equal(edited.source_chat, created.source_chat);
   assert.equal(
     edited.manifest.files.find((f: any) => f.path === "source/notes.md").role,
     "source",
