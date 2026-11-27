@@ -40,3 +40,8 @@ commands remain available for existing scripts and paired devices.
 
 
 The [CLI guide](stapp/docs/cli.md) covers command options, editing, recurrence and safe retries.
+
+## License
+
+Original S.T. code is licensed under the [MIT License](LICENSE).
+Vendored code and third-party assets retain their respective licenses and notices.
