@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "build": "bun run theme:build && bun run --cwd frontend build",
-    "typecheck": "bun run --cwd frontend typecheck && bun run --cwd frontend typecheck:gateway && tsc -p services/artifact-publisher/tsconfig.json",
+    "typecheck": "bun run --cwd frontend typecheck && bun run --cwd frontend typecheck:gateway && bun run --cwd frontend typecheck:publisher",
     "test:unit": "bun test frontend/src services/web-gateway services/ovis services/artifact-publisher packages/theme",
     "test:artifacts-browser": "bun tests/artifacts-browser.ts",
     "test:ovis-chat": "cd integrations/ovis/app && HERDR_TEST_MODE=unit bun test server/medo.test.ts server/codex.test.ts server/herdr-core/snapshot.test.ts src/lib/sentWaiting.test.ts src/components/ChatView.sentWaiting.test.tsx && bun test server/prompt.test.ts -t 'managed collapsed'",
