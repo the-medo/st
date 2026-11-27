@@ -272,7 +272,7 @@ try {
   assert(instructions.includes(" save "));
   await page.getByRole("button", { name: "Close dialog", exact: true }).click();
   await page.getByRole("button", { name: "Organize", exact: true }).click();
-  await page.getByLabel("Project", { exact: true }).fill("Another project");
+  await page.getByLabel("Project", { exact: true }).fill("");
   await page.getByRole("button", { name: "Save details", exact: true }).click();
   await page
     .getByRole("button", { name: "All artifacts", exact: true })
@@ -281,7 +281,10 @@ try {
   assert.equal(new URL(page.url()).searchParams.has("id"), false);
   await page
     .getByRole("combobox", { name: "Project", exact: true })
-    .selectOption("Another project");
+    .selectOption("__personal");
+  await page
+    .getByRole("combobox", { name: "Folder", exact: true })
+    .selectOption("Diagrams");
   assert.equal(await page.locator(".artifact-card").count(), 1);
   await page
     .frameLocator(".artifact-thumbnail iframe")

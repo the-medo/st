@@ -180,7 +180,11 @@ export function Artifacts() {
   const folders = [
     ...new Set(
       items
-        .filter((a) => !project || a.project === project)
+        .filter(
+          (a) =>
+            !project ||
+            (project === "__personal" ? !a.project : a.project === project),
+        )
         .map((a) => a.folder)
         .filter(Boolean),
     ),
@@ -494,7 +498,9 @@ export function Artifacts() {
                       {item.share_url ? (
                         <>
                           <Share2 size={12} />
-                          Shared
+                          {item.publication_pending
+                            ? "Check sharing"
+                            : "Shared"}
                         </>
                       ) : (
                         "Private"
