@@ -6,6 +6,7 @@ import { join } from "node:path";
 import assert from "node:assert/strict";
 import { fixtureApi, ui } from "./v2-fixtures";
 import { verifyAgentActivity } from "./agent-activity-browser";
+import { completionDemoFixture } from "./completion-demo-fixture";
 import { verifyAgentsShortcuts } from "./agents-shortcuts-browser";
 import { armShortcuts } from "./shortcuts-browser";
 import panes from "../integrations/ovis/app/site/demo/fixtures/panes.json";
@@ -91,7 +92,7 @@ try {
     errors.push(e.message);
     console.error(e.message);
   });
-  await page.addInitScript({ content: setup + resourcesFixture });
+  await page.addInitScript({ content: setup + completionDemoFixture + resourcesFixture });
   await page.route("**/*", (route) =>
     new URL(route.request().url()).hostname === "127.0.0.1"
       ? route.continue()
@@ -442,7 +443,7 @@ try {
   });
   await page.getByRole("button", { name: "Refresh projects" }).click();
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page.getByLabel("Mobile navigation").getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("link", { name: "Home", exact: true }).click();
   await page.getByRole("heading", { name: "Your services" }).waitFor();
   await page.getByRole("link", { name: "Agents", exact: true }).click();

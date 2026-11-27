@@ -39,6 +39,27 @@ search can reveal matches without changing that preference. Each folder uses the
 existing row menu (a sheet on narrow screens) to delete the group while keeping
 its conversations in the project.
 
+ST's completion indicators follow [Warp's agent notifications](https://docs.warp.dev/agents/capabilities/agent-notifications/):
+completed results remain distinct from working agents and requests for input. The
+conversation list, navigation checkmark count and installed app badge share server
+receipts for native completed turns. Opening a view acknowledges only the answer
+actually loaded and presented at its end. Metadata edits and terminal restarts do
+not create new unread results. Archived and user-completed conversations are out
+of the badge count. The badge uses the operating system's own appearance; no new
+setting or permission prompt is added. Unsupported desktops retain the in-app count.
+
+Receipts live in the private sidebar directory's `conversation-activity.sqlite3`,
+owned by `integrations/ovis/bridge/activity.py`, with schema version 1. This is a
+new store; the old `ovis:project-chat-activity:v1` browser key is left untouched and
+ignored, since its timestamp-based flags cannot prove a new answer. Existing
+history starts quietly; subsequent native completions survive server and browser
+restarts. Older releases neither read nor overwrite the new database, and unknown
+schema versions refuse writes. `GET /api/medo/catalog` adds `activity` to each chat;
+`POST /api/medo/read-completion` acknowledges an exact thread and completion ID.
+Both return ordered per-conversation revisions so delayed responses cannot undo
+newer reads. Polling keeps devices and the app badge current while the app is open,
+including when minimized; fully closed app windows still require Web Push.
+
 Messages say only what the person needs now, not everything the app knows:
 - Something to do: one sentence and the control that does it ("Couldn't attach [Try again]").
 - Only waiting: one muted phrase, in one place ("Connecting…"); never the same state twice on screen.

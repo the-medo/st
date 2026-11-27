@@ -11,7 +11,7 @@ import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 from integrations.ovis.bridge import server as sidebar, organization, resources, questions
 from integrations.ovis.bridge.chat_service import request, Bridge
-from integrations.ovis.bridge import assistant
+from integrations.ovis.bridge import assistant, activity
 root = sidebar.ROOT
 
 
@@ -244,6 +244,9 @@ def handle(p):
         finally:
             client.process.terminate()
         return {'ok':True, 'title':name}
+    if op == 'read-completion':
+        return activity.acknowledge(sidebar.ROOT, sidebar.CODEX_HOME, sidebar.read_rows(),
+                                    p.get('threadId'), p.get('completionId'))
     if op == 'index':
         rows = sidebar.read_rows()
         result = sidebar.catalog(rows=rows)
@@ -280,6 +283,7 @@ def handle(p):
                 chat['status'] = (terminal.get('status') or {}).get('state','idle')
                 if terminal.get('labels', {}).get('ovis.tab') != chat['title']:
                     sidebar.hc('label', terminal['address'], 'ovis.tab='+chat['title'])
+        activity.observe(sidebar.ROOT, sidebar.CODEX_HOME, rows, result['chats'])
         result['drafts'] = drafts
         return result
     if op == 'open':

@@ -1,91 +1,107 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
-import type { MedoChat } from '../../shared/medo.ts';
+import { useEffect, useSyncExternalStore } from 'react';
+import type { MedoActivity, MedoChat, MedoReadReceipt } from '../../shared/medo.ts';
+import type { ConversationTurn } from '../../shared/protocol.ts';
+import { paneCovered } from './panePresentation.ts';
 
-export const MEDO_READ_KEY = 'ovis:project-chat-activity:v1';
-interface Activity { updated: number; working: boolean; unread: boolean }
-export type MedoReadState = ReadonlyMap<string, Activity>;
+export type MedoReadState = ReadonlyMap<string, MedoActivity>;
+export const MEDO_READ_EVENT = 'st-conversation-read';
 
-export function parseMedoReadState(value: string | null): MedoReadState {
-  try {
-    const entries: unknown = JSON.parse(value ?? '[]');
-    if (!Array.isArray(entries)) return new Map();
-    return new Map(entries.filter((entry): entry is [string, Activity] => {
-      if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string') return false;
-      const state = entry[1];
-      return state && typeof state === 'object' && Number.isFinite(state.updated)
-        && typeof state.working === 'boolean' && typeof state.unread === 'boolean';
-    }));
-  } catch { return new Map(); }
+export function medoActivityOf(chat: Pick<MedoChat, 'id' | 'activity'>, read: MedoReadState): MedoActivity | undefined {
+  const held = read.get(chat.id);
+  return chat.activity && (!held || chat.activity.revision > held.revision) ? chat.activity : held ?? chat.activity;
 }
 
-/** Seed existing history quietly; track subsequent changes even across browser restarts. */
-export function observeMedoChats(previous: MedoReadState, chats: readonly MedoChat[], visibleId: string | null): MedoReadState {
-  const next = new Map<string, Activity>();
-  let changed = previous.size !== chats.length;
+/** Only server revisions can advance activity. Metadata timestamps and localStorage are not receipts. */
+export function observeMedoChats(previous: MedoReadState, chats: readonly Pick<MedoChat, 'id' | 'activity'>[]): MedoReadState {
+  let next: Map<string, MedoActivity> | undefined;
   for (const chat of chats) {
-    const before = previous.get(chat.id);
-    const working = chat.status === 'working';
-    const finished = before?.working && (chat.status === 'idle' || chat.status === 'done');
-    const updated = Math.max(before?.updated ?? 0, chat.updated);
-    const unread = chat.id === visibleId ? false
-      : Boolean(before && (before.unread || finished || chat.updated > before.updated));
-    if (!before || before.updated !== updated || before.working !== working || before.unread !== unread) changed = true;
-    next.set(chat.id, { updated, working, unread });
+    const incoming = chat.activity;
+    if (!incoming || !Number.isSafeInteger(incoming.revision) || incoming.revision <= 0) continue;
+    const before = (next ?? previous).get(chat.id);
+    if (before && before.revision >= incoming.revision) continue;
+    next ??= new Map(previous);
+    next.set(chat.id, incoming);
   }
-  return changed ? next : previous;
+  return next ?? previous;
 }
 
-function load(): MedoReadState {
-  try { return parseMedoReadState(window.localStorage.getItem(MEDO_READ_KEY)); }
-  catch { return new Map(); }
-}
-
-// The host navigation and the conversation list must share one read receipt.
-// In-memory subscribers also work when browser storage is unavailable.
-let current: MedoReadState | undefined;
+// An in-memory projection of the server, shared by the list, navigation and app badge.
+// Old tabs may still write their v1 browser key; those writes have no authority here.
+let current: MedoReadState = new Map();
 const listeners = new Set<() => void>();
-export const medoReadSnapshot = (): MedoReadState => current ??= load();
-const notify = () => listeners.forEach((listener) => listener());
-const storageChanged = (event: StorageEvent) => {
-  if (event.key !== MEDO_READ_KEY && event.key !== null) return;
-  current = load();
-  notify();
-};
+export const medoReadSnapshot = (): MedoReadState => current;
 export function subscribeMedoReadState(listener: () => void): () => void {
-  if (!listeners.size) window.addEventListener('storage', storageChanged);
   listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-    if (!listeners.size) window.removeEventListener('storage', storageChanged);
-  };
+  return () => { listeners.delete(listener); };
 }
-export function observeSharedMedoChats(chats: readonly MedoChat[], visibleId: string | null): void {
-  const previous = medoReadSnapshot();
-  const next = observeMedoChats(previous, chats, visibleId);
-  if (next === previous) return;
+export function observeSharedMedoChats(chats: readonly Pick<MedoChat, 'id' | 'activity'>[]): void {
+  const next = observeMedoChats(current, chats);
+  if (next === current) return;
   current = next;
-  try { window.localStorage.setItem(MEDO_READ_KEY, JSON.stringify([...next])); }
-  catch { /* Private storage may be unavailable; activity still works for this visit. */ }
-  notify();
+  listeners.forEach(listener => listener());
 }
 export function useMedoReadSnapshot(): MedoReadState {
   return useSyncExternalStore(subscribeMedoReadState, medoReadSnapshot);
 }
 
+/** A loaded native final answer identifies exactly the turn actually presented. */
+export function medoCompletionPresentation(historyId: string | undefined, turns: readonly ConversationTurn[]): string | undefined {
+  const last = turns.at(-1);
+  if (!historyId?.startsWith('medo:') || last?.role !== 'assistant' || !last.turn_id
+    || !last.parts.some(part => part.kind === 'text' && (part.phase === 'final_answer' || part.failed))) return undefined;
+  return JSON.stringify([historyId.slice(5), last.turn_id]);
+}
+
+const pending = new Set<string>();
+const retryAt = new Map<string, number>();
+async function acknowledge(threadId: string, completionId: string): Promise<void> {
+  const key = JSON.stringify([threadId, completionId]);
+  if (pending.has(key) || (retryAt.get(key) ?? 0) > Date.now()) return;
+  pending.add(key);
+  try {
+    const response = await fetch('/api/medo/read-completion', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ threadId, completionId }), signal: AbortSignal.timeout(15_000), cache: 'no-store',
+    });
+    if (!response.ok) throw new Error(`Read receipt failed (${response.status})`);
+    const receipt: MedoReadReceipt = await response.json();
+    observeSharedMedoChats([{ id: receipt.threadId, activity: receipt.activity }]);
+    retryAt.delete(key);
+    window.dispatchEvent(new Event(MEDO_READ_EVENT));
+  } catch {
+    // Keep the unread indication until it is saved. Retry while the answer is still visible.
+    retryAt.set(key, Date.now() + 5_000);
+  } finally { pending.delete(key); }
+}
+
 export function useMedoReadState(chats: readonly MedoChat[] | undefined, selectedPaneId: string | null, covered: boolean, readerId?: string): MedoReadState {
   const state = useMedoReadSnapshot();
-  const [visible, setVisible] = useState(() => document.visibilityState === 'visible');
+  useEffect(() => { if (chats) observeSharedMedoChats(chats); }, [chats]);
   useEffect(() => {
-    const visibility = () => setVisible(document.visibilityState === 'visible');
-    document.addEventListener('visibilitychange', visibility);
-    return () => document.removeEventListener('visibilitychange', visibility);
-  }, []);
-  useEffect(() => {
-    // While this view is hidden, the host observes its fresh background catalog.
-    // A retained conversation list must not overwrite it with its old snapshot.
-    if (!chats || !visible) return;
-    const visibleId = readerId ?? (!covered ? chats.find((chat) => chat.paneId === selectedPaneId)?.id ?? null : null);
-    observeSharedMedoChats(chats, visibleId);
-  }, [chats, selectedPaneId, visible, covered, readerId]);
+    if (!chats) return;
+    const inspect = () => {
+      if (document.visibilityState !== 'visible' || covered || paneCovered()) return;
+      const chat = chats.find(chat => readerId ? chat.id === readerId : chat.paneId === selectedPaneId);
+      if (!chat) return;
+      const activity = medoActivityOf(chat, medoReadSnapshot());
+      if (!activity?.unread || !activity.completionId) return;
+      const proof = JSON.stringify([chat.id, activity.completionId]);
+      const presented = [...document.querySelectorAll('[data-medo-read]')].some(node =>
+        node.getAttribute('data-medo-read') === proof && !node.closest('[hidden],[inert],[aria-hidden="true"],.is-hidden'));
+      if (presented) void acknowledge(chat.id, activity.completionId);
+    };
+    const observer = new MutationObserver(inspect);
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true,
+      attributeFilter: ['data-medo-read', 'hidden', 'inert', 'aria-hidden', 'open', 'aria-modal'] });
+    const timer = setInterval(inspect, 5_000);
+    document.addEventListener('visibilitychange', inspect);
+    window.addEventListener('online', inspect);
+    inspect();
+    return () => {
+      observer.disconnect(); clearInterval(timer);
+      document.removeEventListener('visibilitychange', inspect);
+      window.removeEventListener('online', inspect);
+    };
+  }, [chats, selectedPaneId, covered, readerId, state]);
   return state;
 }
