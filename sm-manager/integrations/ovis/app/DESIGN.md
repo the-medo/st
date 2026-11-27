@@ -6715,3 +6715,33 @@ host polls the read-only catalog while outside Agents; opening a conversation
 clears its unread state in both places. Hidden retained views do not mark new
 answers read. Existing history is seeded quietly, with no new stored format,
 HTTP endpoint, terminal attachment, or automatic action on any agent.
+
+## S.T. conversation provider chooser
+
+The global, project and folder New conversation actions open the same composer. It
+follows [T3 Code's new-thread flow](https://github.com/pingdotgg/t3code/blob/main/docs/user/thread-sidebar.md):
+choose the project, provider and model before sending the first message. The
+owner requested larger provider logos and an explicit reasoning selector, so
+Codex and Claude are presented as two keyboard-accessible cards above the model,
+reasoning and message fields. Codex is selected whenever the dialog opens.
+Switching cards preserves the message and each provider's choices. The same
+layout fits a phone. Existing Ovis agent marks are reused; no external code or
+artwork was copied.
+
+Folder actions preselect their conversation folder in the composer. Launching
+keeps that destination expanded; both providers retain manual folder moves and
+the sidebar's Done state. Codex's launch intent continues to follow its first
+native thread, while Claude's explicit session UUID can be filed at creation.
+
+Each card's badge shows remaining overall weekly usage for the account used by
+that local CLI, using the existing usage service. Scoped model limits and
+five-hour windows do not supply this number. Missing, stale or expired data is
+labelled unavailable. Usage reads never refresh CLI credentials.
+
+Codex choices come from its model catalogue. Claude uses the CLI's stable
+Opus, Sonnet and Haiku aliases, plus Agent default, so model resolution follows
+the installed CLI and organization policy. Starting a conversation launches the
+selected native CLI through Herdr; the first message uses Ovis's existing
+page-bound queue. Claude's own session UUID and transcript remain authoritative
+for history and resume. A private index records only conversations created or
+subsequently switched in S.T.; it does not import unrelated Claude histories.

@@ -986,7 +986,10 @@ export async function handleRequest(request: Request, ctx: ServerContext): Promi
     }
   }
 
-  const medoResponse = await handleMedoRequest(request, url, readOnly);
+  const medoResponse = await handleMedoRequest(request, url, readOnly, {
+    firstMessages: { ask: askFirstMessage, queue: queueFirstMessage },
+    changed: () => broadcastAll({ type: 'session-changed' }), timeout: () => ctx.timeout(request, 75),
+  });
   if (medoResponse) return medoResponse;
 
   const agentsResponse = await handleAgentsRequest(request, pathname, shellAgents, agentOffered);

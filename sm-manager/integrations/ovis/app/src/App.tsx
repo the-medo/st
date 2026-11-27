@@ -941,7 +941,7 @@ export function App({ hostShortcuts }: { hostShortcuts?: HostShortcuts } = {}) {
   useEffect(() => {
     hostShortcuts?.selection(savedThreadId ? {
       machineId: 'local', paneId: `medo:${savedThreadId}`, threadId: savedThreadId, view: 'chat', saved: true,
-      title: savedChat?.title || 'Saved conversation', workspace: catalog?.projects.find((project) => project.id === savedChat?.project)?.name || '', agent: 'codex',
+      title: savedChat?.title || 'Saved conversation', workspace: catalog?.projects.find((project) => project.id === savedChat?.project)?.name || '', agent: savedChat?.provider ?? 'codex',
       open: () => { setSavedThreadId(savedThreadId); setDrawerOpen(false); },
     } : selectedPaneId && selectedPane && !inbox.shown ? {
       machineId: selectedMachineId, paneId: selectedPaneId, view,
@@ -1176,7 +1176,7 @@ export function App({ hostShortcuts }: { hostShortcuts?: HostShortcuts } = {}) {
             <FolderOpen aria-hidden="true" />
           </button>
         )}
-        {stConversations && selectedMachineId === "local" && (savedThreadId || selectedAgent === "codex") && <button type="button" className="header-text-button header-resources-button is-icon" title="Skills & MCPs" aria-label="Skills & MCPs" aria-expanded={resourcesOpen} aria-controls="resources-panel" onClick={() => { setResourcesOpen(value => !value); setFilesOpen(false); closeFile(); closeWebPage(); setBrowserTab(null); }}><BookOpen size={18} /></button>}
+        {stConversations && selectedMachineId === "local" && (savedThreadId ? savedChat?.provider !== "claude" : selectedAgent === "codex") && <button type="button" className="header-text-button header-resources-button is-icon" title="Skills & MCPs" aria-label="Skills & MCPs" aria-expanded={resourcesOpen} aria-controls="resources-panel" onClick={() => { setResourcesOpen(value => !value); setFilesOpen(false); closeFile(); closeWebPage(); setBrowserTab(null); }}><BookOpen size={18} /></button>}
         <div className="header-meta">
           {!savedThreadId && !guideShown && !inbox.shown && <ConnectionChip
             connected={chipConnected}
@@ -1235,7 +1235,6 @@ export function App({ hostShortcuts }: { hostShortcuts?: HostShortcuts } = {}) {
               onRead={(chat) => { setSavedThreadId(chat.id); setDrawerOpen(false); }}
               headerActions={stConversations ? (wideScreen ? (!sidebarCollapsed && sidebarToggle) : <button type="button" aria-label={t("Close workspace list")} title={t("Close workspace list")} onClick={() => setDrawerOpen(false)}><X size={18} /></button>) : undefined}
               onOpen={async (paneId, isCurrent) => { await load(); if (!isCurrent()) return; selectTarget("local", paneId, "chat"); setDrawerOpen(false); }}
-              onNew={(project) => { setNewPrefill(project ? { cwd: project.path, name: null, agent: "codex" } : null); openNewOn("local"); }}
               onSettings={actions.openSettings} /> : <ReorderContext.Provider value={reorderCoordinator}><MachineSidebar machines={sidebarMachines} allMachines={machines} watching={auth?.role === "watch"} appLayout={appLayoutOn} drawerOpen={drawerOpen} filterRequest={sidebarFilterRequest} selectedMachineId={selectedMachineId} selectedPaneId={selectedPaneId} activity={activity} actions={actions} onSelect={selectTarget} onUsageLogin={(paneId) => { selectTarget("local", paneId, "terminal"); void load(); }} onSetup={(machine, update = false) => { setUpdateRemote(update); setMachineDialog(machine); }} onNew={openNewOn}
               afterPcs={browserTabs !== null && filePanelAvailable ? <BrowserTabsGroup tabs={browserTabs} selected={browserTab} onSelect={openBrowserTab} /> : undefined}
               footerStart={setupRow} inbox={modeOffered && !inMode ? { waiting: sessionTally.waiting, open: () => { actions.counted?.("inbox", "button"); enterInbox(); } } : null} /></ReorderContext.Provider>}
@@ -1452,7 +1451,7 @@ export function App({ hostShortcuts }: { hostShortcuts?: HostShortcuts } = {}) {
         </div>
         </WebPanelContext.Provider>
         </OpenFileContext.Provider>
-        {resourcesOpen && stConversations && selectedMachineId === "local" && (savedThreadId || selectedAgent === "codex") && <ResourcesPanel key={savedThreadId ?? selectedPaneId}
+        {resourcesOpen && stConversations && selectedMachineId === "local" && (savedThreadId ? savedChat?.provider !== "claude" : selectedAgent === "codex") && <ResourcesPanel key={savedThreadId ?? selectedPaneId}
           paneId={savedThreadId ? `medo:${savedThreadId}` : selectedPaneId!}
           activity={resourceActivity?.paneId === (savedThreadId ? `medo:${savedThreadId}` : selectedPaneId) && resourceActivity.machineId === selectedMachineId ? resourceActivity : null}
           docked={filePanelAvailable} onClose={() => setResourcesOpen(false)}

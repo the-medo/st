@@ -47,7 +47,7 @@ export function MedoConversation({
                   ? !active
                   : !!chat.unavailable || chat.archived || !chat.paneId
               }
-              agent="codex"
+              agent={chat.provider ?? 'codex'}
               watching
               cwd={chat.cwd}
             />

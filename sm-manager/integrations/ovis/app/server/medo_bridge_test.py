@@ -347,4 +347,135 @@ class ResourceIdentityTests(unittest.TestCase):
             with self.assertRaises(ValueError): bridge.handle({'operation': 'resources', 'paneId': 't1'})
             client.assert_not_called()
 
+class ClaudeProviderTests(unittest.TestCase):
+    session = '00000000-0000-4000-8000-000000000001'
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.store = self.root / 'claude'
+        self.project = {'id': 'fixture', 'name': 'Fixture', 'path': str(self.root / 'project')}
+        Path(self.project['path']).mkdir()
+        for change in [patch.object(bridge.sidebar, 'ROOT', self.root / 'sidebar'),
+                       patch.dict(os.environ, {'OVIS_STATE_DIR': str(self.root / 'state'), 'CLAUDE_CONFIG_DIR': str(self.store)}),
+                       patch.object(bridge, 'claude_binary', return_value='/fixture/claude'),
+                       patch.object(bridge.os, 'access', return_value=True)]:
+            change.start(); self.addCleanup(change.stop)
+
+    def test_launches_claude_with_its_own_flags_and_persists_native_identity(self):
+        with patch.object(bridge.sidebar, 'hc', return_value={'address': 't1', 'pid': 123}) as hc, patch.object(bridge, 'Bridge') as codex:
+            result = bridge.launch(self.project, provider='claude', model='opus', effort='high')
+        args = hc.call_args.args
+        launched = args[args.index('--') + 1:]
+        self.assertEqual(launched[0], '/usr/bin/env')
+        self.assertEqual(launched[2], '/fixture/claude')
+        self.assertEqual(launched[3], '--session-id')
+        self.assertEqual(launched[5:], ('--model', 'opus', '--effort', 'high'))
+        self.assertNotIn('--remote', args)
+        self.assertNotIn('--permission-mode', args)
+        self.assertIn('CLAUDE_CONFIG_DIR='+str(self.store), args)
+        saved = bridge.claude_sessions.load(bridge.sidebar.ROOT)
+        self.assertEqual(saved[launched[4]]['project'], 'fixture')
+        self.assertEqual(result, {'address': 't1', 'reused': False, 'pid': 123})
+        codex.assert_not_called()
+
+    def test_failed_launch_has_no_saved_phantom_and_invalid_choices_do_not_launch(self):
+        with patch.object(bridge.sidebar, 'hc', side_effect=RuntimeError('unavailable')), self.assertRaises(RuntimeError):
+            bridge.launch(self.project, provider='claude')
+        self.assertEqual(bridge.claude_sessions.load(bridge.sidebar.ROOT), {})
+        with patch.object(bridge.sidebar, 'hc') as hc:
+            for provider, model, effort in [('gemini', '', ''), ('claude', '--help', ''), ('claude', 'opus', 'ultra'), ('claude', 'unknown', '')]:
+                with self.subTest(provider=provider, model=model, effort=effort), self.assertRaises(ValueError):
+                    bridge.launch(self.project, provider=provider, model=model, effort=effort)
+            hc.assert_not_called()
+
+    def test_claude_folder_creation_and_done_state_preserve_later_manual_moves(self):
+        root = bridge.sidebar.ROOT
+        root.mkdir()
+        (root / 'organization.json').write_text(json.dumps({'revision': 0, 'projects': {
+            'fixture': {'folders': [{'id': 'ideas', 'name': 'Ideas'}], 'chats': {}}
+        }}))
+        with patch.object(bridge.sidebar, 'config', return_value={'projects': [self.project]}), \
+             patch.object(bridge.sidebar, 'hc', return_value={'address': 't1'}) as hc:
+            with self.assertRaises(ValueError):
+                bridge.handle({'operation': 'new', 'projectId': 'fixture', 'provider': 'claude', 'folderId': 'deleted'})
+            hc.assert_not_called()
+            bridge.handle({'operation': 'new', 'projectId': 'fixture', 'provider': 'claude', 'folderId': 'ideas'})
+        session = next(iter(bridge.claude_sessions.load(root)))
+        thread = 'claude:' + session
+        self.assertEqual(bridge.organization.load(root)['projects']['fixture']['chats'][thread], 'ideas')
+        bridge.organization.update(root, ['fixture'], {thread: 'fixture'}, {
+            'operation': 'move', 'projectId': 'fixture', 'threadId': thread, 'folderId': None})
+        bridge.organization.update(root, ['fixture'], {thread: 'fixture'}, {
+            'operation': 'set-done', 'projectId': 'fixture', 'threadId': thread, 'done': True})
+        with patch.object(bridge.sidebar, 'read_rows', return_value=[]), \
+             patch.object(bridge.sidebar, 'catalog', side_effect=lambda **_: {'projects': [{**self.project, 'folders': []}], 'chats': []}), \
+             patch.object(bridge.sidebar, 'hc', return_value={'terminals': []}):
+            for _ in range(2):
+                row = bridge.handle({'operation': 'index'})['chats'][0]
+                self.assertEqual(row['id'], thread)
+                self.assertTrue(row['done'])
+                self.assertIsNone(row['folder'])
+
+    def test_claude_uses_only_its_saved_permission_preset(self):
+        state = self.root / 'state'
+        state.mkdir()
+        (state / 'preferences.json').write_text(json.dumps({'settings': {'claudeLaunchMode': 'plan', 'codexLaunchMode': 'fullAccess'}}))
+        with patch.object(bridge.sidebar, 'hc', return_value={'address': 't1'}) as hc:
+            bridge.launch(self.project, provider='claude')
+        args = hc.call_args.args
+        self.assertEqual(args[-2:], ('--permission-mode', 'plan'))
+        self.assertNotIn('--sandbox', args)
+
+    def test_claude_resume_uses_native_session_proof_not_old_launch_label(self):
+        terminal = {'address': 't1', 'state': 'live', 'labels': {'medo.ovis.claude': 'old'}}
+        with patch.object(bridge.sidebar, 'hc', side_effect=lambda *args: {'terminals': [terminal]} if args[0] == 'ls' else terminal) as hc, \
+             patch.object(bridge.claude_sessions, 'terminal_session', return_value=self.session):
+            result = bridge.launch(self.project, self.session, provider='claude')
+        self.assertEqual(result, {'address': 't1', 'reused': True})
+        self.assertFalse(any(call.args[0] == 'run' for call in hc.call_args_list))
+
+    def test_reused_pid_and_noninteractive_records_never_claim_a_session(self):
+        (self.store / 'sessions').mkdir(parents=True)
+        proc = self.root / 'proc'
+        (proc / '123').mkdir(parents=True)
+        (proc / '123' / 'stat').write_text('123 (claude child) ' + ' '.join(['S'] + ['0']*18 + ['456']))
+        record = {'pid': 123, 'kind': 'interactive', 'sessionId': self.session, 'procStart': '456'}
+        path = self.store / 'sessions' / '123.json'
+        path.write_text(json.dumps(record))
+        self.assertEqual(bridge.claude_sessions.process_session(123, self.store, proc), self.session)
+        for change in [{'procStart': '457'}, {'kind': 'background'}, {'sessionId': '../../other'}, {'pid': 999}]:
+            path.write_text(json.dumps({**record, **change}))
+            self.assertIsNone(bridge.claude_sessions.process_session(123, self.store, proc))
+
+    def test_saved_history_retains_provider_identity_after_terminal_exit_and_rename(self):
+        entry = bridge.claude_sessions.register(bridge.sidebar.ROOT, self.session, self.project)
+        path = self.store / 'projects' / bridge.claude_sessions.project_slug(entry['cwd']) / (self.session+'.jsonl')
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps({'type': 'user', 'message': {'content': 'Investigate the release'}, 'sessionId': self.session})+'\n')
+        with patch.object(bridge.sidebar, 'read_rows', return_value=[]), \
+             patch.object(bridge.sidebar, 'catalog', return_value={'projects': [{**self.project, 'folders': []}], 'chats': []}), \
+             patch.object(bridge.sidebar, 'hc', return_value={'terminals': []}):
+            catalog = bridge.handle({'operation': 'index'})
+        self.assertEqual(catalog['chats'][0]['id'], 'claude:'+self.session)
+        self.assertEqual(catalog['chats'][0]['provider'], 'claude')
+        self.assertEqual(catalog['chats'][0]['title'], 'Investigate the release')
+        self.assertNotIn('paneId', catalog['chats'][0])
+        with patch.object(bridge, 'Bridge') as codex:
+            bridge.handle({'operation': 'rename', 'threadId': 'claude:'+self.session, 'name': 'Release review'})
+            codex.assert_not_called()
+        self.assertEqual(bridge.claude_sessions.metadata(self.session, bridge.claude_sessions.load(bridge.sidebar.ROOT)[self.session])['title'], 'Release review')
+        self.assertEqual(bridge.handle({'operation': 'claude-history', 'threadId': 'claude:'+self.session})['path'], str(path))
+
+    def test_outside_transcript_symlink_is_not_read(self):
+        entry = bridge.claude_sessions.register(bridge.sidebar.ROOT, self.session, self.project)
+        path = self.store / 'projects' / bridge.claude_sessions.project_slug(entry['cwd']) / (self.session+'.jsonl')
+        path.parent.mkdir(parents=True)
+        outside = self.root / 'outside.jsonl'
+        outside.write_text('private')
+        path.symlink_to(outside)
+        self.assertIsNone(bridge.claude_sessions.transcript(self.session, entry))
+
+
 if __name__=='__main__':unittest.main()

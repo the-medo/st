@@ -13,7 +13,7 @@ function Fixture() {
   const feedback = Reflect.get(window, '__stFeedback') as { reply: string; title: string } | undefined;
   return <div style={{ display: 'flex', height: '100dvh', background: 'var(--bg)' }}>
     <aside style={{ width: 290, background: 'var(--bg-panel)' }}>
-      <MedoProjects selectedPaneId={selected} selectedThreadId={null} onCatalog={() => {}} onRead={() => {}} onNew={() => {}} onSettings={() => {}}
+      <MedoProjects selectedPaneId={selected} selectedThreadId={null} onCatalog={() => {}} onRead={() => {}} onSettings={() => {}}
         onOpen={async (pane, isCurrent) => {
           await fetch(`/fixture/select?pane=${pane}`);
           if (isCurrent()) setSelected(pane);
