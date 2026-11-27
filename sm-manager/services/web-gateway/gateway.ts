@@ -32,7 +32,7 @@ const blocked =
 // Cross-site links may open the app shell; APIs, assets and embedded documents
 // still require the usual origin checks. Keep these routes aligned with web.py.
 const shellPath =
-  /^\/(?:overview|projects|containers|github|storage|zed|dbs|air-quality|faceplate|assistant|agents(?:\/(?:chat|session)\/.*)?|planner\/(?:tasks|calendar|contacts|notes|journals))?$/;
+  /^\/(?:overview|projects|containers|github|storage|artifacts|zed|dbs|air-quality|faceplate|assistant|agents(?:\/(?:chat|session)\/.*)?|planner\/(?:tasks|calendar|contacts|notes|journals))?$/;
 const closeCode = (code: number) =>
   code === 1000 || code === 1001 || (code >= 3000 && code <= 4999)
     ? code
@@ -58,6 +58,13 @@ export function createGateway(config: GatewayConfig) {
     maxRequestBodySize: 64 * 1024 * 1024,
     idleTimeout: 60,
     async fetch(request, server) {
+      if (
+        request.method === "POST" &&
+        /^\/api\/artifacts\/[a-f0-9]{32}\/publish$/.test(
+          new URL(request.url).pathname,
+        )
+      )
+        server.timeout(request, 255);
       const url = new URL(request.url),
         host = request.headers.get("host") ?? "";
       const localHosts = new Set([
@@ -78,6 +85,13 @@ export function createGateway(config: GatewayConfig) {
           new Response("Invalid sign-in request", { status: 400 })
         );
       const origin = request.headers.get("origin");
+      // Python verifies the expiring capability for this artifact revision. No
+      // library APIs, source files or writes are authorized by a preview URL.
+      const artifactPreview =
+        request.method === "GET" &&
+        /^\/api\/artifact-preview\/[a-f0-9]{32}\/[1-9]\d*\/\d{10}\/[a-f0-9]{64}\/.+$/.test(
+          url.pathname,
+        );
       const pageNavigation =
         request.method === "GET" &&
         request.headers.get("sec-fetch-mode") === "navigate" &&
@@ -85,12 +99,15 @@ export function createGateway(config: GatewayConfig) {
         shellPath.test(url.pathname) &&
         !url.searchParams.getAll("st-embedded").includes("1");
       if (
-        (request.headers.get("sec-fetch-site") === "cross-site" &&
+        !artifactPreview &&
+        ((request.headers.get("sec-fetch-site") === "cross-site" &&
           !pageNavigation) ||
-        (origin && !new Set([publicHost?.origin, `http://${host}`]).has(origin))
+          (origin &&
+            !new Set([publicHost?.origin, `http://${host}`]).has(origin)))
       )
         return new Response("Origin not allowed", { status: 403 });
-      const denial = auth?.check(request, localHosts.has(host));
+      const denial =
+        !artifactPreview && auth?.check(request, localHosts.has(host));
       if (denial) return denial;
       if (/^\/ovis(?:\/|$)/.test(url.pathname))
         return new Response("Not found", { status: 404 });

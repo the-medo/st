@@ -39,7 +39,7 @@ inserting a shortcut letter into a draft. Reduced-motion preferences apply.
 | D | DBs | T | Tasks |
 | C | Calendar | F | Faceplate |
 | R | Prusa Connect (new tab) | Q | Air quality |
-| W | Toggle Workmode | | |
+| W | Toggle Workmode | L | Artifacts |
 
 Only currently available sidebar items have active shortcuts. Workmode hides
 device shortcuts, and navigation retains the current Workmode setting and the
@@ -74,6 +74,16 @@ Opening Agents or Planner with a main-sidebar shortcut keeps the mode ready:
   with read-only history and support for reload and browser Back/Forward. The
   embedded Agents view uses recents and the sidebar instead of top tabs; **+**
   still creates a terminal.
+
+The **Artifacts** page keeps standalone HTML, PDFs, images and editable sources
+in one library across projects. Search or organize by project/folder, preview
+output, restore revisions, and prepare an improvement request in an open agent
+conversation. Saving keeps the same artifact identity and does not change its
+published revision. Share explicitly to create or update one stable link; Stop
+sharing revokes future requests. The catalog and sources live outside worktrees;
+published output goes to a private R2 bucket through a dedicated Worker. See
+[artifact setup and limits](services/artifact-publisher/README.md) for the global
+CLI, agent skill, configuration and backup guidance.
 
 A quiet, local dashboard for the projects running on your machine. See which app,
 branch, worktree, or Docker container is using memory and CPU without asking an

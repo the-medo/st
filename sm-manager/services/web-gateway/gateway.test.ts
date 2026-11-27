@@ -36,6 +36,7 @@ test("cross-site links open app pages without allowing cross-site APIs or embedd
       "/agents/chat/example",
       "/agents/session/example",
       "/assistant",
+      "/artifacts",
       "/planner/tasks",
       "/planner/calendar",
     ])

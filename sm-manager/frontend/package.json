@@ -5,7 +5,8 @@
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc -p ../integrations/ovis/app/shared/vendor/paseo-e2ee/tsconfig.json --emitDeclarationOnly && tsc --noEmit",
-    "typecheck:gateway": "tsc -p ../services/web-gateway/tsconfig.json"
+    "typecheck:gateway": "tsc -p ../services/web-gateway/tsconfig.json",
+    "typecheck:publisher": "tsc -p ../services/artifact-publisher/tsconfig.json"
   },
   "dependencies": {
     "react": "19.3.0",

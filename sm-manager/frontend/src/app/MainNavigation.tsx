@@ -14,6 +14,7 @@ import {
   ChevronRight,
   ExternalLink,
   FolderGit2,
+  Files,
   GitPullRequest,
   HardDrive,
   House,
@@ -37,6 +38,7 @@ import type { UiConfig } from "../lib/types";
 
 export const navigation = [
   ["overview", "Overview", "overview", "O"],
+  ["artifacts", "Artifacts", "artifacts", "L"],
   ["projects", "Projects", "projects", "P"],
   ["containers", "Containers", "containers", "N"],
   ["github", "GitHub", "github", "G"],
@@ -45,6 +47,7 @@ export const navigation = [
   ["dbs", "DBs", "/db.svg", "D"],
 ] as const;
 const icons = {
+  artifacts: Files,
   overview: LayoutDashboard,
   projects: FolderGit2,
   containers: PanelsTopLeft,
