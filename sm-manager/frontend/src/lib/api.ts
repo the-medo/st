@@ -19,6 +19,7 @@ export function usePoll<T>(
   path: string | null,
   interval = 10000,
   active = true,
+  pollWhenHidden = false,
 ) {
   const [value, setValue] = useState<{
     path: string;
@@ -34,7 +35,7 @@ export function usePoll<T>(
     let pending = false;
     const abort = new AbortController();
     const fetchNow = async () => {
-      if (document.hidden || pending || stopped) return;
+      if ((!pollWhenHidden && document.hidden) || pending || stopped) return;
       pending = true;
       try {
         const data = await api<T>(path, {
@@ -63,7 +64,7 @@ export function usePoll<T>(
       clearInterval(timer);
       document.removeEventListener("visibilitychange", fetchNow);
     };
-  }, [path, interval, active, revision]);
+  }, [path, interval, active, revision, pollWhenHidden]);
   return {
     data: value?.path === path ? value.data : null,
     at: value?.at ?? 0,

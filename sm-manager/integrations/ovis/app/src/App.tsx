@@ -59,6 +59,7 @@ import { addPcExit, addPcMoreItem, MachineActionBanner, MachineSidebar } from ".
 import { SidebarResizer } from "./components/SidebarResizer.tsx";
 import { type PanePresence, useSidebarActivityState } from "./lib/sidebarActivity.tsx";
 import { useAgentStateStamping } from "./lib/useAgentStateSince.ts";
+import { medoActivityOf, useMedoReadSnapshot } from "./lib/medoReadState.ts";
 import { FilePanelResizer } from "./components/FilePanelResizer.tsx";
 import { openPresentation } from "./lib/filePresentation.ts";
 import { MachineDialog } from "./components/MachineDialog.tsx";
@@ -553,7 +554,15 @@ export function App({ hostShortcuts }: { hostShortcuts?: HostShortcuts } = {}) {
     && !dialogCover && !paneCovered() && !inbox.shown) ? "covered"
     : contentReady && paneContentPresented(contentKey) ? "front" : "loading",
   [locked, linkLanded, inbox.shown, drawerOpen, settingsOpen, newSessionOpen, filesOpen, filesDocked, machineDialog, paletteOpen, diffViewing, viewing, fileDocked, dialogCover, contentReady, contentKey]);
-  const activity = useSidebarActivityState(machines, selectedMachineId, presentedPaneId, panePresence, shareSeen);
+  const paneActivity = useSidebarActivityState(machines, selectedMachineId, presentedPaneId, panePresence, shareSeen);
+  const conversationActivity = useMedoReadSnapshot();
+  const activity = useMemo(() => ({
+    ...paneActivity,
+    status: (machineId: string, pane: Parameters<typeof paneActivity.status>[1]) => {
+      const chat = stConversations && machineId === 'local' ? catalog?.chats.find(chat => chat.paneId === pane.pane_id) : undefined;
+      return (chat ? medoActivityOf(chat, conversationActivity)?.status : undefined) ?? paneActivity.status(machineId, pane);
+    },
+  }), [paneActivity, stConversations, catalog, conversationActivity]);
   useAgentStateStamping(machines, activity);
 
   const agentOf = (machineId: string, paneId: string) => machines.find((machine) => machine.id === machineId)?.snapshot?.panes.find((pane) => pane.pane_id === paneId)?.agent;
@@ -926,9 +935,9 @@ export function App({ hostShortcuts }: { hostShortcuts?: HostShortcuts } = {}) {
   useEffect(() => {
     hostShortcuts?.panes(machines.flatMap((machine) => (machine.snapshot?.panes ?? []).map((pane) => ({
       machineId: machine.id, paneId: pane.pane_id, title: displayPaneTitle(pane),
-      agent: pane.agent ?? null, status: pane.agent_status, ended: !!pane.restore_error,
+      agent: pane.agent ?? null, status: activity.status(machine.id, pane) ?? pane.agent_status, ended: !!pane.restore_error,
     }))), machines.filter((machine) => machine.state === 'connected').map((machine) => machine.id));
-  }, [hostShortcuts, machines]);
+  }, [hostShortcuts, machines, activity]);
   useEffect(() => {
     hostShortcuts?.selection(savedThreadId ? {
       machineId: 'local', paneId: `medo:${savedThreadId}`, threadId: savedThreadId, view: 'chat', saved: true,

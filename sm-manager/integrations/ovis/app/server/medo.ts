@@ -36,7 +36,7 @@ export function medoConversation(data: any): RecognizedConversation {
     const started = time(turn.startedAt) ?? nativeTurnTime(turn.id);
     let assistant: ConversationPart[] = [];
     const flush = () => {
-      if (assistant.length) turns.push({ role: 'assistant', ts: started, ...(turn.completedAt ? { end_ts: time(turn.completedAt)! } : {}), parts: assistant });
+      if (assistant.length) turns.push({ role: 'assistant', turn_id: turn.id, ts: started, ...(turn.completedAt ? { end_ts: time(turn.completedAt)! } : {}), parts: assistant });
       assistant = [];
     };
     for (const item of turn.items) {
@@ -75,7 +75,7 @@ export function medoConversation(data: any): RecognizedConversation {
     activity: data.active ? 'working' : 'idle' };
 }
 
-export async function handleMedoRequest(request: Request, url: URL, readOnly: boolean): Promise<Response | null> {
+export async function handleMedoRequest(request: Request, url: URL, readOnly: boolean, call = medoCall): Promise<Response | null> {
   if (process.env['MEDO_PROJECTS'] !== '1') return null;
   const own = url.pathname.startsWith('/api/medo/');
   const conversation = url.pathname === '/api/pane/conversation' && request.method === 'GET';
@@ -95,30 +95,36 @@ export async function handleMedoRequest(request: Request, url: URL, readOnly: bo
     if (request.method === 'GET' && url.pathname === '/api/medo/resources') {
       const paneId = url.searchParams.get('pane_id') ?? '';
       if (!/^(t[\da-z]+|medo:[0-9a-f-]{36})$/.test(paneId)) return badRequest('invalid_conversation', 'Choose a conversation.');
-      return jsonResponse(await medoCall({ operation: 'resources', paneId }), 200, { 'cache-control': 'no-store' });
+      return jsonResponse(await call({ operation: 'resources', paneId }), 200, { 'cache-control': 'no-store' });
     }
 
-    if (request.method === 'GET' && url.pathname === '/api/medo/catalog') return jsonResponse(await medoCall({ operation: 'index' }), 200, { 'cache-control': 'no-store' });
+    if (request.method === 'GET' && url.pathname === '/api/medo/catalog') return jsonResponse(await call({ operation: 'index' }), 200, { 'cache-control': 'no-store' });
     if (request.method === 'GET' && url.pathname === '/api/medo/assistant') {
-      return jsonResponse(await medoCall({ operation: 'assistant_state', threadId: url.searchParams.get('thread') }), 200, { 'cache-control': 'no-store' });
+      return jsonResponse(await call({ operation: 'assistant_state', threadId: url.searchParams.get('thread') }), 200, { 'cache-control': 'no-store' });
     }
     if (request.method === 'GET' && url.pathname === '/api/medo/icon') {
       const name = url.searchParams.get('name');
       if (!name || !/^[a-f0-9]{64}\.(png|jpg|webp)$/.test(name)) return badRequest('invalid_icon', 'Choose a project image.');
-      const value = await medoCall({ operation: 'icon-get', name });
+      const value = await call({ operation: 'icon-get', name });
       return new Response(Buffer.from(value.base64, 'base64'), { headers: { 'content-type': name.endsWith('.jpg') ? 'image/jpeg' : `image/${name.split('.').pop()}`, 'cache-control': 'private, max-age=3600' } });
     }
     if (request.method !== 'POST') return badRequest('method_not_allowed', 'Use POST for this action.');
     const payload = await readJsonObject(request);
     if (payload instanceof Response) return payload;
+    if (url.pathname === '/api/medo/read-completion') {
+      if (typeof payload.threadId !== 'string' || !/^[0-9a-f-]{36}$/.test(payload.threadId)
+        || typeof payload.completionId !== 'string' || !payload.completionId || payload.completionId.length > 300)
+        return badRequest('invalid_completion', 'Choose the completed turn you read.');
+      return jsonResponse(await call({ operation: 'read-completion', threadId: payload.threadId, completionId: payload.completionId }), 200, { 'cache-control': 'no-store' });
+    }
     if (url.pathname === '/api/medo/assistant') {
       if (!['send', 'answer', 'stop'].includes(String(payload.action))) return badRequest('unknown_action', 'Choose an assistant action.');
-      return jsonResponse(await medoCall({ ...payload, operation: `assistant_${payload.action}` }));
+      return jsonResponse(await call({ ...payload, operation: `assistant_${payload.action}` }));
     }
     const operations: Record<string, string> = { '/api/medo/models': 'models', '/api/medo/settings': 'settings', '/api/medo/open': 'open', '/api/medo/new': 'new', '/api/medo/rename': 'rename', '/api/medo/organize': 'organize', '/api/medo/style': 'style', '/api/medo/icon': 'icon-put' };
     const operation = operations[url.pathname];
     if (!operation) return badRequest('unknown_action', 'Unknown project action.');
-    return jsonResponse(await medoCall({ ...payload, operation }));
+    return jsonResponse(await call({ ...payload, operation }));
   } catch (error) {
     if (error instanceof HistoryChanged) return jsonResponse({ error: { code: 'history_changed', message: error.message } }, 409);
     return jsonResponse({ error: { code: 'project_action_failed', message: error instanceof Error ? error.message : 'The project action failed.' } }, 400);

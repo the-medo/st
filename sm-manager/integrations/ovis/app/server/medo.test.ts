@@ -56,6 +56,33 @@ describe('Steam Machine history adapter', () => {
   });
 });
 
+test('completion receipt HTTP contract is owner-only, exact, and not cached', async () => {
+  const previous = process.env.MEDO_PROJECTS;
+  process.env.MEDO_PROJECTS = '1';
+  try {
+    const url = new URL('http://fixture/api/medo/read-completion');
+    const threadId = '00000000-0000-4000-8000-000000000001';
+    const activity = { revision: 4, completionId: 'newer-turn', unread: true, status: 'done' };
+    const calls: Record<string, unknown>[] = [];
+    const call = async (payload: Record<string, unknown>) => { calls.push(payload); return { threadId, activity }; };
+    const request = (body: unknown) => new Request(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    expect((await handleMedoRequest(request({ threadId, completionId: 'old-turn' }), url, true, call))?.status).toBe(403);
+    for (const body of [{}, { threadId, completionId: '' }, { threadId: '../file', completionId: 'turn' }, { threadId, completionId: 42 }])
+      expect((await handleMedoRequest(request(body), url, false, call))?.status).toBe(400);
+    expect(calls).toEqual([]);
+    const response = await handleMedoRequest(request({ threadId, completionId: 'old-turn', operation: 'new' }), url, false, call);
+    expect(calls).toEqual([{ operation: 'read-completion', threadId, completionId: 'old-turn' }]);
+    expect(response?.headers.get('cache-control')).toBe('no-store');
+    expect(await response?.json()).toEqual({ threadId, activity });
+    const catalogUrl = new URL('http://fixture/api/medo/catalog');
+    const catalogue = await handleMedoRequest(new Request(catalogUrl), catalogUrl, false, async () => ({ chats: [{ id: threadId, activity }] }));
+    expect(await catalogue?.json()).toEqual({ chats: [{ id: threadId, activity }] });
+  } finally {
+    if (previous === undefined) delete process.env.MEDO_PROJECTS;
+    else process.env.MEDO_PROJECTS = previous;
+  }
+});
+
 test('preserves native skill reads, MCP identity and failed status through the HTTP shape', () => {
   const result = medoConversation({ thread: { id: 'fixture' }, turns: [{ id: 'turn', items: [
     { id: 'read', kind: 'commandExecution', status: 'completed', exitCode: 0, commandActions: [{ type: 'read', path: '/skills/review/SKILL.md' }] },

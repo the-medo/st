@@ -1,5 +1,5 @@
 import type { MedoChat } from "../../../../integrations/ovis/app/shared/medo";
-import type { MedoReadState } from "../../../../integrations/ovis/app/src/lib/medoReadState";
+import { medoActivityOf, type MedoReadState } from "../../../../integrations/ovis/app/src/lib/medoReadState";
 
 export type AgentCounts = {
   working: number;
@@ -15,11 +15,13 @@ export function countAgentActivity(
   const counts = { working: 0, unread: 0, attention: 0 };
   for (const chat of chats) {
     if (chat.archived || chat.done) continue;
-    if (chat.status === "blocked") counts.attention++;
-    else if (chat.status === "working") counts.working++;
+    const activity = medoActivityOf(chat, read);
+    const status = activity?.status ?? chat.status;
+    if (status === "blocked") counts.attention++;
+    else if (status === "working") counts.working++;
     else if (
-      (!chat.status || chat.status === "idle" || chat.status === "done") &&
-      read.get(chat.id)?.unread
+      (!status || status === "idle" || status === "done") &&
+      activity?.unread
     )
       counts.unread++;
   }

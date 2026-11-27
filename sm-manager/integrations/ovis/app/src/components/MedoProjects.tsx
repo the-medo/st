@@ -9,7 +9,7 @@ import { apiFetch } from '../lib/api-request-id.ts';
 import { RowMenu } from './RowMenu.tsx';
 import './MedoProjects.css';
 import {useResourceUrl} from '../lib/useResourceUrl.ts';
-import { useMedoReadState } from '../lib/medoReadState.ts';
+import { MEDO_READ_EVENT, medoActivityOf, useMedoReadState } from '../lib/medoReadState.ts';
 import { useMedoFolderState } from '../lib/medoFolderState.ts';
 import { copyText } from '../lib/clipboard.ts';
 import { savedConversationLink } from '../lib/savedConversation.ts';
@@ -119,7 +119,8 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
     const focus = () => void refresh(); window.addEventListener('focus', focus);
     const visible = () => { if (document.visibilityState === 'visible') void refresh(); };
     document.addEventListener('visibilitychange', visible);
-    return () => { mounted.current = false; revision.current++; clearInterval(timer); window.removeEventListener('focus', focus); document.removeEventListener('visibilitychange', visible); selectionTicket.current++; };
+    window.addEventListener(MEDO_READ_EVENT, focus);
+    return () => { mounted.current = false; revision.current++; clearInterval(timer); window.removeEventListener(MEDO_READ_EVENT, focus); window.removeEventListener('focus', focus); document.removeEventListener('visibilitychange', visible); selectionTicket.current++; };
   }, [refresh]);
   const action = async (run: () => Promise<unknown>) => {
     try { await run(); setError(''); await refresh(true); return true; }
@@ -276,10 +277,12 @@ export function MedoProjects({ selectedPaneId, onOpen, onNew, onSettings, header
     const group = chats.filter((chat) => chat.project === project.id && chat.folder === folder).sort((a, b) => b.updated - a.updated);
     const limit = limits[key] ?? 5;
     const renderChat = (chat: MedoChat) => {
-      const needsAttention = chat.status === 'blocked';
-      const working = chat.status === 'working' || opening === chat.id;
-      const finished = !chat.status || chat.status === 'idle' || chat.status === 'done';
-      const unread = !working && finished && readState.get(chat.id)?.unread;
+      const activity = medoActivityOf(chat, readState);
+      const shownStatus = activity?.status ?? chat.status;
+      const needsAttention = shownStatus === 'blocked';
+      const working = shownStatus === 'working' || opening === chat.id;
+      const finished = !shownStatus || shownStatus === 'idle' || shownStatus === 'done';
+      const unread = !working && finished && activity?.unread;
       const status = needsAttention ? 'Needs attention' : opening === chat.id ? 'Opening conversation' : working ? 'Working' : unread ? 'Unread conversation' : chat.paneId ? 'Open session' : 'Saved conversation';
       return <div key={chat.id} className={`medo-chat${chat.id === selectedThreadId || (!selectedThreadId && chat.paneId && chat.paneId === selectedPaneId) ? ' is-selected' : ''}${unread ? ' is-unread' : ''}${chat.done ? ' is-done' : ''}`}>
       <button className="medo-chat-open" draggable={!organizing && opening !== chat.id} onDragStart={(event) => startDrag(event, { kind: 'chat', projectId: chat.project, id: chat.id, folderId: chat.folder })} onDragEnd={clearDrag} disabled={opening === chat.id} onClick={() => void open(chat)} title={chat.title} aria-label={chat.title || 'Untitled conversation'} aria-description={status} aria-busy={opening === chat.id}>
