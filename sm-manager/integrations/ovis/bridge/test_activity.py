@@ -82,8 +82,8 @@ class ActivityTests(unittest.TestCase):
 
     def test_native_working_state_is_shared_and_not_a_false_completion(self):
         self.turn('a', 10, status='inProgress', ended=None)
-        self.assertEqual(self.snapshot()['status'], 'working')
-        self.assertFalse(self.snapshot()['unread'])
+        self.assertEqual(self.snapshot(paneId='t1')['status'], 'working')
+        self.assertFalse(self.snapshot(paneId='t1')['unread'])
         chats = [{'id': 'chat', 'status': 'blocked'}]
         activity.observe(self.root, self.home, self.rows, chats)
         self.assertEqual(chats[0]['activity']['status'], 'blocked')
@@ -106,7 +106,7 @@ class ActivityTests(unittest.TestCase):
 
     def test_an_ended_terminal_does_not_leave_the_conversation_working(self):
         self.turn('a', 10, status='inProgress', ended=None)
-        self.assertEqual(self.snapshot()['status'], 'working')
+        self.assertEqual(self.snapshot(paneId='t1')['status'], 'working')
         self.turn('a', 10)
         chats = [{'id': 'chat'}]  # no live terminal in the next catalogue
         activity.observe(self.root, self.home, self.rows, chats)
@@ -116,6 +116,43 @@ class ActivityTests(unittest.TestCase):
         blocked = [{'id': 'chat', 'status': 'blocked'}]
         activity.observe(self.root, self.home, self.rows, blocked)
         self.assertEqual(self.read('a')['status'], 'blocked')
+
+    def test_orphaned_in_progress_history_is_idle_and_does_not_change_native_history(self):
+        self.turn('old', 10, ended=100)
+        self.turn('orphan', 20, status='inProgress', ended=None)
+        before = self.history.read_bytes()
+        chats = [{'id': 'chat'}]
+        activity.observe(self.root, self.home, self.rows, chats)
+        state = chats[0]['activity']
+        self.assertEqual(chats[0]['status'], 'idle')
+        self.assertFalse(state['unread'])
+        self.assertEqual(state['completionId'], 'old')
+        self.assertEqual(self.read('old'), state)
+        self.assertEqual(self.history.read_bytes(), before)
+
+    def test_lost_terminal_clears_working_even_when_history_never_finishes(self):
+        self.turn('old', 10, ended=100)
+        self.turn('orphan', 20, status='inProgress', ended=None)
+        working = self.snapshot(paneId='t1')
+        self.assertEqual(working['status'], 'working')
+        self.assertEqual(self.read('old')['status'], 'working')
+        chats = [{'id': 'chat'}]
+        activity.observe(self.root, self.home, self.rows, chats)
+        idle = chats[0]['activity']
+        self.assertEqual(idle['status'], 'idle')
+        self.assertGreater(idle['revision'], working['revision'])
+        self.assertEqual(self.read('old'), idle)
+        self.assertEqual(self.snapshot(), idle)
+
+    def test_orphaned_turn_keeps_previous_completion_unread(self):
+        self.turn('completed', 10)
+        self.turn('orphan', 20, status='inProgress', ended=None)
+        state = self.snapshot()
+        self.assertEqual(state['status'], 'done')
+        self.assertTrue(state['unread'])
+        self.assertEqual(state['completionId'], 'completed')
+        self.assertEqual(self.read('completed')['status'], 'idle')
+        self.assertFalse(self.snapshot()['unread'])
 
     def test_damaged_and_future_state_are_not_overwritten(self):
         self.snapshot()

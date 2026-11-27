@@ -68,10 +68,11 @@ def _observe(db, chat, history, started, preserve_status=False):
     # A catalogue without a terminal is idle. A receipt has no terminal snapshot,
     # so it preserves the last known live status until the next catalogue arrives.
     status = chat.get('status', before['status'] if before and preserve_status else 'idle')
-    # A terminal can briefly report idle/done while a native turn is still running.
-    # Its blocked report remains useful for approvals/questions during that turn.
+    # A live terminal can briefly report idle/done while its native turn is running.
+    # Require the catalogue's live pane: persisted inProgress headers can outlive
+    # an interrupted process. Receipts preserve observed status, not historical work.
     if latest:
-        if latest['status'] == 'inProgress':
+        if latest['status'] == 'inProgress' and chat.get('paneId'):
             status = 'blocked' if status == 'blocked' else 'working'
         elif status not in ('working', 'blocked', 'waiting'):
             status = 'idle'
