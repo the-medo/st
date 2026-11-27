@@ -6,7 +6,9 @@ import os
 from pathlib import Path
 import re
 import shutil
+import subprocess
 import sys
+import tempfile
 import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
@@ -28,6 +30,47 @@ def model_catalog():
         client.process.terminate()
 
 
+def claude_model_catalog():
+    """Read the CLI's initialize inventory, without a prompt, tools or saved session."""
+    cache = Path(os.environ.get('TMPDIR') or Path.home()/'.cache/st-claude-models')
+    cache.mkdir(parents=True, exist_ok=True, mode=0o700)
+    with tempfile.TemporaryDirectory(prefix='st-claude-models-', dir=cache) as cwd:
+        reply = subprocess.run([claude_binary(), '--safe-mode', '--print',
+            '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose',
+            '--no-session-persistence', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}',
+            '--tools', ''], cwd=cwd, input=json.dumps({'type': 'control_request',
+                'request_id': 'model-options', 'request': {'subtype': 'initialize'}})+'\n',
+            text=True, capture_output=True, timeout=15, check=True)
+    for line in reply.stdout.splitlines():
+        value = json.loads(line)
+        if value.get('type') != 'control_response': continue
+        response = value.get('response', {})
+        if response.get('request_id') == 'model-options' and response.get('subtype') == 'success':
+            return response['response']['models']
+    raise ValueError('Claude did not return its model choices.')
+
+
+def claude_model_options(rows):
+    models = {}
+    default_label = 'Agent default'
+    for row in rows:
+        name, resolved = row['value'], row.get('resolvedModel')
+        if name == 'default':
+            # The launch directory may override the account's default model.
+            default_label = 'Agent default (CLI settings)'
+            continue
+        label = row.get('displayName') or name
+        alias = name in ('opus', 'sonnet', 'haiku', 'fable')
+        option = {'id': name, 'label': f'Latest {name.title()} · {label}' if alias else label,
+                  'efforts': row.get('supportedEffortLevels', []), 'defaultEffort': '',
+                  'resolvedModel': resolved, 'alias': alias}
+        models[name] = option
+        if alias and resolved:
+            models.setdefault(resolved, {**option, 'id': resolved, 'label': label, 'alias': False})
+    if not models: raise ValueError('Claude returned no model choices.')
+    return list(models.values()), default_label
+
+
 def provider_options():
     codex = {'id': 'codex', 'label': 'Codex', 'installed': os.access(sidebar.CODEX, os.X_OK), 'models': [], 'error': None}
     try:
@@ -36,10 +79,14 @@ def provider_options():
                             'defaultEffort': m['defaultReasoningEffort'], 'isDefault': m.get('isDefault', False)} for m in model_catalog()]
     except Exception:
         codex['error'] = 'Model choices are unavailable. You can start with the Codex default.'
-    # Stable CLI aliases follow the installed Claude release and its organization policy.
     claude = {'id': 'claude', 'label': 'Claude', 'installed': os.access(claude_binary(), os.X_OK), 'error': None,
-              'models': [{'id': name, 'label': name.title(), 'efforts': ['low', 'medium', 'high', 'xhigh', 'max'],
+              'models': [{'id': name, 'label': 'Latest '+name.title(), 'efforts': ['low', 'medium', 'high', 'xhigh', 'max'],
                           'defaultEffort': ''} for name in ('opus', 'sonnet', 'haiku')]}
+    if claude['installed']:
+        try:
+            claude['models'], claude['defaultModelLabel'] = claude_model_options(claude_model_catalog())
+        except Exception:
+            claude['error'] = 'Could not read Claude’s model list. Choose a latest alias or enter a model ID.'
     return {'providers': [codex, claude]}
 
 
@@ -51,7 +98,7 @@ def launch_choices(provider, model, effort):
     if model and not re.fullmatch(r'[A-Za-z0-9][\w.:/-]*(?:\[[A-Za-z0-9]+\])?', model):
         raise ValueError('Choose a valid model.')
     if provider == 'claude':
-        if model not in ('', 'opus', 'sonnet', 'haiku') or effort not in ('', 'low', 'medium', 'high', 'xhigh', 'max'):
+        if (model and (len(model) > 120 or not re.fullmatch(r'(?:opus|sonnet|haiku|fable|claude-[a-z0-9][a-z0-9-]*)(?:\[1m\])?', model))) or effort not in ('', 'low', 'medium', 'high', 'xhigh', 'max'):
             raise ValueError('Choose a Claude model and reasoning level.')
     elif model or effort:
         selected = next((m for m in model_catalog() if m['model'] == model), None)

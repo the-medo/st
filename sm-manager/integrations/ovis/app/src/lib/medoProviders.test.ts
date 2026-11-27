@@ -34,3 +34,17 @@ test('saved Claude URLs keep their provider namespace through reloads', () => {
   expect(search).not.toContain('pane=');
   expect(savedConversation('?saved=claude:../../outside')).toBeNull();
 });
+
+
+test('expired access is distinct from a weekly reset and does not claim the login is gone', () => {
+  const active = account('codex:active', 20);
+  const expired = weeklyRemaining(option, { providers: [{ ...active, problem: 'expired' }] });
+  expect(expired.label).toBe('Usage needs refresh');
+  expect(expired.needsCliRefresh).toBe(true);
+  expect(expired.note).toContain('stored login may still be valid');
+  const reset = weeklyRemaining(option, { server_time: '2026-11-27T12:00:00Z', providers: [
+    { ...active, windows: [{ ...active.windows[0]!, resets_at: '2026-11-26T12:00:00Z' }] },
+  ] });
+  expect(reset.needsCliRefresh).not.toBe(true);
+  expect(reset.note).toBe('Waiting for updated weekly usage');
+});

@@ -9,7 +9,7 @@ import { apiFetch } from '../lib/api-request-id.ts';
 import { RowMenu } from './RowMenu.tsx';
 import './MedoProjects.css';
 import {useResourceUrl} from '../lib/useResourceUrl.ts';
-import { MedoNewConversation } from './MedoNewConversation.tsx';
+import type { MedoNewPage } from './MedoNewConversation.tsx';
 import { AgentMark } from './AgentMark.tsx';
 import { composerDrafts } from '../lib/composerDraft.ts';
 import { paneStorageId } from '../../shared/machines.ts';
@@ -51,8 +51,10 @@ export function MedoDialog({ title, children, onClose, wide = false, className =
     <header><h2>{title}</h2><button aria-label="Close" onClick={onClose}><X size={18} /></button></header>{children}
   </div></div>, document.body);
 }
-export function MedoProjects({ selectedPaneId, onOpen, onSettings, headerActions, hostShortcuts, selectedThreadId, onRead, onCatalog }: {
+export function MedoProjects({ selectedPaneId, onOpen, onNew, composing, onSettings, headerActions, hostShortcuts, selectedThreadId, onRead, onCatalog }: {
   selectedThreadId: string | null; onRead: (chat: MedoChat) => void; onCatalog: (catalog: MedoCatalog) => void;
+  onNew: (page: Omit<MedoNewPage, 'key'>) => void;
+  composing?: boolean;
   hostShortcuts?: HostShortcuts;
   headerActions?: ReactNode;
   selectedPaneId: string | null; onOpen: (paneId: string, isCurrent: () => boolean) => Promise<void>; onSettings: () => void;
@@ -69,7 +71,6 @@ export function MedoProjects({ selectedPaneId, onOpen, onSettings, headerActions
   const [savingDone, setSavingDone] = useState<Set<string>>(new Set());
   const donePending = useRef(new Set<string>());
   const [notice, setNotice] = useState('');
-  const [newProject, setNewProject] = useState<{ projectId: string | null; folderId?: string } | null>(null);
   const [opening, setOpening] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [move, setMove] = useState<MedoChat | null>(null);
@@ -85,7 +86,7 @@ export function MedoProjects({ selectedPaneId, onOpen, onSettings, headerActions
   const [reordering, setReordering] = useState(false);
   const reorderPending = useRef(false);
   const [rename, setRename] = useState<MedoChat | null>(null);
-  const readState = useMedoReadState(catalog?.chats, selectedThreadId ? null : selectedPaneId, Boolean(newProject || move || edit || rename || chatMenu || projectMenu || folderMenu), selectedThreadId ?? undefined);
+  const readState = useMedoReadState(catalog?.chats, selectedThreadId ? null : selectedPaneId, Boolean(composing || move || edit || rename || chatMenu || projectMenu || folderMenu), selectedThreadId ?? undefined);
   const pending = useRef<Promise<void> | null>(null);
   const revision = useRef(0);
   const mounted = useRef(false);
@@ -254,6 +255,11 @@ export function MedoProjects({ selectedPaneId, onOpen, onSettings, headerActions
     }
     finally { creatingRef.current = false; if (mounted.current) setCreating(false); }
   };
+  const openNew = (projectId: string | null, folderId?: string) => {
+    if (creatingRef.current) return;
+    selectionTicket.current++; openingRef.current = null; setOpening(null); setError('');
+    onNew({ projectId, folderId, start });
+  };
   const chats = catalog?.chats.filter((chat) => chat.archived === archived && (showDone || !chat.done) && (!query || chat.title.toLocaleLowerCase().includes(query.toLocaleLowerCase()))) ?? [];
   const drafts = archived ? [] : catalog?.drafts?.filter((draft) => !query || draft.title.toLocaleLowerCase().includes(query.toLocaleLowerCase())) ?? [];
   const projects = catalog?.projects.filter((project) => !query || chats.some((chat) => chat.project === project.id) || drafts.some((draft) => draft.project === project.id)) ?? [];
@@ -313,7 +319,7 @@ export function MedoProjects({ selectedPaneId, onOpen, onSettings, headerActions
         <div className="medo-folder-row" draggable={!organizing} onDragStart={(event) => startDrag(event, { kind: 'folder', projectId: project.id, id: folder.id })} onDragEnd={clearDrag} {...dropProps(project.id, folder)}>
           <button className="medo-folder-head" aria-expanded={!folded} onClick={() => toggleFolder(key)} title="Drag to reorder folder">{folded ? <ChevronRight size={13} /> : <ChevronDown size={13} />}<Folder className="medo-folder-icon" size={13} /><span>{folder.name}</span></button>
           <GripVertical className="medo-folder-grip" size={12} aria-hidden="true" />
-          {project.path && <button className="medo-row-action" disabled={creating} aria-label={`New conversation in folder ${folder.name}`} title="New conversation in this folder" onClick={() => setNewProject({ projectId: project.id, folderId: folder.id })}><Plus size={15} /></button>}
+          {project.path && <button className="medo-row-action" disabled={creating} aria-label={`New conversation in folder ${folder.name}`} title="New conversation in this folder" onClick={() => openNew(project.id, folder.id)}><Plus size={15} /></button>}
           <button className="medo-row-action" aria-label={`Actions for folder ${folder.name}`} aria-haspopup="menu" aria-expanded={folderMenu?.projectId === project.id && folderMenu.folderId === folder.id} onClick={(event) => setFolderMenu({ projectId: project.id, folderId: folder.id, anchor: event.currentTarget })}><Ellipsis size={15} /></button>
         </div>{!folded && rows(project, folder.id)}
       </div>;
@@ -328,7 +334,7 @@ export function MedoProjects({ selectedPaneId, onOpen, onSettings, headerActions
   };
   const currentEdit = edit && (catalog?.projects.find((project) => project.id === edit.id) ?? edit);
   return <div className="medo-projects" data-dragging={dragging?.kind}>
-    <div className="medo-sidebar-head"><strong>Conversations</strong><div className="medo-sidebar-actions">{headerActions}<button aria-label="New conversation" title="New conversation" onClick={() => setNewProject({ projectId: null })}><Plus size={18} /></button></div></div>
+    <div className="medo-sidebar-head"><strong>Conversations</strong><div className="medo-sidebar-actions">{headerActions}<button disabled={creating} aria-label="New conversation" title="New conversation" onClick={() => openNew(null)}><Plus size={18} /></button></div></div>
     <label className="medo-search"><Search size={15} /><input aria-label="Search conversations" placeholder="Search conversations" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
     {(error || catalogError) && <div className="medo-error" role="alert">{error || catalogError}<button onClick={() => { setError(''); void refresh(true); }}>Retry</button></div>}
     {notice && <div className="medo-copy-notice" role="status">{notice}<button aria-label="Dismiss copy notification" onClick={() => setNotice('')}><X size={13} /></button></div>}
@@ -344,7 +350,7 @@ export function MedoProjects({ selectedPaneId, onOpen, onSettings, headerActions
             {hidden ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
             <ProjectIcon style={style} />
             <span>{project.name}</span></button>
-            {project.path && <button className="medo-row-action" disabled={creating} aria-label={`New conversation in ${project.name}`} onClick={() => setNewProject({ projectId: project.id })}><Plus size={15} /></button>}
+            {project.path && <button className="medo-row-action" disabled={creating} aria-label={`New conversation in ${project.name}`} onClick={() => openNew(project.id)}><Plus size={15} /></button>}
             <button className="medo-row-action" aria-label={`Actions for project ${project.name}`} aria-haspopup="menu" aria-expanded={projectMenu?.project.id === project.id} onClick={(event) => setProjectMenu(projectMenu?.project.id === project.id ? null : { project, anchor: event.currentTarget })}><Ellipsis size={15} /></button>
           </div>{!hidden && <div className="medo-project-chats">{renderFolders(project, 'start')}<div className="medo-unfiled">{rows(project, null)}</div>{renderFolders(project, 'end')}{!matching && !project.folders.length && <span className="medo-empty">No {archived ? 'archived ' : ''}conversations</span>}</div>}
         </section>;
@@ -375,7 +381,6 @@ export function MedoProjects({ selectedPaneId, onOpen, onSettings, headerActions
       void refresh(true);
       setCatalog((current) => current && ({ ...current, chats: current.chats.map((chat) => chat.id === rename.id ? { ...chat, title: result.title } : chat) }));
     }} />}
-    {newProject && <MedoNewConversation projects={catalog?.projects ?? []} initialProject={newProject.projectId} initialFolder={newProject.folderId} onClose={() => setNewProject(null)} onStart={start} />}
     {move && <MedoDialog title="Move to folder" onClose={() => setMove(null)}><p className="medo-muted">{move.title}</p><div className="medo-folder-choices">{[{ id: '', name: 'No folder' }, ...(catalog?.projects.find((project) => project.id === move.project)?.folders ?? [])].map((folder) => <button key={folder.id} className="btn" onClick={() => void action(() => organize({ operation: 'move', projectId: move.project, threadId: move.id, folderId: folder.id || null })).then((ok) => { if (ok) setMove(null); })}><Folder size={15} />{folder.name}</button>)}</div><button className="btn" onClick={() => { read(move); setMove(null); }}>Read saved conversation</button></MedoDialog>}
     {currentEdit && <ProjectEditor key={currentEdit.id} project={currentEdit} onClose={() => setEdit(null)} onSave={(style) => action(() => call('style', { projectId: currentEdit.id, style }))} onFolder={(change) => action(() => organize({ ...change, projectId: currentEdit.id }))} />}
   </div>;

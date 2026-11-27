@@ -45,7 +45,10 @@ try {
           { id: 'test-fast', label: 'Fast model', defaultEffort: 'low', efforts: ['low', 'medium'] },
         ] },
         { id: 'claude', label: 'Claude', installed: true, usageKey: 'claude:current', error: null,
-          models: ['opus', 'sonnet', 'haiku'].map((id) => ({ id, label: id[0]!.toUpperCase() + id.slice(1), defaultEffort: '', efforts: ['low', 'medium', 'high', 'xhigh', 'max'] })) },
+          defaultModelLabel: 'Agent default (CLI settings)',
+          models: [{ id: 'opus', label: 'Latest Opus · Opus 5.5', resolvedModel: 'claude-opus-5-5', alias: true },
+            { id: 'claude-opus-5-5', label: 'Opus 5.5', resolvedModel: 'claude-opus-5-5', alias: false },
+            { id: 'claude-opus-5', label: 'Opus 5', resolvedModel: 'claude-opus-5', alias: false }].map((model) => ({ ...model, defaultEffort: '', efforts: ['low', 'medium', 'high', 'xhigh', 'max'] })) },
       ] } }); return;
     }
     if (path.endsWith('/catalog')) {
@@ -126,56 +129,79 @@ try {
   assert.equal(await page.locator('.medo-project-chats .medo-chat-open').count(), 1);
   await page.getByRole('textbox', { name: 'Search conversations' }).fill('');
 
-  // New conversations wait for the provider choice and send the first message exactly once.
+  // Opening the composer supersedes any earlier pending conversation selection.
+  await row('Sidebar work').click();
+  await waitCount(opens, 1);
   await row('New conversation in Garden').click();
-  const dialog = page.getByRole('dialog', { name: 'New conversation', exact: true });
-  await dialog.getByRole('radio', { name: 'Codex', exact: true }).waitFor();
+  const composer = page.getByRole('region', { name: 'New conversation', exact: true });
+  await composer.getByRole('radio', { name: 'Codex', exact: true }).waitFor();
+  await opens.shift()!.fulfill({ json: { address: 'old-selection', reused: true } });
+  await composer.getByRole('textbox', { name: 'Message', exact: true }).fill('Draft still here');
+  assert.equal(selects.length, 0);
   assert.equal(creates.length, 0);
-  await dialog.getByText('73%', { exact: true }).waitFor();
-  await dialog.getByText('41%', { exact: true }).waitFor();
-  assert.equal(await dialog.getByRole('radio', { name: 'Codex', exact: true }).getAttribute('aria-checked'), 'true');
-  assert.equal(await dialog.getByRole('combobox', { name: 'Project', exact: true }).inputValue(), 'garden');
-  await dialog.getByRole('textbox', { name: 'Message', exact: true }).fill('Help me plan the next release.');
+  assert.equal(await page.getByRole('dialog').count(), 0);
+  assert.equal(await composer.getByRole('textbox', { name: 'Message', exact: true }).evaluate((element) => document.activeElement === element), true);
+  await composer.getByText('73%', { exact: true }).waitFor();
+  await composer.getByText('41%', { exact: true }).waitFor();
+  assert.equal(await composer.getByRole('radio', { name: 'Codex', exact: true }).getAttribute('aria-checked'), 'true');
+  assert.equal(await composer.getByRole('combobox', { name: 'Project', exact: true }).inputValue(), 'garden');
+  await composer.getByRole('textbox', { name: 'Message', exact: true }).fill('Help me plan the next release.');
   if (evidence) await page.screenshot({ path: join(evidence, 'new-conversation-codex-desktop.png') });
-  await dialog.getByRole('radio', { name: 'Claude', exact: true }).click();
-  await dialog.getByRole('combobox', { name: 'Model', exact: true }).selectOption('opus');
-  await dialog.getByRole('combobox', { name: 'Reasoning', exact: true }).selectOption('high');
-  assert.equal(await dialog.getByRole('textbox', { name: 'Message', exact: true }).inputValue(), 'Help me plan the next release.');
-  await dialog.getByRole('radio', { name: 'Codex', exact: true }).click();
-  assert.equal(await dialog.getByRole('combobox', { name: 'Model', exact: true }).inputValue(), 'test-codex');
-  await dialog.getByRole('combobox', { name: 'Model', exact: true }).selectOption('test-fast');
-  assert.equal(await dialog.getByRole('combobox', { name: 'Reasoning', exact: true }).inputValue(), 'low');
-  assert.equal(await dialog.getByRole('combobox', { name: 'Reasoning', exact: true }).locator('option[value="high"]').count(), 0);
-  await dialog.getByRole('radio', { name: 'Claude', exact: true }).click();
-  assert.equal(await dialog.getByRole('combobox', { name: 'Model', exact: true }).inputValue(), 'opus');
-  assert.equal(await dialog.getByRole('combobox', { name: 'Reasoning', exact: true }).inputValue(), 'high');
+  await composer.getByRole('radio', { name: 'Claude', exact: true }).click();
+  await composer.getByRole('combobox', { name: 'Model', exact: true }).selectOption('opus');
+  await composer.getByRole('combobox', { name: 'Reasoning', exact: true }).selectOption('high');
+  assert.equal(await composer.getByRole('textbox', { name: 'Message', exact: true }).inputValue(), 'Help me plan the next release.');
+  await composer.getByRole('radio', { name: 'Codex', exact: true }).click();
+  assert.equal(await composer.getByRole('combobox', { name: 'Model', exact: true }).inputValue(), 'test-codex');
+  await composer.getByRole('combobox', { name: 'Model', exact: true }).selectOption('test-fast');
+  assert.equal(await composer.getByRole('combobox', { name: 'Reasoning', exact: true }).inputValue(), 'low');
+  assert.equal(await composer.getByRole('combobox', { name: 'Reasoning', exact: true }).locator('option[value="high"]').count(), 0);
+  await composer.getByRole('radio', { name: 'Claude', exact: true }).click();
+  assert.equal(await composer.getByRole('combobox', { name: 'Model', exact: true }).inputValue(), 'opus');
+  assert.equal(await composer.getByRole('combobox', { name: 'Reasoning', exact: true }).inputValue(), 'high');
+  await composer.getByText('follows future updates', { exact: false }).waitFor();
+  await composer.getByRole('combobox', { name: 'Model', exact: true }).selectOption('claude-opus-5-5');
+  await composer.getByRole('combobox', { name: 'Reasoning', exact: true }).selectOption('high');
+  await composer.getByText('Pinned to', { exact: false }).waitFor();
   if (evidence) await page.screenshot({ path: join(evidence, 'new-conversation-claude-desktop.png') });
   await page.setViewportSize({ width: 390, height: 844 });
   if (evidence) await page.screenshot({ path: join(evidence, 'new-conversation-mobile.png') });
-  assert.equal(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth && element.getBoundingClientRect().left >= 0 && element.getBoundingClientRect().right <= window.innerWidth), true);
+  assert.equal(await composer.evaluate((element) => element.scrollWidth <= element.clientWidth && element.getBoundingClientRect().left >= 0 && element.getBoundingClientRect().right <= window.innerWidth), true);
   await page.setViewportSize({ width: 1100, height: 720 });
-  await dialog.getByRole('button', { name: 'Start conversation', exact: true }).dblclick();
+  await composer.getByRole('button', { name: 'Start conversation', exact: true }).dblclick();
   await waitCount(creates, 1);
-  assert.deepEqual(creates[0]!.request().postDataJSON(), { projectId: 'garden', provider: 'claude', model: 'opus', effort: 'high', prompt: 'Help me plan the next release.' });
+  assert.deepEqual(creates[0]!.request().postDataJSON(), { projectId: 'garden', provider: 'claude', model: 'claude-opus-5-5', effort: 'high', prompt: 'Help me plan the next release.' });
   await creates.shift()!.fulfill({ json: { address: 'new', reused: false, first_message: { id: 'queued-1' } } });
   await waitCount(selects, 1);
   await selects.shift()!.fulfill({ json: {} });
-  await dialog.waitFor({ state: 'hidden' });
+  await composer.waitFor({ state: 'hidden' });
   await page.waitForFunction(() => !document.querySelector<HTMLButtonElement>('[aria-label="New conversation in Garden"]')?.disabled);
   assert.equal(await page.getByTestId('selected').textContent(), 'new');
   assert.equal(selects.length, 0);
-  // Every new window starts on Codex, including the global button. Missing usage is never 100%.
+  // Every new page starts on Codex, including the global button. Missing usage is never 100%.
   usage = { providers: [] };
   await page.locator('.medo-sidebar-head').getByRole('button', { name: 'New conversation', exact: true }).click();
-  await dialog.getByRole('radio', { name: 'Codex', exact: true }).waitFor();
-  assert.equal(await dialog.getByRole('radio', { name: 'Codex', exact: true }).getAttribute('aria-checked'), 'true');
-  await dialog.getByText('Usage unavailable', { exact: true }).first().waitFor();
-  assert.equal(await dialog.getByText('100%', { exact: true }).count(), 0);
-  await dialog.getByRole('radio', { name: 'Codex', exact: true }).focus();
+  await composer.getByRole('radio', { name: 'Codex', exact: true }).waitFor();
+  assert.equal(await composer.getByRole('radio', { name: 'Codex', exact: true }).getAttribute('aria-checked'), 'true');
+  await composer.getByText('Usage unavailable', { exact: true }).first().waitFor();
+  assert.equal(await composer.getByText('100%', { exact: true }).count(), 0);
+  await composer.getByRole('radio', { name: 'Codex', exact: true }).focus();
   await page.keyboard.press('ArrowRight');
-  assert.equal(await dialog.getByRole('radio', { name: 'Claude', exact: true }).getAttribute('aria-checked'), 'true');
+  assert.equal(await composer.getByRole('radio', { name: 'Claude', exact: true }).getAttribute('aria-checked'), 'true');
   await page.keyboard.press('Escape');
-  await dialog.waitFor({ state: 'hidden' });
+  assert.equal(await composer.isVisible(), true);
+  await composer.getByRole('combobox', { name: 'Model', exact: true }).selectOption('__custom__');
+  await composer.getByRole('textbox', { name: 'Model ID', exact: true }).fill('--help');
+  assert.equal(await composer.getByRole('button', { name: 'Start conversation', exact: true }).isDisabled(), true);
+  await composer.getByRole('textbox', { name: 'Model ID', exact: true }).fill('claude-opus-4-6');
+  await composer.getByRole('button', { name: 'Start conversation', exact: true }).click();
+  await waitCount(creates, 1);
+  assert.deepEqual(creates[0]!.request().postDataJSON(), { projectId: 'garden', provider: 'claude', model: 'claude-opus-4-6', effort: '' });
+  await creates.shift()!.fulfill({ status: 400, json: { error: { message: 'Model unavailable for this account' } } });
+  await composer.getByRole('alert').filter({ hasText: 'Model unavailable' }).waitFor();
+  assert.equal(await composer.getByRole('textbox', { name: 'Model ID', exact: true }).inputValue(), 'claude-opus-4-6');
+  await composer.getByRole('button', { name: 'Back to conversation', exact: true }).click();
+  await composer.waitFor({ state: 'hidden' });
 
   // Project order persists through fresh catalogues; stale polls cannot undo a move.
   catalog.projects.push({ id: 'studio', name: 'Studio', path: '/fixture/studio', folders: [] }, { id: 'home', name: 'Home', path: '/fixture/home', folders: [] });
@@ -548,10 +574,10 @@ try {
   await row('Ideas').click();
   const folderPlus = row('New conversation in folder Ideas');
   await folderPlus.click();
-  await dialog.waitFor();
-  assert.equal(await dialog.getByRole('combobox', { name: 'Conversation folder', exact: true }).inputValue(), 'ideas');
-  assert.equal(await dialog.getByRole('radio', { name: 'Codex', exact: true }).getAttribute('aria-checked'), 'true');
-  await dialog.getByRole('button', { name: 'Start conversation', exact: true }).dblclick();
+  await composer.waitFor();
+  assert.equal(await composer.getByRole('combobox', { name: 'Conversation folder', exact: true }).inputValue(), 'ideas');
+  assert.equal(await composer.getByRole('radio', { name: 'Codex', exact: true }).getAttribute('aria-checked'), 'true');
+  await composer.getByRole('button', { name: 'Start conversation', exact: true }).dblclick();
   await waitCount(creates, 1);
   const folderCreate = creates.shift()!;
   assert.deepEqual(folderCreate.request().postDataJSON(), { projectId: 'garden', folderId: 'ideas', provider: 'codex', model: 'test-codex', effort: 'medium' });

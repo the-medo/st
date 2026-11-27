@@ -9,8 +9,8 @@ export interface MedoReadReceipt { threadId: string; activity: MedoActivity }
 export interface MedoChat { activity?: MedoActivity; assistant?: boolean; id: string; provider?: MedoProvider; title: string; project: string; cwd: string; updated: number; archived: boolean; done?: boolean; unavailable: string | null; folder: string | null; paneId?: string; status?: string }
 export interface MedoCatalog { drafts?: { address: string; project: string; title: string; folder?: string | null }[]; projects: MedoProject[]; chats: MedoChat[]; organizationRevision: number }
 export interface MedoOpen { address: string; reused: boolean; first_message?: { id: string; held?: string } | { error: { message: string } } }
-export interface MedoModel { id: string; label: string; efforts: string[]; defaultEffort: string; isDefault?: boolean }
-export interface MedoProviderOption { id: MedoProvider; label: string; installed: boolean; models: MedoModel[]; error: string | null; usageKey: string | null }
+export interface MedoModel { id: string; label: string; efforts: string[]; defaultEffort: string; isDefault?: boolean; resolvedModel?: string; alias?: boolean }
+export interface MedoProviderOption { id: MedoProvider; label: string; installed: boolean; models: MedoModel[]; error: string | null; usageKey: string | null; defaultModelLabel?: string }
 /** GET /api/medo/providers: CLI choices and the account key used by /api/usage, never credentials. */
 export interface MedoProviders { providers: MedoProviderOption[] }
 /** POST /api/medo/new: the selected CLI and its first message, queued once through this page's connection. */

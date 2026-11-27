@@ -347,6 +347,54 @@ class ResourceIdentityTests(unittest.TestCase):
             with self.assertRaises(ValueError): bridge.handle({'operation': 'resources', 'paneId': 't1'})
             client.assert_not_called()
 
+class ClaudeModelTests(unittest.TestCase):
+    models = [
+        {'value': 'default', 'resolvedModel': 'claude-opus-5-5'},
+        {'value': 'opus', 'resolvedModel': 'claude-opus-5-5', 'displayName': 'Opus 5.5', 'supportedEffortLevels': ['low', 'high', 'max']},
+        {'value': 'claude-opus-4-6', 'resolvedModel': 'claude-opus-4-6', 'displayName': 'Opus 4.6', 'supportedEffortLevels': ['low', 'high']},
+        {'value': 'claude-haiku-4-5-20251001', 'displayName': 'Haiku 4.5'},
+    ]
+
+    def test_native_initialization_reads_models_without_a_prompt_or_saved_session(self):
+        reply = {'type': 'control_response', 'response': {'subtype': 'success', 'request_id': 'model-options', 'response': {'models': self.models}}}
+        with tempfile.TemporaryDirectory() as root, patch.dict(os.environ, {'TMPDIR': root}), \
+             patch.object(bridge, 'claude_binary', return_value='/fixture/claude'), \
+             patch.object(bridge.subprocess, 'run', return_value=Mock(stdout=json.dumps(reply))) as run:
+            self.assertEqual(bridge.claude_model_catalog(), self.models)
+            args = run.call_args.args[0]
+            self.assertEqual(args[0], '/fixture/claude')
+            self.assertIn('--safe-mode', args)
+            self.assertIn('--no-session-persistence', args)
+            self.assertEqual(args[args.index('--tools') + 1], '')
+            self.assertEqual(json.loads(run.call_args.kwargs['input']), {'type': 'control_request', 'request_id': 'model-options', 'request': {'subtype': 'initialize'}})
+            self.assertFalse(Path(run.call_args.kwargs['cwd']).exists())
+
+    def test_aliases_show_the_resolved_version_and_offer_pinned_and_older_models(self):
+        choices, default = bridge.claude_model_options(self.models)
+        choices = {item['id']: item for item in choices}
+        self.assertEqual(default, 'Agent default (CLI settings)')
+        self.assertEqual(choices['opus']['label'], 'Latest Opus · Opus 5.5')
+        self.assertTrue(choices['opus']['alias'])
+        self.assertFalse(choices['claude-opus-5-5']['alias'])
+        self.assertEqual(choices['claude-opus-4-6']['efforts'], ['low', 'high'])
+        self.assertEqual(choices['claude-haiku-4-5-20251001']['efforts'], [])
+
+    def test_unavailable_native_inventory_has_an_honest_alias_fallback(self):
+        with patch.object(bridge, 'model_catalog', return_value=[]), patch.object(bridge.os, 'access', return_value=True), \
+             patch.object(bridge, 'claude_model_catalog', side_effect=RuntimeError('unavailable')):
+            claude = bridge.provider_options()['providers'][1]
+        self.assertTrue(claude['installed'])
+        self.assertIn('Could not read', claude['error'])
+        self.assertEqual(claude['models'][0]['label'], 'Latest Opus')
+
+    def test_explicit_ids_reach_native_flags_without_model_alias_substitution(self):
+        for model in ['claude-opus-5-5', 'claude-opus-4-6', 'claude-sonnet-4-6[1m]']:
+            self.assertEqual(bridge.launch_choices('claude', model, 'high'), ['--model', model, '--effort', 'high'])
+        for model in ['__custom__', 'claude-opus;echo', 'claude-opus --help', 'claude-' + 'x'*121]:
+            with self.subTest(model=model), self.assertRaises(ValueError):
+                bridge.launch_choices('claude', model, '')
+
+
 class ClaudeProviderTests(unittest.TestCase):
     session = '00000000-0000-4000-8000-000000000001'
 

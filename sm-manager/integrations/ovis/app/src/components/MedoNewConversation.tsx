@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, Check, FolderOpen, LoaderCircle } from 'lucide-react';
+import { ArrowLeft, ArrowUp, Check, FolderOpen, LoaderCircle } from 'lucide-react';
 import type { MedoNewRequest, MedoOpen, MedoProject, MedoProvider, MedoProviders } from '../../shared/medo.ts';
 import { MAX_FIRST_MESSAGE_CHARS } from '../../shared/launch-rules.ts';
 import { apiFetch } from '../lib/api-request-id.ts';
@@ -13,7 +13,8 @@ import './MedoNewConversation.css';
 
 const PROVIDERS = [{ id: 'codex', label: 'Codex' }, { id: 'claude', label: 'Claude' }] as const;
 const EFFORT_LABELS: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high', max: 'Maximum', ultra: 'Ultra', minimal: 'Minimal', none: 'None' };
-type Choice = { model: string; effort: string };
+type Choice = { model: string; effort: string; customModel?: string };
+export type MedoNewPage = { key: number; projectId: string | null; folderId?: string; start: (request: MedoNewRequest) => Promise<MedoOpen> };
 
 export function MedoNewConversation({ projects, initialProject, initialFolder, onClose, onStart }: {
   projects: MedoProject[];
@@ -37,16 +38,22 @@ export function MedoNewConversation({ projects, initialProject, initialFolder, o
   const [error, setError] = useState('');
   const [optionsError, setOptionsError] = useState('');
   const inFlight = useRef(false);
+  const message = useRef<HTMLTextAreaElement>(null);
   const { report, loading: usageLoading, refresh } = useUsage(true);
   const selected = options?.providers.find((item) => item.id === provider);
   const choice = choices[provider];
   const model = selected?.models.find((item) => item.id === choice.model);
   const efforts = model?.efforts ?? (provider === 'claude' ? ['low', 'medium', 'high', 'xhigh', 'max'] : []);
+  const custom = choice.model === '__custom__';
+  const selectedModel = custom ? choice.customModel?.trim() ?? '' : choice.model;
+  const modelValid = !custom || /^(?:claude-[a-z0-9][a-z0-9-]*)(?:\[1m\])?$/.test(selectedModel);
+
+  useEffect(() => { message.current?.focus(); }, []);
 
   useEffect(() => {
     const controller = new AbortController();
     void apiFetch('/api/medo/providers', { signal: controller.signal }).then(async (response) => {
-      if (!response.ok) throw new Error('Could not load the available agents. Reopen this window to try again.');
+      if (!response.ok) throw new Error('Could not load the available agents. Reopen this page to try again.');
       const value = await response.json() as MedoProviders;
       if (controller.signal.aborted) return;
       setOptions(value);
@@ -60,19 +67,20 @@ export function MedoNewConversation({ projects, initialProject, initialFolder, o
   const change = (next: Partial<Choice>) => setChoices((current) => ({ ...current, [provider]: { ...current[provider], ...next } }));
   const close = () => { if (!inFlight.current) onClose(); };
   const start = async () => {
-    if (inFlight.current || loading || !selected?.installed || (!project && !cwd.trim())) return;
+    if (inFlight.current || loading || !selected?.installed || !modelValid || (!project && !cwd.trim())) return;
     inFlight.current = true; setPending(true); setError('');
     const text = prompt.trim();
     const connection = sessions?.peek('local')?.connection;
     try {
-      await onStart({ ...(project ? { projectId: project, ...(folder ? { folderId: folder } : {}) } : { cwd: cwd.trim() }), provider, ...choice,
+      await onStart({ ...(project ? { projectId: project, ...(folder ? { folderId: folder } : {}) } : { cwd: cwd.trim() }), provider, model: selectedModel, effort: choice.effort,
         ...(text ? { prompt: text } : {}), ...(connection ? { first_message_connection: connection } : {}) });
       onClose();
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'The conversation could not start.'); }
     finally { inFlight.current = false; setPending(false); }
   };
 
-  return <MedoDialog title="New conversation" onClose={close} className="medo-new-dialog">
+  return <section className="medo-new-page" aria-label="New conversation"><div className="medo-new-content">
+    <header className="medo-new-header"><button type="button" className="btn medo-new-back" onClick={close} disabled={pending} aria-label="Back to conversation"><ArrowLeft size={17} /> Back</button><h1>New conversation</h1></header>
     <form className="medo-new-form" onSubmit={(event) => { event.preventDefault(); void start(); }}>
       <div className="medo-new-destination"><div className="medo-new-project-fields"><label>Project<select aria-label="Project" value={project} disabled={pending} onChange={(event) => { setProject(event.target.value); setFolder(''); }}>
         {projects.filter((item) => item.path).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
@@ -95,7 +103,7 @@ export function MedoNewConversation({ projects, initialProject, initialFolder, o
             tabIndex={isSelected || (!selected?.installed && option?.installed) ? 0 : -1} disabled={pending || (!loading && !option?.installed)} className={`medo-provider-card${isSelected ? ' is-selected' : ''}`}
             onClick={() => setProvider(item.id)}>
             <span id={`weekly-${item.id}`} className={`medo-weekly-badge${usage.percent !== null && usage.percent <= 15 ? ' is-low' : ''}`} title={usage.note}>
-              {usage.percent === null ? (usageLoading && !report ? 'Checking usage…' : 'Usage unavailable') : <><strong>{usage.percent}%</strong> left this week</>}
+              {usage.percent === null ? (loading || (usageLoading && !report) ? 'Checking usage…' : usage.label) : <><strong>{usage.percent}%</strong> left this week</>}
             </span>
             <span className="medo-provider-logo" aria-hidden="true"><AgentMark agent={item.id} size={68} /></span>
             <span className="medo-provider-name">{item.label}</span>
@@ -106,19 +114,22 @@ export function MedoNewConversation({ projects, initialProject, initialFolder, o
       <div className="medo-new-models"><label>Model<select aria-label="Model" value={choice.model} disabled={pending || loading} onChange={(event) => {
         const next = selected?.models.find((item) => item.id === event.target.value);
         change({ model: event.target.value, effort: next?.defaultEffort ?? '' });
-      }}><option value="">Agent default</option>{selected?.models.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
+      }}><option value="">{selected?.defaultModelLabel ?? 'Agent default'}</option>{selected?.models.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}{provider === 'claude' && <option value="__custom__">Other model version…</option>}</select></label>
         <label>Reasoning<select aria-label="Reasoning" value={choice.effort} disabled={pending || loading || !efforts.length} onChange={(event) => change({ effort: event.target.value })}>
           <option value="">Default</option>{efforts.map((effort) => <option key={effort} value={effort}>{EFFORT_LABELS[effort] ?? effort}</option>)}
         </select></label></div>
+      {custom && <label>Model ID<input aria-label="Model ID" value={choice.customModel ?? ''} maxLength={120} placeholder="claude-opus-5-5" disabled={pending} onChange={(event) => change({ customModel: event.target.value })} /><span className="medo-new-note">Enter a full Claude model ID. Availability depends on your account.</span></label>}
+      {provider === 'claude' && model?.resolvedModel && <p className="medo-new-note">{model.alias ? 'Currently ' : 'Pinned to '}<code>{model.resolvedModel}</code>{model.alias ? ' · follows future updates' : ''}</p>}
+      {provider === 'claude' && weeklyRemaining(selected, report).needsCliRefresh && <p className="medo-new-note" role="status">Claude’s usage token needs refreshing. Open Claude Code, then refresh usage here; your stored login may still be valid.</p>}
       {(selected?.error || optionsError) && <p className="medo-new-note" role="status">{optionsError || selected?.error}</p>}
-      <label className="medo-new-message">Message<textarea aria-label="Message" placeholder="What would you like to work on?" value={prompt} maxLength={MAX_FIRST_MESSAGE_CHARS} disabled={pending} onChange={(event) => setPrompt(event.target.value)}
+      <label className="medo-new-message">Message<textarea ref={message} aria-label="Message" placeholder="What would you like to work on?" value={prompt} maxLength={MAX_FIRST_MESSAGE_CHARS} disabled={pending} onChange={(event) => setPrompt(event.target.value)}
         onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.nativeEvent.isComposing) { event.preventDefault(); void start(); } }} /></label>
       {error && <p role="alert" className="medo-error">{error}</p>}
       <div className="medo-new-actions"><button type="button" className="medo-usage-refresh" onClick={refresh} disabled={usageLoading || pending}>Refresh usage</button>
-        <button className="btn btn-primary medo-new-submit" disabled={loading || pending || !selected?.installed || (!project && !cwd.trim())}>
+        <button className="btn btn-primary medo-new-submit" disabled={loading || pending || !selected?.installed || !modelValid || (!project && !cwd.trim())}>
           {pending ? <LoaderCircle className="medo-spinner" size={17} /> : <ArrowUp size={17} />}{pending ? 'Starting…' : 'Start conversation'}
         </button></div>
     </form>
     {browsing && <MedoDialog title="Choose folder" onClose={() => setBrowsing(false)}><DirectoryBrowser start={cwd} onPick={(path) => { setCwd(path); setBrowsing(false); }} /></MedoDialog>}
-  </MedoDialog>;
+  </div></section>;
 }

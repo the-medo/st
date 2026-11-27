@@ -73,11 +73,11 @@ with tempfile.TemporaryDirectory(prefix='run-', dir=CACHE) as directory:
             spec = importlib.util.spec_from_file_location('provider_fixture_bridge', ROOT/'integrations/ovis/app/server/medo-bridge.py')
             bridge = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(bridge)
-            first = bridge.handle({'operation': 'new', 'projectId': 'fixture', 'provider': 'claude', 'model': 'opus', 'effort': 'high'})
+            first = bridge.handle({'operation': 'new', 'projectId': 'fixture', 'provider': 'claude', 'model': 'claude-opus-5-5', 'effort': 'high'})
             panes.append(first['address'])
             hc('wait', first['address'], '--output', 'provider-fixture-ready', '--timeout', '5', '--json')
             args = json.loads((fixture/'args.json').read_text())
-            assert args[-4:] == ['--model', 'opus', '--effort', 'high'], args
+            assert args[-4:] == ['--model', 'claude-opus-5-5', '--effort', 'high'], args
             session = args[args.index('--session-id')+1]
             hc('send', first['address'], 'Inspect the fixture release', '--json')
             hc('wait', first['address'], '--output', 'provider-fixture-received', '--timeout', '5', '--json')
