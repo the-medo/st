@@ -119,6 +119,7 @@ class Library:
                 manifest = json.loads(db.execute("SELECT manifest FROM revisions WHERE artifact_id=? AND number=?", (row["id"], row["revision"])).fetchone()[0])
                 row["entrypoint"] = manifest["entrypoint"]
                 row["mime"] = next(f["mime"] for f in manifest["files"] if f["path"] == manifest["entrypoint"])
+                row["editor"] = manifest.get("editor")
             return [self._view(row) for row in found]
 
     def get(self, artifact_id, revision=None):
@@ -147,6 +148,25 @@ class Library:
             finally:
                 Path(temporary).unlink(missing_ok=True)
         return digest
+
+    def _editor(self, editor, manifest):
+        if editor is None:
+            return
+        if not isinstance(editor, dict) or editor.get("type") != "excalidraw":
+            raise ArtifactError("Unknown artifact editor.")
+        source = safe_path(editor.get("source"))
+        file = next((f for f in manifest["files"] if f["path"] == source and f["role"] == "source"), None)
+        if file is None or not source.endswith(".excalidraw"):
+            raise ArtifactError("An Excalidraw artifact needs its private .excalidraw source.")
+        try:
+            scene = json.loads((self.root / "objects" / file["sha256"]).read_bytes())
+        except (ValueError, UnicodeError):
+            raise ArtifactError("The Excalidraw source is not valid JSON.") from None
+        if not isinstance(scene, dict) or scene.get("type") != "excalidraw" or not isinstance(scene.get("elements"), list):
+            raise ArtifactError("The Excalidraw source must contain a drawing scene.")
+        if not any(f["path"] == manifest["entrypoint"] and f["mime"] == "image/svg+xml" for f in manifest["files"]):
+            raise ArtifactError("Render an SVG preview before saving the diagram.")
+        manifest["editor"] = {"type": "excalidraw", "source": source}
 
     def save(self, payload, artifact_id=None):
         if not isinstance(payload, dict):
@@ -188,10 +208,13 @@ class Library:
                 if type(payload.get("base_revision")) is not int or payload["base_revision"] != previous["revision"]:
                     raise Conflict("This artifact changed. Read its latest revision before saving your changes.")
                 number = previous["revision"] + 1
+                old_manifest = json.loads(db.execute("SELECT manifest FROM revisions WHERE artifact_id=? AND number=?", (artifact_id, previous["revision"])).fetchone()[0])
             else:
                 artifact_id = uuid.uuid4().hex
                 previous = {"title": "Untitled artifact", "project": "", "folder": "", "source_chat": ""}
                 number = 1
+                old_manifest = {}
+            self._editor(payload.get("editor", old_manifest.get("editor")), manifest)
             values = {key: short_text(payload.get(key, previous[key]), key, 500 if key == "source_chat" else 200) for key in ("title", "project", "folder", "source_chat")}
             if not values["title"]:
                 raise ArtifactError("Give the artifact a title.")
@@ -213,7 +236,7 @@ class Library:
     def restore(self, artifact_id, number, base_revision):
         old = self.get(artifact_id, number)
         files = [{**f, "base64": base64.b64encode((self.root / "objects" / f["sha256"]).read_bytes()).decode()} for f in old["manifest"]["files"]]
-        return self.save({"base_revision": base_revision, "entrypoint": old["manifest"]["entrypoint"], "files": files, "note": f"Restored revision {number}"}, artifact_id)
+        return self.save({"base_revision": base_revision, "entrypoint": old["manifest"]["entrypoint"], "editor": old["manifest"].get("editor"), "files": files, "note": f"Restored revision {number}"}, artifact_id)
 
     def metadata(self, artifact_id, payload):
         values = {key: short_text(payload.get(key, ""), key) for key in ("title", "project", "folder")}
@@ -233,8 +256,9 @@ class Library:
             target = folder / file["path"]
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(self.root / "objects" / file["sha256"], target)
-        (folder / ".artifact.json").write_text(json.dumps({"id": artifact_id, "base_revision": item["revision"], "entrypoint": item["manifest"]["entrypoint"], "files": [{"path": f["path"], "role": f["role"]} for f in item["manifest"]["files"]]}, indent=2))
+        (folder / ".artifact.json").write_text(json.dumps({"id": artifact_id, "base_revision": item["revision"], "entrypoint": item["manifest"]["entrypoint"], "editor": item["manifest"].get("editor"), "files": [{"path": f["path"], "role": f["role"]} for f in item["manifest"]["files"]]}, indent=2))
         return {"id": artifact_id, "title": item["title"], "revision": item["revision"], "directory": str(folder),
+                "editor": item["manifest"].get("editor"),
                 "cli": self.settings.get("cli", str(Path.home() / ".local/bin/herdr-artifacts"))}
 
     def _remote(self, method, path, payload=None, blob=None):

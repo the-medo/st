@@ -1,5 +1,5 @@
 /* Only the outer ST navigation; embedded applications keep their own layouts. */
-@scope (.st-app) to (.st-ovis-root) {
+@scope (.st-app) to (.st-ovis-root, .st-artifact-editor-canvas) {
   :scope {
     --st-sidebar-width: 174px;
   }

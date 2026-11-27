@@ -7,7 +7,7 @@
 body {
   margin: 0;
 }
-@scope (.st-app) to (.st-ovis-root) {
+@scope (.st-app) to (.st-ovis-root, .st-artifact-editor-canvas) {
   :scope {
     min-height: 100dvh;
   }

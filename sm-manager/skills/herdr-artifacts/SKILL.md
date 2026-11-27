@@ -1,6 +1,6 @@
 ---
 name: herdr-artifacts
-description: Save standalone HTML diagrams, reports, PDFs, images, and other requested deliverables to the user's global Herdr artifact library; find, revise, or share existing artifacts across projects. Do not use for ordinary application source files, temporary test output, or documents the user explicitly wants only in a repository.
+description: Create editable Excalidraw diagrams and save standalone HTML, reports, PDFs, images, and other requested deliverables to the user's global Herdr artifact library; find, revise, or share existing artifacts across projects. Do not use for ordinary application source files, temporary test output, or documents the user explicitly wants only in a repository.
 ---
 
 # Herdr artifacts
@@ -14,6 +14,11 @@ configuration at `~/.config/herdr-artifacts/config.json` (or
 When creating a standalone deliverable the user wants to keep, save the finished
 output in the library and return its artifact ID and the library link. Keep the
 editable source too when the output is generated from another format.
+
+For editable Excalidraw diagrams, read [references/excalidraw.md](references/excalidraw.md).
+The `diagram` command accepts JSON and renders SVG/PNG locally without MCP.
+Existing diagram working copies use the same `save` command below; it regenerates
+their previews from the native source.
 
 ```sh
 ~/.local/bin/herdr-artifacts create /path/to/diagram.html --title 'System diagram'

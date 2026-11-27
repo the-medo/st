@@ -85,6 +85,13 @@ published output goes to a private R2 bucket through a dedicated Worker. See
 [artifact setup and limits](services/artifact-publisher/README.md) for the global
 CLI, agent skill, configuration and backup guidance.
 
+**New diagram** opens an embedded Excalidraw editor. Import `.excalidraw` files
+with **Save a file**, or use the global CLI's `diagram` command with compact JSON.
+Drawings retain their private editable original and regenerate SVG/PNG on each
+save. **Edit diagram** revises the same artifact; concurrent edits are rejected
+without discarding the open drawing. Rendering uses the pinned SDK and bundled
+fonts locally, without an MCP server.
+
 A quiet, local dashboard for the projects running on your machine. See which app,
 branch, worktree, or Docker container is using memory and CPU without asking an
 agent to inspect the host every time.

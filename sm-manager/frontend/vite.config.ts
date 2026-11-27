@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import { excalidrawAssets } from "./excalidraw-assets";
 import react from "@vitejs/plugin-react";
 import { ovisHostPlugin } from "./ovis-plugin";
 import { consoleStylePlugin } from "./console-style-plugin";
@@ -10,7 +11,7 @@ const ovis = fileURLToPath(
 const xterm = buildXtermSource(ovis);
 
 export default defineConfig({
-  plugins: [consoleStylePlugin(), ovisHostPlugin(), react()],
+  plugins: [consoleStylePlugin(), ovisHostPlugin(), excalidrawAssets(), react()],
   define: {
     __APP_VERSION__: JSON.stringify("0.5.9"),
     __APP_REVISION__: "null",

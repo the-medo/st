@@ -16,10 +16,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--publish-url", required=True)
     parser.add_argument("--library-url", help="Owner-only console artifacts page")
+    parser.add_argument("--bun", default=shutil.which("bun"), help="Stable Bun executable for on-demand diagram rendering")
     args = parser.parse_args()
     url = urlsplit(args.publish_url)
     if url.scheme != "https" or not url.hostname or url.path not in ("", "/") or url.username or url.query or url.fragment:
         parser.error("Use the publisher's HTTPS origin.")
+    renderer = ROOT / "sm_manager/web/diagram-renderer"
+    playwright = ROOT / "node_modules/playwright-core"
+    if not args.bun or not Path(args.bun).is_file() or not (renderer / "index.html").is_file() or not (playwright / "package.json").is_file():
+        parser.error("Install dependencies and build first (bun install --frozen-lockfile && bun run build); provide --bun if needed.")
     os.umask(0o077)
     config_root = Path.home() / ".config/herdr-artifacts"
     data_root = Path.home() / ".local/share/herdr-artifacts"
@@ -45,8 +50,11 @@ def main():
     if not key.exists():
         key.write_text(secrets.token_urlsafe(48) + "\n")
         key.chmod(0o600)
-    for name in ("sm_manager/__init__.py", "sm_manager/artifacts.py", "scripts/artifacts.py"):
+    for name in ("sm_manager/__init__.py", "sm_manager/artifacts.py", "scripts/artifacts.py", "scripts/render-excalidraw.ts"):
         shutil.copyfile(ROOT / name, runtime / name)
+    shutil.copytree(renderer, runtime / "sm_manager/web/diagram-renderer", dirs_exist_ok=True)
+    shutil.copytree(playwright.resolve(), runtime / "node_modules/playwright-core", dirs_exist_ok=True)
+    settings["diagram_renderer"] = [str(Path(args.bun).resolve()), str(runtime / "scripts/render-excalidraw.ts")]
     cli.write_text(f'''#!/usr/bin/env python3
 # {MARKER}
 import os, runpy
@@ -55,6 +63,7 @@ runpy.run_path({str(runtime / 'scripts/artifacts.py')!r}, run_name="__main__")
 ''')
     cli.chmod(0o755)
     shutil.copyfile(ROOT / "skills/herdr-artifacts/SKILL.md", skill)
+    shutil.copytree(ROOT / "skills/herdr-artifacts/references", skill.parent / "references", dirs_exist_ok=True)
     config_path.write_text(json.dumps(settings, indent=2) + "\n")
     config_path.chmod(0o600)
     print(json.dumps({"cli": str(cli), "skill": str(skill), "config": str(config_path), "publish_url": settings["publish_url"]}, indent=2))
