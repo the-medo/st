@@ -6762,3 +6762,9 @@ folder and model: Codex's configuration/model APIs and Claude's native
 return only model/effort metadata. Changing project or model cannot display a
 late response from a different selection. Unavailable defaults stay explicitly
 unavailable; unsupported effort and provider-managed effort have distinct labels.
+
+Both providers start with the inherited Default model and reasoning options.
+Loading the catalogue never replaces these with explicit model/effort flags.
+Selecting a different model leaves reasoning on its resolved Default. Choices
+are kept while switching providers within the composer, but a new composer
+starts fresh; recent conversation history is not a source of defaults.

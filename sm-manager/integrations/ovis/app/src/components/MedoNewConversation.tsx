@@ -74,8 +74,6 @@ export function MedoNewConversation({ projects, initialProject, initialFolder, o
       const value = await response.json() as MedoProviders;
       if (controller.signal.aborted) return;
       setOptions(value);
-      const preset = value.providers.find((item) => item.id === 'codex')?.models.find((item) => item.isDefault);
-      if (preset) setChoices((current) => ({ ...current, codex: { model: preset.id, effort: preset.defaultEffort } }));
     }).catch((cause: unknown) => { if (!controller.signal.aborted) setOptionsError(cause instanceof Error ? cause.message : 'Could not load the available agents.'); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
@@ -129,8 +127,7 @@ export function MedoNewConversation({ projects, initialProject, initialFolder, o
         })}
       </div>
       <div className="medo-new-models"><label>Model<select aria-label="Model" value={choice.model} disabled={pending || loading} onChange={(event) => {
-        const next = selected?.models.find((item) => item.id === event.target.value);
-        change({ model: event.target.value, effort: next?.defaultEffort ?? '' });
+        change({ model: event.target.value, effort: '' });
       }}><option value="">Default · {defaultModelLabel}</option>{selected?.models.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}{provider === 'claude' && <option value="__custom__">Other model version…</option>}</select></label>
         <label>Reasoning<select aria-label="Reasoning" value={choice.effort} disabled={pending || loading || !efforts.length} onChange={(event) => change({ effort: event.target.value })}>
           <option value="">Default · {defaultEffortLabel}</option>{efforts.map((effort) => <option key={effort} value={effort}>{EFFORT_LABELS[effort] ?? effort}</option>)}

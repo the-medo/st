@@ -43,7 +43,7 @@ try {
       const claude = params.get('provider') === 'claude';
       const alternate = params.get('cwd') === '/fixture/alternate';
       const model = params.get('model') || (claude ? alternate ? 'claude-opus-4-6' : 'claude-opus-5-5' : 'test-codex');
-      const effort = alternate ? 'low' : model === 'claude-opus-4-6' ? 'high' : 'medium';
+      const effort = alternate ? 'low' : model === 'claude-opus-4-6' ? 'high' : model === 'test-fast' ? 'low' : 'medium';
       await route.fulfill({ json: { model, effort, efforts: ['low', 'medium', 'high'] } }); return;
     }
     if (path.endsWith('/providers')) {
@@ -153,6 +153,11 @@ try {
   await composer.getByText('41%', { exact: true }).waitFor();
   assert.equal(await composer.getByRole('radio', { name: 'Codex', exact: true }).getAttribute('aria-checked'), 'true');
   assert.equal(await composer.getByRole('combobox', { name: 'Project', exact: true }).inputValue(), 'garden');
+  // Even after native catalogues/defaults arrive, both inherited choices stay selected.
+  await composer.getByRole('combobox', { name: 'Model', exact: true }).locator('option[value=""]').filter({ hasText: 'Default · Codex model' }).waitFor({ state: 'attached' });
+  await composer.getByRole('combobox', { name: 'Reasoning', exact: true }).locator('option[value=""]').filter({ hasText: 'Default · Medium' }).waitFor({ state: 'attached' });
+  assert.equal(await composer.getByRole('combobox', { name: 'Model', exact: true }).inputValue(), '');
+  assert.equal(await composer.getByRole('combobox', { name: 'Reasoning', exact: true }).inputValue(), '');
   await composer.getByRole('textbox', { name: 'Message', exact: true }).fill('Help me plan the next release.');
   if (evidence) await page.screenshot({ path: join(evidence, 'new-conversation-codex-desktop.png') });
   await composer.getByRole('radio', { name: 'Claude', exact: true }).click();
@@ -163,9 +168,10 @@ try {
   await composer.getByRole('combobox', { name: 'Reasoning', exact: true }).selectOption('high');
   assert.equal(await composer.getByRole('textbox', { name: 'Message', exact: true }).inputValue(), 'Help me plan the next release.');
   await composer.getByRole('radio', { name: 'Codex', exact: true }).click();
-  assert.equal(await composer.getByRole('combobox', { name: 'Model', exact: true }).inputValue(), 'test-codex');
+  assert.equal(await composer.getByRole('combobox', { name: 'Model', exact: true }).inputValue(), '');
   await composer.getByRole('combobox', { name: 'Model', exact: true }).selectOption('test-fast');
-  assert.equal(await composer.getByRole('combobox', { name: 'Reasoning', exact: true }).inputValue(), 'low');
+  assert.equal(await composer.getByRole('combobox', { name: 'Reasoning', exact: true }).inputValue(), '');
+  await composer.getByRole('combobox', { name: 'Reasoning', exact: true }).locator('option[value=""]').filter({ hasText: 'Default · Low' }).waitFor({ state: 'attached' });
   assert.equal(await composer.getByRole('combobox', { name: 'Reasoning', exact: true }).locator('option[value="high"]').count(), 0);
   await composer.getByRole('radio', { name: 'Claude', exact: true }).click();
   assert.equal(await composer.getByRole('combobox', { name: 'Model', exact: true }).inputValue(), 'opus');
@@ -612,7 +618,7 @@ try {
   await composer.getByRole('button', { name: 'Start conversation', exact: true }).dblclick();
   await waitCount(creates, 1);
   const folderCreate = creates.shift()!;
-  assert.deepEqual(folderCreate.request().postDataJSON(), { projectId: 'garden', folderId: 'ideas', provider: 'codex', model: 'test-codex', effort: 'medium' });
+  assert.deepEqual(folderCreate.request().postDataJSON(), { projectId: 'garden', folderId: 'ideas', provider: 'codex', model: '', effort: '' });
   catalog.drafts = [{ address: 'folder-draft', project: 'garden', folder: 'ideas', title: 'New conversation' }];
   await folderCreate.fulfill({ json: { address: 'folder-draft', reused: false } });
   await waitCount(selects, 1);
