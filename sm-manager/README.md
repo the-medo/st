@@ -76,7 +76,8 @@ Opening Agents or Planner with a main-sidebar shortcut keeps the mode ready:
   still creates a terminal.
 
 The **Artifacts** page keeps standalone HTML, PDFs, images and editable sources
-in one library across projects. Search or organize by project/folder, preview
+in one library across projects. Projects use the same IDs, names, icons and colors
+as Agents, with a No project option. Search or filter by project, preview
 output, restore revisions, and prepare an improvement request in an open agent
 conversation. Saving keeps the same artifact identity and does not change its
 published revision. Share explicitly to create or update one stable link; Stop
@@ -84,6 +85,11 @@ sharing revokes future requests. The catalog and sources live outside worktrees;
 published output goes to a private R2 bucket through a dedicated Worker. See
 [artifact setup and limits](services/artifact-publisher/README.md) for the global
 CLI, agent skill, configuration and backup guidance.
+
+Agent-created artifacts record their creating conversation automatically. The
+Original conversation action opens saved history in a read-only dialog; later
+edits keep that origin. Artifacts created directly in the library can have no
+conversation. Artifact folders are no longer used.
 
 **New diagram** opens an embedded Excalidraw editor. Import `.excalidraw` files
 with **Save a file**, or use the global CLI's `diagram` command with compact JSON.

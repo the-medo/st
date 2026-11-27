@@ -8,6 +8,7 @@ import time
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from .artifacts import ArtifactError, Library, MAX_BYTES, PREVIEW_POLICY, read_settings
+from .artifact_context import ContextError
 
 PREVIEW_ROUTE = re.compile(r"/api/artifact-preview/([a-f0-9]{32})/([1-9]\d*)/(\d{10})/([a-f0-9]{64})/(.+)")
 
@@ -71,7 +72,7 @@ def request(handler, config, token):
         if handler.command == "GET":
             if not path:
                 query = parse_qs(url.query).get("q", [""])[0]
-                handler.respond(200, {"artifacts": [owner_view(item, token) for item in library.list(query)], "token": token})
+                handler.respond(200, {"artifacts": [owner_view(item, token) for item in library.list(query)], "projects": library.projects.items, "projects_error": library.projects.error, "token": token})
                 return True
             file_match = re.fullmatch(r"/([a-f0-9]{32})/revisions/(\d+)/files/(.+)", path)
             if file_match:
@@ -123,6 +124,8 @@ def request(handler, config, token):
             handler.respond(200, owner_view(result, token) if "manifest" in result else result)
             return True
         handler.respond(404, {"error": "Artifact route not found."})
+    except ContextError as error:
+        handler.respond(400, {"error": str(error)})
     except ArtifactError as error:
         handler.respond(error.status, {"error": str(error)})
     except (ValueError, TypeError, KeyError):

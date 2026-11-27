@@ -17,12 +17,44 @@ const cache = join(homedir(), ".cache/ovis-tmp/artifacts");
 mkdirSync(cache, { recursive: true });
 const temporary = mkdtempSync(join(cache, "qa-"));
 const config = join(temporary, "config.json");
+const agents = join(temporary, "agents");
+mkdirSync(agents);
+await Bun.write(
+  join(agents, "projects.json"),
+  JSON.stringify({
+    projects: [
+      {
+        id: "example-project",
+        name: "Example project",
+        path: join(temporary, "project"),
+        appearance: {
+          iconText: "EX",
+          titleColor: "#82c9ac",
+          iconColor: "#82c9ac",
+          borderColor: "#428a75",
+        },
+      },
+      {
+        id: "garden",
+        name: "Garden",
+        path: join(temporary, "garden"),
+        appearance: {
+          iconText: "G",
+          titleColor: "#b8a0e0",
+          iconColor: "#b8a0e0",
+        },
+      },
+    ],
+  }),
+);
 await Bun.write(
   config,
   JSON.stringify({
     data_dir: join(temporary, "library"),
     publish_url: "https://artifacts.example.test",
     cli: resolve("scripts/artifacts.py"),
+    agents_data_dir: agents,
+    codex_home: join(temporary, "codex"),
   }),
 );
 const probe = Bun.serve({
@@ -119,10 +151,13 @@ try {
   ]);
   await page.getByLabel("Title", { exact: true }).fill("Architecture diagram");
   await page
-    .getByLabel("Project", { exact: true })
-    .last()
-    .fill("Example project");
-  await page.getByLabel("Folder", { exact: true }).last().fill("Diagrams");
+    .getByRole("dialog")
+    .getByRole("combobox", { name: "Project", exact: true })
+    .click();
+  await page
+    .getByRole("option", { name: "Example project", exact: true })
+    .click();
+  assert.equal(await page.getByLabel("Folder", { exact: true }).count(), 0);
   await page.getByLabel("Editable source").setInputFiles({
     name: "notes.md",
     mimeType: "text/markdown",
@@ -272,20 +307,57 @@ try {
   assert(instructions.includes(artifactId));
   assert(instructions.includes(" save "));
   await page.getByRole("button", { name: "Close dialog", exact: true }).click();
+  await page
+    .getByRole("button", { name: "All artifacts", exact: true })
+    .click();
+  const projectCard = page.getByRole("button", {
+    name: /Architecture diagram/,
+  });
+  await projectCard.waitFor();
+  assert.equal(
+    await projectCard.locator(".artifact-project-icon").innerText(),
+    "EX",
+  );
+  assert.equal(
+    await projectCard
+      .locator(".artifact-project-icon")
+      .evaluate((el) => getComputedStyle(el).color),
+    "rgb(130, 201, 172)",
+  );
+  await page.getByRole("combobox", { name: "Project", exact: true }).click();
+  if (process.env.ST_ARTIFACTS_EVIDENCE)
+    await page.screenshot({
+      path: join(process.env.ST_ARTIFACTS_EVIDENCE, "projects-and-icons.png"),
+    });
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  assert.equal(
+    await page.locator(".artifact-card").count(),
+    0,
+    "An empty registered project can be selected",
+  );
+  await page
+    .getByRole("combobox", { name: "Project", exact: true })
+    .press("ArrowDown");
+  await page.keyboard.press("Home");
+  await page.keyboard.press("Enter");
+  await projectCard.click();
   await page.getByRole("button", { name: "Organize", exact: true }).click();
-  await page.getByLabel("Project", { exact: true }).fill("");
+  await page.getByRole("combobox", { name: "Project", exact: true }).click();
+  await page.getByRole("option", { name: "No project", exact: true }).click();
   await page.getByRole("button", { name: "Save details", exact: true }).click();
   await page
     .getByRole("button", { name: "All artifacts", exact: true })
     .click();
   await page.getByRole("button", { name: /Architecture diagram/ }).waitFor();
   assert.equal(new URL(page.url()).searchParams.has("id"), false);
-  await page
-    .getByRole("combobox", { name: "Project", exact: true })
-    .selectOption("__personal");
-  await page
-    .getByRole("combobox", { name: "Folder", exact: true })
-    .selectOption("Diagrams");
+  await page.getByRole("combobox", { name: "Project", exact: true }).click();
+  assert.equal(
+    await page.getByRole("option").count(),
+    4,
+    "All Agents projects appear even when they have no artifacts",
+  );
+  await page.getByRole("option", { name: "No project", exact: true }).click();
   assert.equal(await page.locator(".artifact-card").count(), 1);
   await page
     .frameLocator(".artifact-thumbnail iframe")

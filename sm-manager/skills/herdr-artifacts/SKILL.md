@@ -26,12 +26,21 @@ their previews from the native source.
 ~/.local/bin/herdr-artifacts create /path/to/report.pdf --title 'Report' --source /path/to/report.md
 ```
 
-The CLI infers the project from the Git repository, including linked worktrees.
-Use `--project NAME` or `--project ''` to override it, and `--folder NAME` to
-organize it. A bundle must be a dedicated output directory. Include the HTML's
+Projects are the existing Agents projects. The CLI infers the registered project
+from the creating conversation or repository, including linked worktrees; an
+unmatched location stays unassigned. Use `herdr-artifacts projects` to see IDs
+and names, then `--project PROJECT_ID` or `--project ''` to override the choice.
+Do not invent project names or artifact folders. Artifacts are organized only by
+project. A bundle must be a dedicated output directory. Include the HTML's
 local images, styles and scripts; do not upload an entire repository. Previews
 and shared pages block external scripts and network access, so bundle needed
 dependencies. Source files are retained privately and excluded from publishing.
+
+Creation records `CODEX_THREAD_ID` as the original conversation automatically.
+When that environment variable is unavailable, supply `--conversation THREAD_UUID`
+if the creating conversation's ID is known. Do not guess a conversation from its
+title or use a terminal ID. Artifacts created directly in the browser can have no
+conversation. Edits preserve the original conversation, even from another chat.
 
 To improve an existing artifact, use its attached ID. If no ID is attached,
 search with `herdr-artifacts list 'words'` and select the intended result. Do not

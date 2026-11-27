@@ -19,6 +19,7 @@ import {
   Plus,
   Search,
   Share2,
+  MessageCircle,
 } from "lucide-react";
 import { api, bytes, usePoll } from "../../lib/api";
 import { Modal, Notice } from "../../components/Ui";
@@ -32,11 +33,14 @@ import {
 import {
   fileUrl,
   improvePrompt,
+  type ArtifactProject,
   type Artifact,
   type ArtifactDetail,
   type Checkout,
 } from "./model";
 import "./artifacts.css";
+import { ProjectBadge, ProjectPicker, projectStyle } from "./ProjectPicker";
+const OriginalConversation = lazy(() => import("./OriginalConversation"));
 const ExcalidrawEditor = lazy(() =>
   import("./ExcalidrawEditor").then((module) => ({
     default: module.ExcalidrawEditor,
@@ -98,13 +102,15 @@ function encode(file: Blob): Promise<string> {
 export function Artifacts() {
   const [params, setParams] = useSearchParams();
   const selected = params.get("id");
-  const library = usePoll<{ artifacts: Artifact[]; token: string }>(
-    "/api/artifacts",
-    10000,
-  );
+  const library = usePoll<{
+    artifacts: Artifact[];
+    projects: ArtifactProject[];
+    projects_error?: string;
+    token: string;
+  }>("/api/artifacts", 10000);
   const [query, setQuery] = useState("");
-  const [project, setProject] = useState("");
-  const [folder, setFolder] = useState("");
+  const [project, setProject] = useState("__all");
+  const [original, setOriginal] = useState<string | null>(null);
   const [shared, setShared] = useState(false);
   const [upload, setUpload] = useState(false);
   const [detail, setDetail] = useState<ArtifactDetail | null>(null);
@@ -190,28 +196,14 @@ export function Artifacts() {
     }
   };
   const items = library.data?.artifacts ?? [];
-  const projects = [
-    ...new Set(items.map((a) => a.project).filter(Boolean)),
-  ].sort();
-  const folders = [
-    ...new Set(
-      items
-        .filter(
-          (a) =>
-            !project ||
-            (project === "__personal" ? !a.project : a.project === project),
-        )
-        .map((a) => a.folder)
-        .filter(Boolean),
-    ),
-  ].sort();
+  const projects = library.data?.projects ?? [];
+  const projectOf = (item: Artifact) =>
+    projects.find((project) => project.id === item.project);
   const shown = items.filter(
-    (a) =>
-      (!project ||
-        (project === "__personal" ? !a.project : a.project === project)) &&
-      (!folder || a.folder === folder) &&
-      (!shared || a.share_url) &&
-      `${a.title} ${a.project} ${a.folder}`
+    (item) =>
+      (project === "__all" || item.project === project) &&
+      (!shared || item.share_url) &&
+      `${item.title} ${projectOf(item)?.name ?? ""}`
         .toLowerCase()
         .includes(query.toLowerCase()),
   );
@@ -229,17 +221,17 @@ export function Artifacts() {
         <div>
           <span className="artifact-eyebrow">YOUR WORK, KEPT TOGETHER</span>
           <h1>{detail ? detail.title : "Artifacts"}</h1>
-          <p>
-            {detail
-              ? [
-                  detail.project || "Personal",
-                  detail.folder,
-                  `Revision ${detail.selected_revision}`,
-                ]
-                  .filter(Boolean)
-                  .join(" / ")
-              : "Diagrams, documents and ideas. Save them once, keep making them better."}
-          </p>
+          {detail ? (
+            <div className="artifact-detail-meta">
+              <ProjectBadge project={projectOf(detail)} />
+              <span>Revision {detail.selected_revision}</span>
+            </div>
+          ) : (
+            <p>
+              Diagrams, documents and ideas. Save them once, keep making them
+              better.
+            </p>
+          )}
         </div>
         <div className="artifact-heading-actions">
           <button className="artifact-primary" onClick={() => setDiagram(null)}>
@@ -252,6 +244,9 @@ export function Artifacts() {
           </button>
         </div>
       </header>
+      {library.data?.projects_error && (
+        <Notice retry={library.refresh}>{library.data.projects_error}</Notice>
+      )}
       {(error || library.error) && (
         <Notice retry={() => library.refresh()}>
           {error || library.error}
@@ -274,6 +269,13 @@ export function Artifacts() {
           {detail && preview ? (
             <>
               <div className="artifact-actions">
+                {detail.source_chat && (
+                  <button onClick={() => setOriginal(detail.source_chat)}>
+                    <MessageCircle size={16} />
+                    Original conversation
+                  </button>
+                )}
+
                 {detail.manifest.editor?.type === "excalidraw" && (
                   <button
                     disabled={detail.selected_revision !== detail.revision}
@@ -474,30 +476,12 @@ export function Artifacts() {
                 onChange={(e) => setQuery(e.target.value)}
               />
             </label>
-            <select
-              aria-label="Project"
+            <ProjectPicker
+              projects={projects}
               value={project}
-              onChange={(e) => {
-                setProject(e.target.value);
-                setFolder("");
-              }}
-            >
-              <option value="">All projects</option>
-              <option value="__personal">Personal</option>
-              {projects.map((p) => (
-                <option key={p}>{p}</option>
-              ))}
-            </select>
-            <select
-              aria-label="Folder"
-              value={folder}
-              onChange={(e) => setFolder(e.target.value)}
-            >
-              <option value="">All folders</option>
-              {folders.map((f) => (
-                <option key={f}>{f}</option>
-              ))}
-            </select>
+              onChange={setProject}
+              filter
+            />
             <button aria-pressed={shared} onClick={() => setShared(!shared)}>
               <Share2 size={15} />
               Shared
@@ -508,6 +492,7 @@ export function Artifacts() {
               <button
                 key={item.id}
                 className="artifact-card"
+                style={projectStyle(projectOf(item))}
                 onClick={() => select(item.id)}
               >
                 <div className="artifact-card-preview">
@@ -522,11 +507,7 @@ export function Artifacts() {
                 </div>
                 <div className="artifact-card-body">
                   <strong>{item.title}</strong>
-                  <span>
-                    {[item.project || "Personal", item.folder]
-                      .filter(Boolean)
-                      .join(" / ")}
-                  </span>
+                  <ProjectBadge project={projectOf(item)} />
                   <div>
                     <small>
                       Updated{" "}
@@ -574,6 +555,8 @@ export function Artifacts() {
       {diagram !== undefined && (
         <Suspense fallback={<p role="status">Loading drawing tools…</p>}>
           <ExcalidrawEditor
+            projects={projects}
+            initialProject={project === "__all" ? "" : project}
             item={diagram}
             close={() => setDiagram(undefined)}
             save={async (bundle) => {
@@ -617,6 +600,8 @@ export function Artifacts() {
       )}
       {upload && (
         <SaveDialog
+          projects={projects}
+          initialProject={project === "__all" ? "" : project}
           close={() => setUpload(false)}
           save={async (payload) => {
             const next = await action<ArtifactDetail>("", payload);
@@ -628,6 +613,7 @@ export function Artifacts() {
       )}
       {editing && detail && (
         <MetadataDialog
+          projects={projects}
           item={detail}
           close={() => setEditing(false)}
           save={async (values) => {
@@ -641,6 +627,11 @@ export function Artifacts() {
           }}
         />
       )}
+      {original && (
+        <Suspense fallback={<Notice>Loading conversation viewer…</Notice>}>
+          <OriginalConversation id={original} close={() => setOriginal(null)} />
+        </Suspense>
+      )}
       {improving && detail && (
         <ImproveDialog
           item={detail}
@@ -653,18 +644,21 @@ export function Artifacts() {
 }
 
 function SaveDialog({
+  projects,
+  initialProject,
   close,
   save,
 }: {
   close: () => void;
   save: (payload: unknown) => Promise<void>;
+  projects: ArtifactProject[];
+  initialProject: string;
 }) {
   const [files, setFiles] = useState<globalThis.File[]>([]),
     [source, setSource] = useState<globalThis.File[]>([]);
   const [entrypoint, setEntrypoint] = useState("");
   const [title, setTitle] = useState(""),
-    [project, setProject] = useState(""),
-    [folder, setFolder] = useState("");
+    [project, setProject] = useState(initialProject);
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   return (
@@ -695,7 +689,6 @@ function SaveDialog({
               await save({
                 title,
                 project,
-                folder,
                 ...(await renderDiagram(JSON.parse(await files[0]!.text()))),
               });
               return;
@@ -718,7 +711,7 @@ function SaveDialog({
                 base64: await encode(f.file),
               })),
             );
-            await save({ title, project, folder, entrypoint, files: encoded });
+            await save({ title, project, entrypoint, files: encoded });
           } catch (cause) {
             setError(cause instanceof Error ? cause.message : "Upload failed.");
           } finally {
@@ -770,24 +763,14 @@ function SaveDialog({
             onChange={(e) => setTitle(e.target.value)}
           />
         </label>
-        <label>
-          Project
-          <input
-            maxLength={200}
-            placeholder="Personal"
+        <div className="artifact-project-field">
+          <span>Project</span>
+          <ProjectPicker
+            projects={projects}
             value={project}
-            onChange={(e) => setProject(e.target.value)}
+            onChange={setProject}
           />
-        </label>
-        <label>
-          Folder
-          <input
-            maxLength={200}
-            placeholder="Optional"
-            value={folder}
-            onChange={(e) => setFolder(e.target.value)}
-          />
-        </label>
+        </div>
         <label>
           Editable source <small>Optional · stays private when sharing</small>
           <input
@@ -806,18 +789,19 @@ function SaveDialog({
 }
 
 function MetadataDialog({
+  projects,
   item,
   close,
   save,
 }: {
   item: Artifact;
+  projects: ArtifactProject[];
   close: () => void;
   save: (values: unknown) => Promise<void>;
 }) {
   const [values, setValues] = useState({
     title: item.title,
     project: item.project,
-    folder: item.folder,
   });
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -837,7 +821,7 @@ function MetadataDialog({
           }
         }}
       >
-        {(["title", "project", "folder"] as const).map((key) => (
+        {(["title"] as const).map((key) => (
           <label key={key}>
             {key[0]!.toUpperCase() + key.slice(1)}
             <input
@@ -848,6 +832,14 @@ function MetadataDialog({
             />
           </label>
         ))}
+        <div className="artifact-project-field">
+          <span>Project</span>
+          <ProjectPicker
+            projects={projects}
+            value={values.project}
+            onChange={(project) => setValues({ ...values, project })}
+          />
+        </div>
         {error && <Notice>{error}</Notice>}
         <button disabled={busy}>Save details</button>
       </form>

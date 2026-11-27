@@ -3,6 +3,7 @@
 import argparse
 import base64
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -10,6 +11,7 @@ import shutil
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sm_manager.artifacts import ArtifactError, Library, MAX_BYTES, MAX_FILES, read_settings, safe_path
+from sm_manager.artifact_context import conversation_id
 
 
 def render_diagram(path, settings):
@@ -57,18 +59,11 @@ def collect(folder):
     return files
 
 
-def project_name():
-    try:
-        common = subprocess.check_output(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], stderr=subprocess.DEVNULL, text=True, timeout=3).strip()
-        return Path(common).parent.name
-    except (OSError, subprocess.SubprocessError):
-        return ""
-
-
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path)
     commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("projects", help="List the same project IDs, names and appearance as Agents")
     find = commands.add_parser("list", help="Find artifacts across all projects")
     find.add_argument("query", nargs="?", default="")
     get = commands.add_parser("get", help="Read metadata and revision history")
@@ -79,14 +74,16 @@ def main(argv=None):
     create.add_argument("file", type=Path)
     create.add_argument("--title", required=True)
     create.add_argument("--project")
-    create.add_argument("--folder", default="")
+    create.add_argument("--folder", help=argparse.SUPPRESS)  # Older skill copies: accepted but no longer used.
+    create.add_argument("--conversation", default=os.environ.get("CODEX_THREAD_ID", ""), help="Creating conversation UUID (defaults to the current agent thread)")
     create.add_argument("--bundle", type=Path, help="Explicit output directory containing the entrypoint and assets")
     create.add_argument("--source", type=Path, action="append", default=[], help="Editable source kept private when sharing")
     diagram = commands.add_parser("diagram", help="Create an editable diagram from native .excalidraw or compact JSON; render SVG/PNG locally")
     diagram.add_argument("file", type=Path)
     diagram.add_argument("--title", required=True)
     diagram.add_argument("--project")
-    diagram.add_argument("--folder", default="")
+    diagram.add_argument("--folder", help=argparse.SUPPRESS)
+    diagram.add_argument("--conversation", default=os.environ.get("CODEX_THREAD_ID", ""), help="Creating conversation UUID (defaults to the current agent thread)")
     save = commands.add_parser("save", help="Save a checked-out directory as the next revision of the same artifact")
     save.add_argument("directory", type=Path)
     save.add_argument("--note", default="")
@@ -95,18 +92,26 @@ def main(argv=None):
     publish.add_argument("--revision", type=int, required=True)
     unpublish = commands.add_parser("unpublish", help="Revoke future access through the share link")
     unpublish.add_argument("id")
+    origin = commands.add_parser("link-origin", help="Attach a verified creating conversation to an older artifact without an origin")
+    origin.add_argument("id")
+    origin.add_argument("--conversation", required=True)
     args = parser.parse_args(argv)
     try:
         library = Library(read_settings(args.config))
-        if args.command == "list":
+        if args.command == "projects":
+            if library.projects.error:
+                raise ArtifactError(library.projects.error)
+            result = library.projects.items
+        elif args.command == "list":
             result = library.list(args.query)
         elif args.command == "get":
             result = library.get(args.id)
         elif args.command == "checkout":
             result = library.checkout(args.id)
         elif args.command == "diagram":
+            thread = conversation_id(args.conversation)
             bundle = render_diagram(args.file.expanduser(), library.settings)
-            result = library.save({**bundle, "title": args.title, "project": project_name() if args.project is None else args.project, "folder": args.folder})
+            result = library.save({**bundle, "title": args.title, "project": library.projects.infer(Path.cwd(), thread) if args.project is None else args.project, "source_chat": thread})
         elif args.command == "create":
             path = args.file.expanduser().absolute()
             if args.bundle:
@@ -127,7 +132,8 @@ def main(argv=None):
                 if total > MAX_BYTES:
                     raise ArtifactError("An artifact revision can contain up to 32 MiB.")
                 files.append(file_entry(source, "source/" + source.name, "source"))
-            result = library.save({"title": args.title, "project": project_name() if args.project is None else args.project, "folder": args.folder, "entrypoint": entrypoint, "files": files})
+            thread = conversation_id(args.conversation)
+            result = library.save({"title": args.title, "project": library.projects.infer(Path.cwd(), thread) if args.project is None else args.project, "source_chat": thread, "entrypoint": entrypoint, "files": files})
         elif args.command == "save":
             directory = args.directory.expanduser().resolve()
             metadata = json.loads((directory / ".artifact.json").read_text())
@@ -157,6 +163,8 @@ def main(argv=None):
             (directory / ".artifact.json").write_text(json.dumps(metadata, indent=2))
         elif args.command == "publish":
             result = library.publish(args.id, args.revision)
+        elif args.command == "link-origin":
+            result = library.link_origin(args.id, args.conversation)
         else:
             result = library.unpublish(args.id)
         print(json.dumps(result, indent=2))

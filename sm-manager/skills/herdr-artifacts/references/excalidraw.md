@@ -20,7 +20,7 @@ format: labels become bound text, and arrow endpoints can reference shape IDs.
 ```
 
 ```sh
-~/.local/bin/herdr-artifacts diagram /path/to/scene.json --title 'Data flow' --folder Diagrams
+~/.local/bin/herdr-artifacts diagram /path/to/scene.json --title 'Data flow'
 ```
 
 The returned artifact has a private `source/diagram.excalidraw` original,
