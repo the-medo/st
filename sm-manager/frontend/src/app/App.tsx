@@ -27,6 +27,9 @@ const GitHub = lazy(() =>
 const Storage = lazy(() =>
   import("../features/Catalogs").then((m) => ({ default: m.Storage })),
 );
+const Artifacts = lazy(() =>
+  import("../features/artifacts/Artifacts").then((m) => ({ default: m.Artifacts })),
+);
 const Zed = lazy(() =>
   import("../features/Catalogs").then((m) => ({ default: m.Zed })),
 );
@@ -143,6 +146,7 @@ export function App() {
               />
               {[
                 ["overview", <Overview />],
+                ["artifacts", <Artifacts />],
                 ["projects", <Projects />],
                 ["containers", <Containers />],
                 ["github", <GitHub />],

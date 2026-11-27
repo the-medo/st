@@ -19,7 +19,7 @@ from .dbs import read_db_catalog
 from .history import RETENTION_HOURS
 from .github import GitHubDashboard
 from .home import service_cards, ui_config
-from . import web, assistant
+from . import web, assistant, artifact_http
 from .zed import read_catalog
 from .night_mode import request as night_request
 from .dave import DaveBridge, DaveUnavailable, MAX_BODY, MAX_RESPONSE, PAGES, PREFIX, upstream_path
@@ -225,6 +225,8 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
         def do_POST(self):
             if error := self.access_error():
                 return self.respond(403, {"error": error})
+            if artifact_http.request(self, config, token):
+                return
             if urlsplit(self.path).path == "/api/assistant":
                 if not secrets.compare_digest(self.headers.get("X-SM-Token", "").encode(), token.encode()):
                     return self.respond(403, {"error": "Refresh the assistant page before changing settings."})
@@ -263,6 +265,8 @@ def handler_for(collector, config, air_quality=None, night_control=night_request
         def do_GET(self):
             if error := self.access_error():
                 return self.respond(403, {"error": error})
+            if artifact_http.request(self, config, token):
+                return
             url = urlsplit(self.path)
             if config.get("frontend") == "react" and not url.path.startswith("/api/"):
                 shell_path = url.path

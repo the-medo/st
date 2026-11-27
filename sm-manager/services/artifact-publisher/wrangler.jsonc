@@ -1,0 +1,7 @@
+{
+  "name": "herdr-artifacts",
+  "main": "worker.ts",
+  "compatibility_date": "2026-11-27",
+  "workers_dev": false,
+  "r2_buckets": [{ "binding": "ARTIFACTS", "bucket_name": "artifacts" }]
+}

@@ -14,6 +14,7 @@ import {
   ChevronRight,
   ExternalLink,
   FolderGit2,
+  Files,
   GitPullRequest,
   HardDrive,
   House,
@@ -36,6 +37,7 @@ import { isWorkmode, withWorkmode } from "../lib/workmode";
 import type { UiConfig } from "../lib/types";
 
 export const navigation = [
+  ["artifacts", "Artifacts", "artifacts", "F"],
   ["overview", "Overview", "overview", "O"],
   ["projects", "Projects", "projects", "P"],
   ["containers", "Containers", "containers", "N"],
@@ -45,6 +47,7 @@ export const navigation = [
   ["dbs", "DBs", "/db.svg", "D"],
 ] as const;
 const icons = {
+  artifacts: Files,
   overview: LayoutDashboard,
   projects: FolderGit2,
   containers: PanelsTopLeft,

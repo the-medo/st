@@ -32,7 +32,7 @@ const blocked =
 // Cross-site links may open the app shell; APIs, assets and embedded documents
 // still require the usual origin checks. Keep these routes aligned with web.py.
 const shellPath =
-  /^\/(?:overview|projects|containers|github|storage|zed|dbs|air-quality|faceplate|assistant|agents(?:\/(?:chat|session)\/.*)?|planner\/(?:tasks|calendar|contacts|notes|journals))?$/;
+  /^\/(?:overview|projects|containers|github|storage|artifacts|zed|dbs|air-quality|faceplate|assistant|agents(?:\/(?:chat|session)\/.*)?|planner\/(?:tasks|calendar|contacts|notes|journals))?$/;
 const closeCode = (code: number) =>
   code === 1000 || code === 1001 || (code >= 3000 && code <= 4999)
     ? code
