@@ -23,6 +23,7 @@ export interface HostShortcutPane {
 }
 
 export interface HostShortcuts {
+  targets?: (open: ((machineId: string, paneId: string, view: 'chat' | 'terminal') => void) | null) => void;
   selection: (selection: HostShortcutSelection | null) => void;
   projects: (select: ((id: string) => void) | null) => void;
   catalog: (catalog: MedoCatalog, open: (threadId: string, saved: boolean) => void, unavailable?: boolean) => void;

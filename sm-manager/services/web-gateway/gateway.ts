@@ -1,5 +1,7 @@
 import type { ServerWebSocket } from "bun";
 import { ownerAuth, type OwnerAuthConfig } from "./owner-auth";
+import { RecentHistory } from "./recent-history";
+import { parseRecentTarget } from "../../packages/recent-conversations";
 export type GatewayConfig = {
   port: number;
   publicOrigin: string;
@@ -8,6 +10,7 @@ export type GatewayConfig = {
   ownerLogin?: string;
   ownerAuth?: OwnerAuthConfig;
   ovisToken?: string;
+  recentHistoryPath?: string;
 };
 type Bridge = {
   upstream: WebSocket;
@@ -52,6 +55,7 @@ export function createGateway(config: GatewayConfig) {
   const publicHosts = new Map(
     [publicUrl, ...(auth ? [auth.origin] : [])].map((url) => [url.host, url]),
   );
+  const recentHistory = new RecentHistory(config.recentHistoryPath);
   const server = Bun.serve<Bridge>({
     hostname: "127.0.0.1",
     port: config.port,
@@ -116,6 +120,7 @@ export function createGateway(config: GatewayConfig) {
           { status: "ok" },
           { headers: { "cache-control": "no-store" } },
         );
+      const recentRoute = url.pathname === "/api/recent-conversations";
       const ovisRoute =
         url.pathname === "/agents/ws" ||
         url.pathname.startsWith("/agents/api/") ||
@@ -123,7 +128,7 @@ export function createGateway(config: GatewayConfig) {
         url.pathname.startsWith("/agents/media/") ||
         url.pathname.startsWith("/agents/page-media/");
       if (
-        ovisRoute &&
+        (ovisRoute || recentRoute) &&
         !auth &&
         host === publicUrl.host &&
         config.ownerLogin &&
@@ -131,6 +136,37 @@ export function createGateway(config: GatewayConfig) {
           config.ownerLogin.toLowerCase()
       )
         return new Response("Agents owner access required", { status: 403 });
+      if (recentRoute) {
+        const json = (body: unknown, status = 200) => Response.json(body, {
+          status, headers: { "cache-control": "no-store" },
+        });
+        if (request.method === "GET") return json({ items: recentHistory.list() });
+        if (request.method !== "POST") return json({ error: "Use GET or POST" }, 405);
+        if (request.headers.get("content-type") !== "application/json")
+          return json({ error: "Expected JSON" }, 400);
+        // Bound even chunked requests before parsing or touching persistent state.
+        const reader = request.body?.getReader();
+        if (!reader) return json({ error: "Expected a target" }, 400);
+        const chunks: Uint8Array[] = [];
+        let size = 0;
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          size += value.length;
+          if (size > 32 * 1024) {
+            void reader.cancel();
+            return json({ error: "Target too large" }, 413);
+          }
+          chunks.push(value);
+        }
+        let target;
+        try {
+          target = parseRecentTarget(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+        } catch {
+          return json({ error: "Invalid recent conversation target" }, 400);
+        }
+        return json({ items: recentHistory.visit(target) });
+      }
       const target = new URL(ovisRoute ? ovis : monitor);
       target.pathname = ovisRoute ? url.pathname.slice(7) : url.pathname;
       target.search = url.search;
@@ -353,5 +389,10 @@ export function createGateway(config: GatewayConfig) {
       sendPings: true,
     },
   });
+  const stop = server.stop.bind(server);
+  server.stop = (async (...args: Parameters<typeof stop>) => {
+    await stop(...args);
+    recentHistory.close();
+  }) as typeof server.stop;
   return server;
 }

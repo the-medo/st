@@ -9,6 +9,8 @@ import { verifyAgentActivity } from "./agent-activity-browser";
 import { completionDemoFixture } from "./completion-demo-fixture";
 import { verifyAgentsShortcuts } from "./agents-shortcuts-browser";
 import { armShortcuts } from "./shortcuts-browser";
+import { createGateway } from "../services/web-gateway/gateway";
+import { verifySharedRecents } from "./shared-recents-browser";
 import panes from "../integrations/ovis/app/site/demo/fixtures/panes.json";
 ui.ovis = true;
 const fixture = Bun.spawn(["python3", "tests/serve_v2_fixture.py"], {
@@ -37,6 +39,8 @@ const server = {
     fixture.kill();
   },
 };
+const historyGateway = createGateway({ port: 0, publicOrigin: "https://fixture.test", monitorOrigin: `http://127.0.0.1:${port}`, ovisOrigin: `http://127.0.0.1:${port}` });
+const historyUrl = `http://127.0.0.1:${historyGateway.port}/api/recent-conversations`;
 const demo = await Bun.build({
   entrypoints: ["integrations/ovis/app/site/demo/transport.ts"],
   target: "browser",
@@ -102,6 +106,10 @@ try {
       : route.abort(),
   );
   const base = `http://127.0.0.1:${server.port}`;
+  await page.route("**/api/recent-conversations", async (route) => {
+    const response = await fetch(historyUrl, { method: route.request().method(), headers: { "content-type": "application/json" }, body: route.request().postData() ?? undefined });
+    await route.fulfill({ status: response.status, contentType: "application/json", body: await response.text() });
+  });
   await page.goto(base);
   await page.getByRole("heading", { name: "Your services" }).waitFor();
   await verifyAgentActivity(page);
@@ -362,6 +370,7 @@ try {
   await page.getByRole("button", { name: "Chat", exact: true }).click();
   await page.locator(".composer-text:visible").waitFor();
   await verifyAgentsShortcuts(page);
+  await verifySharedRecents(browser, base, setup + resourcesFixture);
   await page.evaluate(() => Reflect.set(window, "__stSavedFixture", true));
   await page.getByRole("button", { name: "Refresh projects" }).click();
   const ended = page.getByRole("button", {
@@ -561,6 +570,7 @@ try {
   }
   throw error;
 } finally {
+  historyGateway.stop(true);
   await browser.close();
   server.stop(true);
 }

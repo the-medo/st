@@ -936,6 +936,13 @@ export function App({ hostShortcuts }: { hostShortcuts?: HostShortcuts } = {}) {
   const tabRoom = inMode && !inboxWide && !inbox.shown && selectedPane !== null && !chatShown && !tabRowHidden(cramped, workspaceTabCount, tabsInHeader);
 
   useEffect(() => {
+    hostShortcuts?.targets?.((machineId, paneId, targetView) => {
+      selectTargetRef.current(machineId, paneId, targetView);
+      setDrawerOpen(false);
+    });
+    return () => hostShortcuts?.targets?.(null);
+  }, [hostShortcuts]);
+  useEffect(() => {
     hostShortcuts?.panes(machines.flatMap((machine) => (machine.snapshot?.panes ?? []).map((pane) => ({
       machineId: machine.id, paneId: pane.pane_id, title: displayPaneTitle(pane),
       agent: pane.agent ?? null, status: activity.status(machine.id, pane) ?? pane.agent_status, ended: !!pane.restore_error,

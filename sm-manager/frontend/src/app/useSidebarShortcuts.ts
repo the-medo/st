@@ -10,8 +10,10 @@ import {
   agentsSelection,
   recentConversations,
   recentDetails,
+  refreshRecentConversations,
   type RecentConversation,
 } from "../features/ovis/shortcuts";
+import { sameRecent } from "../../../packages/recent-conversations";
 import {
   agentsBindings,
   mainBindings,
@@ -24,7 +26,7 @@ import "../components/shortcut-keycaps.css";
 export type ShortcutStep = 0 | 1 | 2;
 export const CTRL_TAP_WINDOW = 700;
 export const SHORTCUT_WINDOW = 8000;
-export type RecentPicker = { items: RecentConversation[]; index: number };
+export type RecentPicker = { items: RecentConversation[]; index: number; loading?: boolean; error?: boolean; confirm?: boolean };
 type ShortcutState = {
   step: ShortcutStep;
   scope: ShortcutScope;
@@ -65,6 +67,7 @@ export function useSidebarShortcuts(
     let animationFrame = 0;
     let marked: HTMLElement[] = [];
     let selected: HTMLElement | null = null;
+    let recentRequest = 0;
     const publish = (next: ShortcutState) => {
       current = next;
       setState(next);
@@ -152,6 +155,7 @@ export function useSidebarShortcuts(
         animationFrame = requestAnimationFrame(refresh);
     };
     const reset = () => {
+      recentRequest++;
       clearTimeout(timer);
       ctrlDown = null;
       shiftAlone = false;
@@ -203,11 +207,20 @@ export function useSidebarShortcuts(
     };
     const showRecent = () => {
       clearTimeout(timer);
-      const items = recentConversations().slice();
-      const currentId = agentsSelection()?.id;
-      const index = items.length > 1 && items[0]?.id === currentId ? 1 : 0;
-      publish({ step: 2, scope: "recent", recent: { items, index } });
+      const request = ++recentRequest;
+      publish({ step: 2, scope: "recent", recent: { items: [], index: 0, loading: true } });
       refresh();
+      void refreshRecentConversations().then((ok) => {
+        if (request !== recentRequest || current.scope !== "recent") return;
+        const items = recentConversations().slice();
+        const selection = agentsSelection();
+        const first = items.length > 1 && selection && sameRecent(items[0]!, selection) ? 1 : 0;
+        const offset = current.recent?.index ?? 0;
+        const confirm = current.recent?.confirm;
+        const index = items.length ? ((first + offset) % items.length + items.length) % items.length : 0;
+        publish({ step: 2, scope: "recent", recent: { items, index, error: !ok } });
+        if (confirm) openRecent(index);
+      });
     };
     const take = (event: KeyboardEvent) => {
       event.preventDefault();
@@ -281,6 +294,10 @@ export function useSidebarShortcuts(
         if (["E", "ARROWDOWN", "ARROWUP", "ENTER"].includes(key)) {
           take(event);
           if (key === "ENTER") {
+            if (current.recent!.loading) {
+              publish({ ...current, recent: { ...current.recent!, confirm: true } });
+              return;
+            }
             openRecent(current.recent!.index);
             return;
           }
@@ -290,8 +307,9 @@ export function useSidebarShortcuts(
           publish({
             ...current,
             recent: {
+              ...current.recent!,
               items,
-              index: items.length
+              index: current.recent!.loading ? index + direction : items.length
                 ? (index + direction + items.length) % items.length
                 : 0,
             },

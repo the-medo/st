@@ -63,11 +63,13 @@ Opening Agents or Planner with a main-sidebar shortcut keeps the mode ready:
   MCPs, **O** more options, and **Q** new conversation. Projects still use **1–9**;
   conversation letters skip **E/Q** and the reserved toolbar keys **T/Y/F/S/O** in this mode.
   A collapsed Agents sidebar opens so its keys are visible.
-- **Recent items:** **E** from any Agents shortcut scope opens this tab's recent
+- **Recent items:** **E** from any Agents shortcut scope opens your shared recent
   conversations and terminals, with the previous visit highlighted. **E** or
   **Down** advances; **Shift+E** or **Up** goes back. **Enter** opens the selection;
-  **Escape** cancels without navigating. Visits remain in memory for this page
-  session, with chat and terminal views tracked separately. Rows show conversation
+  **Escape** cancels without navigating. The last 30 visits are saved on the server
+  across windows, browsers, devices and restarts, with chat and terminal views
+  tracked separately. The picker refreshes the shared order each time it opens;
+  if syncing fails, it labels the last known local list. Rows show conversation
   names, project names, live status, and agent icons. Status/name updates keep the
   order and highlighted selection stable.
 - **Saved histories:** ended and archived conversations open in the main page,
@@ -802,6 +804,9 @@ The environment file supplies the existing Herdr runtime, binary paths and priva
 sidebar catalog. It stays outside Git. The preview overrides ports, cookie names,
 base path and Ovis state; it owns only its gateway, monitor and Ovis web services.
 The existing Herdr terminals and managed Codex daemon remain external services.
+Recent visits use the owner-protected `GET`/`POST /api/recent-conversations` API.
+The gateway stores them in `recent-conversations.sqlite` beside its private config
+(override with `recentHistoryPath`), so each preview has its own history.
 Use `start` to restore the preview's owned Serve mapping after `stop`.
 An unsuccessful initial Ovis activation restores the previous console service.
 
